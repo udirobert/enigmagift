@@ -1,19 +1,20 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import { gsap } from 'gsap';
-import { MOCK_PHOTOS, NOTICES, mockUrl } from '../data';
+import { SHOWCASE } from '../lib/showcase';
 import { prefersReducedMotion, seeded } from '../lib/motion';
 
 /* ------------------------------------------------------------------ */
-/*  The table — a living backdrop for the Door scene. Seven photographs */
-/*  scattered at the edges like prints left on a table in low light,   */
-/*  threaded together in year order, with one card the camera keeps    */
-/*  leaning into. Hovering or tapping a card surfaces what "the agent  */
-/*  noticed" in it; dropping files anywhere on the scene scatters      */
+/*  The table — a living backdrop for the Door scene. The photographs  */
+/*  of the one place, scattered at the edges like prints left on a     */
+/*  table in low light, threaded together, with one card the camera    */
+/*  keeps leaning into. Hovering or tapping a card surfaces what "the  */
+/*  agent noticed" in it; dropping files anywhere on the scene scatters */
 /*  temporary polaroids across the table via scatter().                */
 /* ------------------------------------------------------------------ */
 
 interface CardCfg {
-  photo: (typeof MOCK_PHOTOS)[number];
+  url: string;
+  notice: string;
   x: number; // % of backdrop width
   y: number; // % of backdrop height
   w: string;
@@ -25,18 +26,16 @@ interface CardCfg {
   hero?: boolean; // participates in push-ins
 }
 
-// First four are the thread anchors, in year order: 2019 → 2021 → 2023 → 2024.
+// The five shots of the one place, in trail order.
 const CARDS: CardCfg[] = [
-  { photo: MOCK_PHOTOS[0], x: 2.5, y: 6,  w: 'clamp(7.5rem, 15vw, 12.5rem)', rot: -4.2, depth: 0.55, z: 3, blur: 0.5 },
-  { photo: MOCK_PHOTOS[1], x: 80,  y: 9,  w: 'clamp(8rem, 16vw, 13.5rem)',  rot: 3.1,  depth: 1.0,  z: 6, hero: true },
-  { photo: MOCK_PHOTOS[2], x: 75,  y: 56, w: 'clamp(7.5rem, 14vw, 12rem)',   rot: -2.6, depth: 0.85, z: 5, hero: true, blur: 0.4 },
-  { photo: MOCK_PHOTOS[3], x: 4,   y: 60, w: 'clamp(8.5rem, 17vw, 14rem)',  rot: 4.6,  depth: 0.95, z: 6, hero: true },
-  { photo: MOCK_PHOTOS[4], x: 84,  y: 80, w: 'clamp(7rem, 12vw, 10rem)',    rot: -5,   depth: 0.4,  z: 2, blur: 1.6, extra: true },
-  { photo: MOCK_PHOTOS[5], x: 30,  y: 4,  w: 'clamp(7rem, 12vw, 10rem)',    rot: 2.2,  depth: 0.5,  z: 3, blur: 1.2, extra: true },
-  { photo: MOCK_PHOTOS[6], x: 60,  y: 5,  w: 'clamp(7rem, 11vw, 9.5rem)',   rot: -3,   depth: 0.45, z: 2, blur: 1.8, extra: true },
+  { url: SHOWCASE.photoUrls[0], notice: `it noticed: ${SHOWCASE.notices[0]}`, x: 2.5, y: 6,  w: 'clamp(7.5rem, 15vw, 12.5rem)', rot: -4.2, depth: 0.55, z: 3, blur: 0.5 },
+  { url: SHOWCASE.photoUrls[1], notice: `it noticed: ${SHOWCASE.notices[1]}`, x: 80,  y: 9,  w: 'clamp(8rem, 16vw, 13.5rem)',  rot: 3.1,  depth: 1.0,  z: 6, hero: true },
+  { url: SHOWCASE.photoUrls[2], notice: `it noticed: ${SHOWCASE.notices[2]}`, x: 75,  y: 56, w: 'clamp(7.5rem, 14vw, 12rem)',   rot: -2.6, depth: 0.85, z: 5, hero: true, blur: 0.4 },
+  { url: SHOWCASE.photoUrls[3], notice: `it noticed: ${SHOWCASE.notices[3]}`, x: 4,   y: 60, w: 'clamp(8.5rem, 17vw, 14rem)',  rot: 4.6,  depth: 0.95, z: 6, hero: true },
+  { url: SHOWCASE.photoUrls[4], notice: `it noticed: ${SHOWCASE.notices[4]}`, x: 84,  y: 80, w: 'clamp(7rem, 12vw, 10rem)',    rot: -5,   depth: 0.4,  z: 2, blur: 1.6, extra: true },
 ];
 
-const THREAD_ORDER = [0, 1, 2, 3]; // card indices, already in year order
+const THREAD_ORDER = [0, 1, 2, 3, 4]; // card indices, already in trail order
 
 export interface TableBackdropHandle {
   /** Scatter 3–5 temporary polaroids of the given object URLs onto the table. */
@@ -379,7 +378,7 @@ export const TableBackdrop = forwardRef<TableBackdropHandle, TableBackdropProps>
         </svg>
         {CARDS.map((c, i) => (
           <div
-            key={c.photo.id}
+            key={i}
             className={`tb-card${c.extra ? ' is-extra' : ''}`}
             ref={(el) => {
               cardRefs.current[i] = el;
@@ -410,7 +409,7 @@ export const TableBackdrop = forwardRef<TableBackdropHandle, TableBackdropProps>
                     style={c.blur ? { filter: `blur(${c.blur}px)` } : undefined}
                   >
                     <img
-                      src={mockUrl(c.photo, 400, 500)}
+                      src={c.url}
                       alt=""
                       loading="lazy"
                       decoding="async"
@@ -426,7 +425,7 @@ export const TableBackdrop = forwardRef<TableBackdropHandle, TableBackdropProps>
               className={`tb-notice${c.y > 62 ? ' is-above' : ''}`}
               aria-hidden="true"
             >
-              {NOTICES[c.photo.id] ?? ''}
+              {c.notice}
             </span>
           </div>
         ))}

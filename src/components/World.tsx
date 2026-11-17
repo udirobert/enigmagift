@@ -44,16 +44,19 @@ export function World({ src, fallback, className = '', onReady }: WorldProps) {
     renderer.setClearColor(0x000000, 0);
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.05;
+    renderer.toneMappingExposure = 1.35;
     mount.appendChild(renderer.domElement);
 
-    // warm key light + cool rim, like late-afternoon on the place
-    const key = new THREE.DirectionalLight(0xffe0b0, 2.4);
+    // The TRELLIS model is a real photograph, so light it like late
+    // afternoon: a warm key from the sun's side, a cool fill off the water,
+    // and enough ambient that the brick never reads black.
+    const key = new THREE.DirectionalLight(0xffe0b0, 3.0);
     key.position.set(2.5, 3, 2);
-    const rim = new THREE.DirectionalLight(0x88aaff, 0.9);
-    rim.position.set(-3, 1.5, -2);
-    const amb = new THREE.AmbientLight(0xfff2e0, 0.75);
-    scene.add(key, rim, amb);
+    const fill = new THREE.DirectionalLight(0xbcd2ff, 1.1);
+    fill.position.set(-3, 0.5, 1);
+    const hemi = new THREE.HemisphereLight(0xdfeaff, 0x2a2118, 0.9);
+    const amb = new THREE.AmbientLight(0xfff2e0, 0.95);
+    scene.add(key, fill, hemi, amb);
 
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;

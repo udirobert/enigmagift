@@ -586,6 +586,14 @@ img { display: block; max-width: 100%; }
   background: var(--ink-2);
   box-shadow: 0 30px 80px rgba(0, 0, 0, 0.5);
 }
+/* the three.js mount — must fill .wt-world or the renderer sizes to 0×0 */
+.wt-world .world {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
 .wt-world canvas {
   position: absolute;
   inset: 0;
