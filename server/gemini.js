@@ -1,32 +1,61 @@
-// Gemini vision calls: per-image observation + cross-image aggregate.
-// Key discovery mirrors /tmp/enigmabox-spike/vision_spike.py.
+// Vision calls: per-image observation + cross-image aggregate.
+// Primary provider: SandBase (OpenAI-compatible, image_url vision, Bearer auth).
+// Fallback: native Google Gemini (generativelanguage.googleapis.com) when a
+// working key is available. getCandidates tests each key+model pair with a real
+// call, so a dead quota / unknown model never poisons the others — failover
+// walks the ordered list, last-success first.
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-// Ordered preference; getClient picks the first key+model pair that answers.
-// 2.5-flash has a small free-tier daily quota — newer flash models are the fallback.
-const MODELS = [
-  'gemini-2.5-flash',
-  'gemini-3.5-flash-lite',
-  'gemini-3.1-flash-lite',
-  'gemini-2.5-flash-lite',
-  'gemini-3.5-flash',
+const __dirname = dirname(fileURLToPath(import.meta.url));
+
+const SANDBASE_BASE = 'https://api.sandbase.ai/v1';
+const GEMINI_BASE = 'https://generativelanguage.googleapis.com/v1beta';
+
+// Ordered preference per provider. Each is vision-capable; the candidate test
+// below confirms it with a tiny image so a non-vision model gets skipped.
+const SANDBASE_MODELS = [
+  'google/gemini-3.5-flash',
+  'google/gemini-3.6-flash',
+  'google/gemini-3.5-flash-lite',
+  'google/gemini-3.1-flash-lite',
+  'google/gemini-2.5-flash',
+  'google/gemini-2.5-flash-lite',
 ];
+const GEMINI_MODELS = [
+  'gemini-2.5-flash',
+  'gemini-2.5-flash-lite',
+];
+
 const DEV_DIR = '/Users/udingethe/Dev';
 
-let cachedList = null; // [{key, model}] — working pairs, best first
-let lastGood = 0;         // index into cachedList that last succeeded
+// 1x1 transparent PNG — cheap proof that a model accepts image input.
+const TEST_PNG_B64 =
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+
+let cachedList = null; // [{provider, key, model}] — working pairs, best first
+let lastGood = 0;       // index into cachedList that last succeeded
 
 function* envFiles() {
+  // Local server env (server/sandbase.env, server/.env, ...)
   try {
-    for (const d of readdirSync(DEV_DIR)) {
+    for (const f of readdirSafe(join(__dirname))) {
+      if (f.endsWith('.env') || f === '.env' || f.startsWith('.env.')) {
+        const p = join(__dirname, f);
+        if (existsSync(p)) yield p;
+      }
+    }
+  } catch {}
+  // Sibling dev-project env files (unchanged from before).
+  try {
+    for (const d of readdirSafe(DEV_DIR)) {
       for (const f of ['.env', '.env.local']) {
         const p = join(DEV_DIR, d, f);
         if (existsSync(p)) yield p;
       }
-      // also .env.* variants one level deep
       try {
-        for (const f of readdirSync(join(DEV_DIR, d))) {
+        for (const f of readdirSafe(join(DEV_DIR, d))) {
           if (f.startsWith('.env') && f !== '.env' && f !== '.env.local') {
             const p = join(DEV_DIR, d, f);
             if (existsSync(p)) yield p;
@@ -37,80 +66,118 @@ function* envFiles() {
   } catch {}
 }
 
+function readdirSafe(p) {
+  try { return readdirSync(p); } catch { return []; }
+}
+
+// Collect keys per provider. SandBase keys are never sent to the Gemini host
+// and vice-versa, so a wrong host for a key is never attempted.
 function candidateKeys() {
-  const keys = [];
-  if (process.env.GEMINI_API_KEY) keys.push(process.env.GEMINI_API_KEY);
-  if (process.env.GOOGLE_API_KEY) keys.push(process.env.GOOGLE_API_KEY);
-  if (process.env.GOOGLE_GENERATIVE_AI_API_KEY) keys.push(process.env.GOOGLE_GENERATIVE_AI_API_KEY);
-  const seen = new Set(keys);
+  const sand = [];
+  const gem = [];
+  if (process.env.SANDBASE_API_KEY) sand.push(process.env.SANDBASE_API_KEY);
+  if (process.env.GEMINI_API_KEY) gem.push(process.env.GEMINI_API_KEY);
+  if (process.env.GOOGLE_API_KEY) gem.push(process.env.GOOGLE_API_KEY);
+  if (process.env.GOOGLE_GENERATIVE_AI_API_KEY) gem.push(process.env.GOOGLE_GENERATIVE_AI_API_KEY);
+
+  const seenS = new Set(sand);
+  const seenG = new Set(gem);
   for (const f of envFiles()) {
     let txt;
     try { txt = readFileSync(f, 'utf8'); } catch { continue; }
-    const re = /^(GEMINI_API_KEY|GOOGLE_API_KEY|GOOGLE_GENERATIVE_AI_API_KEY)\s*=\s*["']?([^"'\n]+)/gm;
     let m;
-    while ((m = re.exec(txt))) {
+    const reS = /^SANDBASE_API_KEY\s*=\s*["']?([^"'\n]+)/gm;
+    while ((m = reS.exec(txt))) {
+      const v = m[1].trim().replace(/["']$/, '');
+      if (v.length >= 15 && !seenS.has(v)) { seenS.add(v); sand.push(v); }
+    }
+    const reG = /^(GEMINI_API_KEY|GOOGLE_API_KEY|GOOGLE_GENERATIVE_AI_API_KEY)\s*=\s*["']?([^"'\n]+)/gm;
+    while ((m = reG.exec(txt))) {
       const v = m[2].trim().replace(/["']$/, '');
-      if (v.length >= 15 && !seen.has(v)) { seen.add(v); keys.push(v); }
+      if (v.length >= 15 && !seenG.has(v)) { seenG.add(v); gem.push(v); }
     }
   }
-  return keys;
+  return { sand, gem };
 }
 
-async function testModel(key, model) {
+async function testSandbase(key, model) {
   try {
-    const r = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`,
-      {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ contents: [{ parts: [{ text: 'Reply with the single word: ok' }] }] }),
-        signal: AbortSignal.timeout(30000),
-      }
-    );
+    const r = await fetch(`${SANDBASE_BASE}/chat/completions`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${key}` },
+      body: JSON.stringify({
+        model,
+        messages: [{ role: 'user', content: [
+          { type: 'image_url', image_url: { url: `data:image/png;base64,${TEST_PNG_B64}` } },
+          { type: 'text', text: 'Reply with the single word: ok' },
+        ] }],
+        max_tokens: 8,
+      }),
+      signal: AbortSignal.timeout(30000),
+    });
     return r.status === 200;
   } catch { return false; }
 }
 
-// All working key+model pairs, best first. Quota is per-key-per-model, so a
-// dead pair (daily 429) doesn't poison the others — failover walks this list.
+async function testGemini(key, model) {
+  try {
+    const r = await fetch(`${GEMINI_BASE}/models/${model}:generateContent?key=${key}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ contents: [{ parts: [{ text: 'Reply with the single word: ok' }] }] }),
+      signal: AbortSignal.timeout(30000),
+    });
+    return r.status === 200;
+  } catch { return false; }
+}
+
+// All working key+model pairs, best first. SandBase is tried before native
+// Gemini so the paid key is used first; native free-tier keys remain as an
+// automatic fallback if SandBase is unavailable.
 export async function getCandidates() {
   if (cachedList) return cachedList;
+  const { sand, gem } = candidateKeys();
   const out = [];
-  for (const key of candidateKeys()) {
-    for (const model of MODELS) {
-      if (await testModel(key, model)) out.push({ key, model });
+  for (const key of sand) {
+    for (const model of SANDBASE_MODELS) {
+      if (await testSandbase(key, model)) out.push({ provider: 'sandbase', key, model });
+    }
+  }
+  for (const key of gem) {
+    for (const model of GEMINI_MODELS) {
+      if (await testGemini(key, model)) out.push({ provider: 'gemini', key, model });
     }
   }
   cachedList = out;
-  if (out.length) console.log(`[gemini] ${out.length} working pair(s): ${out.map(c=>c.model+'...'+c.key.slice(-4)).join(', ')}`);
+  if (out.length) console.log(`[vision] ${out.length} working pair(s): ${out.map(c => c.provider + ':' + c.model + '...' + c.key.slice(-4)).join(', ')}`);
   return out;
 }
 
 // Kept for callers that want a single client — first working pair.
 export async function getClient() {
   const list = await getCandidates();
-  if (!list.length) throw new Error('No working Gemini API key found (set GEMINI_API_KEY)');
+  if (!list.length) throw new Error('No working vision key found (set SANDBASE_API_KEY or GEMINI_API_KEY)');
   return list[lastGood];
 }
 
 // Try candidates in order (last-success first), fail over on any error.
 async function callVision(parts, opts) {
   const list = await getCandidates();
-  if (!list.length) throw new Error('No working Gemini API key found (set GEMINI_API_KEY)');
+  if (!list.length) throw new Error('No working vision key found (set SANDBASE_API_KEY or GEMINI_API_KEY)');
   const order = [...list.slice(lastGood), ...list.slice(0, lastGood)];
   let lastErr = null;
   for (let i = 0; i < order.length; i++) {
     const c = order[i];
     try {
-      const r = await generateContent(c, parts, opts);
+      const r = c.provider === 'sandbase' ? await callSandbase(c, parts, opts) : await callGemini(c, parts, opts);
       lastGood = list.indexOf(c);
       return r;
     } catch (e) {
       lastErr = e;
-      console.warn(`[gemini] ${c.model}...${c.key.slice(-4)} failed: ${e.message?.slice(0,120)}`);
+      console.warn(`[vision] ${c.provider}:${c.model}...${c.key.slice(-4)} failed: ${e.message?.slice(0, 120)}`);
     }
   }
-  throw lastErr || new Error('All Gemini candidates failed');
+  throw lastErr || new Error('All vision candidates failed');
 }
 
 // ---------- JSON repair ----------
@@ -122,7 +189,6 @@ export function repairJson(txt) {
   if (i === -1 || j === -1 || j <= i) return null;
   const frag = t.slice(i, j + 1).replace(/,\s*([}\]])/g, '$1');
   try { return JSON.parse(frag); } catch {}
-  // last resort: try jsonrepair-style via Function? keep it strict — return null
   return null;
 }
 
@@ -135,56 +201,43 @@ function isRetryableStatus(status) {
   return status === 429 || status === 503 || status === 500;
 }
 
-async function generateContent({ key, model }, parts, { temperature = 0.2, maxOutputTokens = 4096 } = {}) {
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`;
-  const genConfig = { responseMimeType: 'application/json', temperature, maxOutputTokens };
-  const post = (body) => fetch(url, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(body),
-    signal: AbortSignal.timeout(CALL_TIMEOUT_MS),
-  });
+// Shared retry + JSON-nudge logic. `doPost(body)` returns a Response; `extract`
+// pulls the raw text out of the parsed JSON; `buildBody` maps a nudge flag to a
+// body. Returns the repaired JSON object, or throws after exhausting retries.
+async function generateWithRetry({ doPost, extract, buildBody, label }) {
   let lastErr = null;
   const maxAttempts = RETRY_BACKOFF_MS.length + 1; // 3 attempts total
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     try {
-      const r = await post({
-        contents: [{ parts }],
-        generationConfig: genConfig,
-      });
+      const r = await doPost(buildBody(false));
       if (!r.ok) {
         if (isRetryableStatus(r.status) && attempt < maxAttempts - 1) {
-          lastErr = new Error(`Gemini HTTP ${r.status}`);
+          lastErr = new Error(`${label} HTTP ${r.status}`);
           await sleep(RETRY_BACKOFF_MS[attempt]);
           continue;
         }
         const t = await r.text();
-        throw new Error(`Gemini HTTP ${r.status}: ${t.slice(0, 200)}`);
+        throw new Error(`${label} HTTP ${r.status}: ${t.slice(0, 200)}`);
       }
       const j = await r.json();
-      const txt = j?.candidates?.[0]?.content?.parts?.map((p) => p.text || '').join('') || '';
+      const txt = extract(j);
       const data = repairJson(txt);
       if (data !== null) return data;
       // malformed JSON: one nudge retry
-      const nudgeBody = {
-        contents: [{ parts: [...parts, { text: 'Your previous reply was not valid JSON. Reply again with ONLY the JSON object, no markdown fences, no commentary.' }] }],
-        generationConfig: genConfig,
-      };
-      const r2 = await post(nudgeBody);
+      const r2 = await doPost(buildBody(true));
       if (r2.ok) {
         const j2 = await r2.json();
-        const txt2 = j2?.candidates?.[0]?.content?.parts?.map((p) => p.text || '').join('') || '';
-        const data2 = repairJson(txt2);
+        const data2 = repairJson(extract(j2));
         if (data2 !== null) return data2;
-        lastErr = new Error(`Gemini returned unparseable JSON: ${txt2.slice(0, 120)}`);
-        return null; // give up on this call after nudge fails
+        lastErr = new Error(`${label} returned unparseable JSON: ${extract(j2).slice(0, 120)}`);
+        throw lastErr; // surface to caller so failover can try the next candidate
       }
       if (isRetryableStatus(r2.status) && attempt < maxAttempts - 1) {
-        lastErr = new Error(`Gemini nudge retry HTTP ${r2.status}`);
+        lastErr = new Error(`${label} nudge retry HTTP ${r2.status}`);
         await sleep(RETRY_BACKOFF_MS[attempt]);
         continue;
       }
-      lastErr = new Error(`Gemini nudge retry HTTP ${r2.status}`);
+      lastErr = new Error(`${label} nudge retry HTTP ${r2.status}`);
       return null;
     } catch (e) {
       lastErr = e;
@@ -195,7 +248,53 @@ async function generateContent({ key, model }, parts, { temperature = 0.2, maxOu
       await sleep(RETRY_BACKOFF_MS[attempt]);
     }
   }
-  throw lastErr || new Error('Gemini call failed');
+  throw lastErr || new Error(`${label} call failed`);
+}
+
+async function callSandbase({ key, model }, parts, { temperature = 0.2, maxOutputTokens = 4096 } = {}) {
+  const content = [];
+  for (const p of parts) {
+    if (p.text) content.push({ type: 'text', text: p.text });
+    else if (p.inline_data) content.push({ type: 'image_url', image_url: { url: `data:${p.inline_data.mime_type};base64,${p.inline_data.data}` } });
+  }
+  const nudge = { type: 'text', text: 'Your previous reply was not valid JSON. Reply again with ONLY the JSON object, no markdown fences, no commentary.' };
+  const buildBody = (nudged) => ({
+    model,
+    messages: [{ role: 'user', content: nudged ? [...content, nudge] : content }],
+    temperature,
+    max_tokens: maxOutputTokens,
+  });
+  return generateWithRetry({
+    label: 'Sandbase',
+    extract: (j) => j?.choices?.[0]?.message?.content || '',
+    buildBody,
+    doPost: (body) => fetch(`${SANDBASE_BASE}/chat/completions`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${key}` },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(CALL_TIMEOUT_MS),
+    }),
+  });
+}
+
+async function callGemini({ key, model }, parts, { temperature = 0.2, maxOutputTokens = 4096 } = {}) {
+  const genConfig = { responseMimeType: 'application/json', temperature, maxOutputTokens };
+  const nudge = { text: 'Your previous reply was not valid JSON. Reply again with ONLY the JSON object, no markdown fences, no commentary.' };
+  const buildBody = (nudged) => ({
+    contents: [{ parts: nudged ? [...parts, nudge] : parts }],
+    generationConfig: genConfig,
+  });
+  return generateWithRetry({
+    label: 'Gemini',
+    extract: (j) => j?.candidates?.[0]?.content?.parts?.map((p) => p.text || '').join('') || '',
+    buildBody,
+    doPost: (body) => fetch(`${GEMINI_BASE}/models/${model}:generateContent?key=${key}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(CALL_TIMEOUT_MS),
+    }),
+  });
 }
 
 // ---------- prompts (observation prompt verbatim from vision_spike.py) ----------

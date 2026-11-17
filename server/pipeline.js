@@ -378,11 +378,29 @@ async function runPipelineInner(giftId) {
   // we map back via the sorted photoIndex list.
   const photoOrder = [...byPhoto.keys()].sort((a, b) => a - b);
 
+  // cross-image aggregate: a hollow result (no throughline/hideSpots) is worse
+  // than an error, so retry a few times then fail the gift honestly.
   let cross = null;
-  try {
-    cross = await crossImage(bundleLines.join('\n'));
-  } catch (e) {
-    console.error(`[pipeline ${giftId}] cross-image call failed:`, e.message);
+  let crossErr = null;
+  const CROSS_RETRIES = 3;
+  for (let attempt = 1; attempt <= CROSS_RETRIES; attempt++) {
+    try {
+      const c = await crossImage(bundleLines.join('\n'));
+      if (c && (c.throughline || c.placeGuess || c.hideSpots?.length || c.roundMaterial)) {
+        cross = c;
+        break;
+      }
+      crossErr = new Error('cross-image returned empty/partial JSON');
+    } catch (e) {
+      crossErr = e;
+    }
+    console.warn(`[pipeline ${giftId}] cross-image attempt ${attempt}/${CROSS_RETRIES} failed: ${crossErr?.message?.slice(0, 140)}`);
+    if (attempt < CROSS_RETRIES) await new Promise((r) => setTimeout(r, 2000 * attempt));
+  }
+  if (!cross) {
+    db.prepare("UPDATE gifts SET status='error' WHERE id=?").run(giftId);
+    console.error(`[pipeline ${giftId}] cross-image call failed after ${CROSS_RETRIES} tries: ${crossErr?.message}`);
+    return;
   }
 
   // map hideSpots' basedOnObservation (bundle photo ordinal) back to real photoIndex
