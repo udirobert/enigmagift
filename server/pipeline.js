@@ -102,7 +102,66 @@ function shuffle(arr, seedRand = Math.random) {
   return a;
 }
 
-function buildRounds(observations, throughline, placeGuess) {
+// Schema-key / stub strings a weak model sometimes echoes back as "answers".
+const JUNK_OPTION = /^(correct|options?|questions?|answers?|true|false|r\d|round\s*\d)[\s:._-]*$/i;
+const cleanOpt = (s) => {
+  const t = String(s || '').trim();
+  return t.length >= 6 && !JUNK_OPTION.test(t) && !/[{}<>]/.test(t) ? t : null;
+};
+
+// Normalise roundMaterial for one round ('r2'|'r3'). Models sometimes nest the
+// quiz as {question, options, correct} instead of the flat documented shape.
+function pickRoundQuiz(rm, prefix) {
+  const flat = {
+    question: rm[`${prefix}Question`],
+    correct: rm[`${prefix}Correct`],
+    distractors: rm[`${prefix}Distractors`],
+  };
+  const nested = rm[prefix];
+  if (nested && typeof nested === 'object') {
+    flat.question = flat.question || nested.question;
+    flat.correct = flat.correct || (typeof nested.correct === 'string' ? nested.correct : nested.answer);
+    flat.distractors = flat.distractors || nested.distractors || nested.wrongAnswers;
+    if (!flat.distractors && Array.isArray(nested.options)) {
+      // options array: drop the entry matching `correct` (string or index)
+      const opts = nested.options.filter(cleanOpt);
+      const ci = typeof nested.correct === 'number' ? nested.correct
+        : opts.findIndex((o) => o.toLowerCase() === String(nested.correct || '').toLowerCase());
+      flat.distractors = ci >= 0 ? opts.filter((_, i) => i !== ci) : opts.slice(1);
+      if (!flat.correct && typeof nested.correct === 'number') flat.correct = opts[nested.correct];
+    }
+  }
+  const q = cleanOpt(flat.question);
+  const correct = cleanOpt(flat.correct);
+  const distractors = (Array.isArray(flat.distractors) ? flat.distractors : [])
+    .map(cleanOpt).filter(Boolean);
+  return { question: q, correct, distractors };
+}
+
+// Build a 4-option quiz round: correct answer + distractors (LLM-provided first,
+// then fallback fillers), deduped and shuffled. Returns null-safe shape.
+function buildOptions(correctText, llmDistractors, fallbackCorrect, fallbackDistractors, question) {
+  const correct = cleanOpt(correctText) || cleanOpt(fallbackCorrect);
+  if (!correct) return { options: [], correct: -1, question: null };
+  const seen = new Set([correct.toLowerCase()]);
+  const distractors = [];
+  for (const d of [...(llmDistractors || []), ...(fallbackDistractors || [])]) {
+    if (distractors.length >= 3) break;
+    const t = cleanOpt(d);
+    if (!t || seen.has(t.toLowerCase())) continue;
+    seen.add(t.toLowerCase());
+    distractors.push(t);
+  }
+  const options = shuffle([correct, ...distractors]);
+  return {
+    options,
+    correct: options.indexOf(correct),
+    question: cleanOpt(question),
+  };
+}
+
+function buildRounds(observations, throughline, placeGuess, roundMaterial = null) {
+  const rm = roundMaterial && typeof roundMaterial === 'object' ? roundMaterial : {};
   // flat pool of {photoIndex, obs}
   const pool = observations
     .map((o) => ({ photoIndex: o.photoIndex, obs: o.obs }))
@@ -133,39 +192,48 @@ function buildRounds(observations, throughline, placeGuess) {
     const p1 = photos[0], p2 = photos[1];
     const o1 = byConf.find((o) => o.photoIndex === p1) || pool[0];
     const o2 = byConf.find((o) => o.photoIndex === p2) || pool[1];
-    const opts = shuffle([
-      `Both photos show ${placeGuess || 'the same place'} — the thread connecting them is ${throughline || 'a shared story'}.`,
-      'The two photos are from completely different places with nothing in common.',
-      'One photo is a close-up of a person; the other is a wide landscape.',
-      'The colours in both photos are identical because they were taken in black and white.',
-    ]);
+    const r2q = pickRoundQuiz(rm, 'r2');
+    const opts = buildOptions(
+      r2q.correct,
+      r2q.distractors,
+      // clean fallback — never dumps raw throughline/placeGuess into the option
+      `Both photos were taken at ${placeGuess || 'the same place'} — they share one continuous story.`,
+      ['The two photos are from completely different places with nothing in common.',
+       'One photo is a close-up of a person; the other is a wide landscape.',
+       'The colours in both photos are identical because they were taken in black and white.'],
+      r2q.question
+    );
     rounds.push({
       kicker: 'Round 2 · The connection',
-      question: 'Two crops, two moments. What ties them together?',
-      options: opts,
+      question: opts.question || 'Two crops, two moments. What ties them together?',
+      options: opts.options,
       cropPhotoIndex: o1.photoIndex,
       crop: o1.obs.bbox,
       cropPhotoIndex2: o2.photoIndex,
       crop2: o2.obs.bbox,
-      correct: opts.indexOf(opts.find((o) => o.startsWith('Both photos show'))),
+      correct: opts.correct,
     });
   }
 
   // R3 — throughline reveal
-  if (throughline) {
-    const opts = shuffle([
-      throughline,
-      'A generic pretty place with no particular story.',
-      'A random street that happens to look nice in photos.',
-      'An advertisement or stock photo, not a real visit.',
-    ]);
+  const r3q = pickRoundQuiz(rm, 'r3');
+  const r3 = buildOptions(
+    r3q.correct,
+    r3q.distractors,
+    throughline || (placeGuess ? `The photos were all taken at ${placeGuess}.` : null),
+    ['A generic pretty place with no particular story.',
+     'A random street that happens to look nice in photos.',
+     'An advertisement or stock photo, not a real visit.'],
+    r3q.question
+  );
+  if (r3.options.length) {
     rounds.push({
       kicker: 'Round 3 · The reveal',
-      question: 'Every clue so far points to one thing. What is it?',
-      options: opts,
+      question: r3.question || 'Every clue so far points to one thing. What is it?',
+      options: r3.options,
       cropPhotoIndex: r1Correct ? r1Correct.photoIndex : 0,
       crop: r1Correct ? r1Correct.obs.bbox : [0, 0, 1, 1],
-      correct: opts.indexOf(opts.find((o) => o === throughline)),
+      correct: r3.correct,
     });
   }
 
@@ -194,8 +262,47 @@ function normalizeBboxes(data, imgPath) {
 }
 const clamp01 = (v) => Math.min(1, Math.max(0, v));
 
+// Bounded-concurrency map that preserves order and returns Promise.allSettled results.
+async function mapPool(items, concurrency, fn) {
+  const results = new Array(items.length);
+  let next = 0;
+  async function worker() {
+    while (next < items.length) {
+      const i = next++;
+      try { results[i] = { status: 'fulfilled', value: await fn(items[i], i) }; }
+      catch (reason) { results[i] = { status: 'rejected', reason }; }
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, worker));
+  return results;
+}
+
 // ---------- pipeline ----------
+const WATCHDOG_MS = 4 * 60 * 1000; // never hang in 'reading'
+const OBSERVE_CONCURRENCY = 3;     // Gemini free tier 429s under parallel load
+
 export async function runPipeline(giftId) {
+  const gift = db.prepare('SELECT * FROM gifts WHERE id = ?').get(giftId);
+  if (!gift) return;
+
+  // Watchdog: if the pipeline stalls (hangs, retries forever), fail the gift
+  // rather than leaving it in 'reading'. Only fires while still 'reading'.
+  const watchdog = setTimeout(() => {
+    try {
+      const r = db.prepare("UPDATE gifts SET status='error' WHERE id=? AND status='reading'").run(giftId);
+      if (r.changes) console.error(`[pipeline ${giftId}] watchdog: timed out after ${WATCHDOG_MS}ms`);
+    } catch {}
+  }, WATCHDOG_MS);
+  watchdog.unref?.();
+
+  try {
+    await runPipelineInner(giftId);
+  } finally {
+    clearTimeout(watchdog);
+  }
+}
+
+async function runPipelineInner(giftId) {
   const gift = db.prepare('SELECT * FROM gifts WHERE id = ?').get(giftId);
   if (!gift) return;
   const photos = listPhotos(giftId);
@@ -208,15 +315,13 @@ export async function runPipeline(giftId) {
     return;
   }
 
-  // per-image observation, parallel
-  const settled = await Promise.allSettled(
-    photos.map(async (p, photoIndex) => {
-      const buf = readFileSync(p.path);
-      let data = await observeImage(client, buf, mimeFor(p.file));
-      data = normalizeBboxes(data, p.path);
-      return { photoIndex, photoFile: p.file, data };
-    })
-  );
+  // per-image observation, bounded worker pool (concurrency 3)
+  const settled = await mapPool(photos, OBSERVE_CONCURRENCY, async (p, photoIndex) => {
+    const buf = readFileSync(p.path);
+    let data = await observeImage(client, buf, mimeFor(p.file));
+    data = normalizeBboxes(data, p.path);
+    return { photoIndex, photoFile: p.file, data };
+  });
 
   const obsRows = [];
   const flat = [];
@@ -241,9 +346,10 @@ export async function runPipeline(giftId) {
     db.exec('COMMIT');
   } catch (e) { db.exec('ROLLBACK'); throw e; }
 
-  if (flat.length === 0) {
+  // tolerate partial failure: need at least 3 photos observed successfully
+  if (obsRows.length < 3) {
     db.prepare("UPDATE gifts SET status='error' WHERE id=?").run(giftId);
-    console.error(`[pipeline ${giftId}] no observations survived`);
+    console.error(`[pipeline ${giftId}] only ${obsRows.length}/${photos.length} photos observed — below minimum`);
     return;
   }
 
@@ -292,8 +398,9 @@ export async function runPipeline(giftId) {
   const clues = deriveClues(flat, 3);
   const throughline = cross?.throughline || null;
   const placeGuess = cross?.placeGuess || null;
+  const roundMaterial = cross?.roundMaterial || null;
 
-  const rounds = buildRounds(flat, throughline, placeGuess);
+  const rounds = buildRounds(flat, throughline, placeGuess, roundMaterial);
 
   const insClue = db.prepare('INSERT INTO clues (id, gift_id, position, text, meta) VALUES (?,?,?,?,?)');
   const insHide = db.prepare('INSERT INTO hide_spots (id, gift_id, position, data) VALUES (?,?,?,?)');
@@ -301,7 +408,8 @@ export async function runPipeline(giftId) {
   try {
     for (const c of clues) insClue.run(c.id, giftId, c.position, c.text, c.meta);
     for (const h of hideSpots) insHide.run(h.id, giftId, h.position, h.data);
-    db.prepare('UPDATE gifts SET status=?, throughline=?, place_guess=?, rounds=? WHERE id=?')
+    // guard: don't overwrite 'error' if the watchdog already fired
+    db.prepare("UPDATE gifts SET status=?, throughline=?, place_guess=?, rounds=? WHERE id=? AND status='reading'")
       .run('ready', throughline, placeGuess, JSON.stringify(rounds), giftId);
     db.exec('COMMIT');
   } catch (e) { db.exec('ROLLBACK'); throw e; }

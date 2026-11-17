@@ -3,7 +3,14 @@
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 
-const MODELS = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-2.5-flash-lite'];
+// Ordered preference; getClient picks the first key+model pair that answers.
+// 2.5-flash has a small free-tier daily quota — newer flash models are the fallback.
+const MODELS = [
+  'gemini-2.5-flash',
+  'gemini-3.5-flash',
+  'gemini-3.5-flash-lite',
+  'gemini-3.1-flash-lite',
+];
 const DEV_DIR = '/Users/udingethe/Dev';
 
 let cached = null; // {key, model}
@@ -91,27 +98,36 @@ export function repairJson(txt) {
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+const CALL_TIMEOUT_MS = 60_000;
+const RETRY_BACKOFF_MS = [2_000, 5_000, 10_000]; // exponential-ish, per spec
+
+function isRetryableStatus(status) {
+  return status === 429 || status === 503 || status === 500;
+}
+
 async function generateContent({ key, model }, parts, { temperature = 0.2, maxOutputTokens = 4096 } = {}) {
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`;
-  const body = {
-    contents: [{ parts }],
-    generationConfig: { responseMimeType: 'application/json', temperature, maxOutputTokens },
-  };
+  const genConfig = { responseMimeType: 'application/json', temperature, maxOutputTokens };
+  const post = (body) => fetch(url, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(CALL_TIMEOUT_MS),
+  });
   let lastErr = null;
-  for (let attempt = 0; attempt < 5; attempt++) {
+  const maxAttempts = RETRY_BACKOFF_MS.length + 1; // 3 attempts total
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
     try {
-      const r = await fetch(url, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(body),
-        signal: AbortSignal.timeout(150000),
+      const r = await post({
+        contents: [{ parts }],
+        generationConfig: genConfig,
       });
-      if (r.status === 429 || r.status === 503) {
-        lastErr = new Error(`Gemini HTTP ${r.status}`);
-        await sleep(20000 * (attempt + 1));
-        continue;
-      }
       if (!r.ok) {
+        if (isRetryableStatus(r.status) && attempt < maxAttempts - 1) {
+          lastErr = new Error(`Gemini HTTP ${r.status}`);
+          await sleep(RETRY_BACKOFF_MS[attempt]);
+          continue;
+        }
         const t = await r.text();
         throw new Error(`Gemini HTTP ${r.status}: ${t.slice(0, 200)}`);
       }
@@ -119,31 +135,34 @@ async function generateContent({ key, model }, parts, { temperature = 0.2, maxOu
       const txt = j?.candidates?.[0]?.content?.parts?.map((p) => p.text || '').join('') || '';
       const data = repairJson(txt);
       if (data !== null) return data;
-      // malformed JSON: one nudge retry inside the same attempt budget
+      // malformed JSON: one nudge retry
       const nudgeBody = {
         contents: [{ parts: [...parts, { text: 'Your previous reply was not valid JSON. Reply again with ONLY the JSON object, no markdown fences, no commentary.' }] }],
-        generationConfig: body.generationConfig,
+        generationConfig: genConfig,
       };
-      const r2 = await fetch(url, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(nudgeBody),
-        signal: AbortSignal.timeout(150000),
-      });
+      const r2 = await post(nudgeBody);
       if (r2.ok) {
         const j2 = await r2.json();
         const txt2 = j2?.candidates?.[0]?.content?.parts?.map((p) => p.text || '').join('') || '';
         const data2 = repairJson(txt2);
         if (data2 !== null) return data2;
         lastErr = new Error(`Gemini returned unparseable JSON: ${txt2.slice(0, 120)}`);
-      } else {
-        lastErr = new Error(`Gemini nudge retry HTTP ${r2.status}`);
-        if (r2.status === 429 || r2.status === 503) { await sleep(20000 * (attempt + 1)); continue; }
+        return null; // give up on this call after nudge fails
       }
-      return null; // give up on this call after nudge fails
+      if (isRetryableStatus(r2.status) && attempt < maxAttempts - 1) {
+        lastErr = new Error(`Gemini nudge retry HTTP ${r2.status}`);
+        await sleep(RETRY_BACKOFF_MS[attempt]);
+        continue;
+      }
+      lastErr = new Error(`Gemini nudge retry HTTP ${r2.status}`);
+      return null;
     } catch (e) {
       lastErr = e;
-      await sleep(5000 * (attempt + 1));
+      // retry timeouts/aborts and network errors; don't retry non-retryable HTTP errors
+      const retryable = e.name === 'TimeoutError' || e.name === 'AbortError'
+        || e.cause?.name === 'TimeoutError' || /fetch failed|ECONN|ETIMEDOUT|socket/i.test(e.message || '');
+      if (!retryable || attempt >= maxAttempts - 1) break;
+      await sleep(RETRY_BACKOFF_MS[attempt]);
     }
   }
   throw lastErr || new Error('Gemini call failed');
@@ -177,21 +196,31 @@ export const CROSS_PROMPT = `You are designing a gift-hunt trail for a real-worl
 
 Return ONLY valid JSON (no markdown fences) with this exact shape:
 {
-  "throughline": "one-sentence poetic thread that unites the place and what the observations reveal",
-  "placeGuess": "best guess of the actual place name or description",
+  "throughline": "one short sentence, max ~15 words, naming the concrete observed detail(s) that unite the photos, e.g. 'every shot centres the same blue door on a brick wall'",
+  "placeGuess": "short specific place name or type, e.g. 'a blue-doored cafe in Seongsu' — not a list, not a paragraph",
   "hideSpots": [
     {
       "description": "a concrete physical hiding spot for a small gift, specific enough to find in person",
       "basedOnObservation": "index of the photo (0-based as listed below) whose observation inspired this",
       "confidence": 0.0
     }
-  ]
+  ],
+  "roundMaterial": {
+    "r2Question": "a natural quiz question asking what ties two different shots of this place together",
+    "r2Correct": "the correct answer, one clean natural sentence a person would actually say — NO raw field names, no 'placeGuess', no observation dumps",
+    "r2Distractors": ["wrong answer 1", "wrong answer 2", "wrong answer 3"],
+    "r3Question": "a natural quiz question whose answer is what this place is",
+    "r3Correct": "the correct answer naming the place, one clean sentence",
+    "r3Distractors": ["wrong answer 1", "wrong answer 2", "wrong answer 3"]
+  }
 }
 
 Rules:
 - hideSpots: 3-5 proposals, ordered best-first. Prefer durable, concealed, public/semi-public spots. Ground each in a specific observed detail (name the detail, not just the photo).
 - basedOnObservation is the 0-based photo index shown below.
-- throughline must feel personal and specific to THIS place, not generic.
+- throughline must be CONCRETE and photo-grounded: name the actual observed details (objects, colours, text, repeated elements). Max ~15 words. No poetry, no metaphor, no meta-commentary, nothing generic.
+- placeGuess: a short specific place name or description grounded in the observations. Do NOT list observations; do NOT hedge at length.
+- roundMaterial: write it like a real quiz master who has seen the photos — natural questions and answers grounded in the actual observations. r2Distractors/r3Distractors must be plausible but clearly wrong. Never leak internal field names or dump raw observation text into answers.
 - Do NOT invent details not supported by the observations below; mark guesses inside placeGuess if unsure.`;
 
 const MIME_BY_EXT = {
