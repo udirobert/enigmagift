@@ -68,7 +68,8 @@ export function Seal({ demo, giftId, kept, onSend }: SealProps) {
     try {
       if (paid) {
         try {
-          await markPaid(giftId);
+          const sid = new URLSearchParams(window.location.search).get('sid');
+          await markPaid(giftId, sid);
         } catch {
           /* payment marking is best-effort — the seal still matters */
         }

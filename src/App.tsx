@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
 import Lenis from 'lenis';
 import { mockGallery } from './data';
-import { apiHealthy, createGift, getTrail, tokenFromUrl } from './lib/api';
+import { apiHealthy, createGift, getGift, getTrail, tokenFromUrl } from './lib/api';
 import type { Gift, GiftDirection, HideSpot, Trail } from './lib/types';
+
 import { Door } from './scenes/Door';
 import { Reading } from './scenes/Reading';
 import { Editor } from './scenes/Editor';
@@ -10,6 +11,27 @@ import { Hide } from './scenes/Hide';
 import { Seal } from './scenes/Seal';
 import { Round } from './scenes/Round';
 import { Reveal } from './scenes/Reveal';
+
+/* Stripe return: checkout opens in a new tab, so the gift context lives in
+   localStorage (shared across tabs on this origin) — ?paid=1 resumes at Seal. */
+const GIFT_KEY = 'enigmagift.gift.v1';
+
+function stashGift(id: string, direction: GiftDirection) {
+  try {
+    localStorage.setItem(GIFT_KEY, JSON.stringify({ id, direction }));
+  } catch { /* private mode — paid return just won't resume */ }
+}
+
+function unstashGift(): { id: string; direction: GiftDirection } | null {
+  try {
+    const raw = localStorage.getItem(GIFT_KEY);
+    if (!raw) return null;
+    const p = JSON.parse(raw) as { id?: string; direction?: GiftDirection };
+    return p.id ? { id: p.id, direction: p.direction === 'me' ? 'me' : 'someone' } : null;
+  } catch {
+    return null;
+  }
+}
 
 export type SceneId =
   | 'door'
@@ -85,6 +107,32 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+
+  // Stripe return lands in a fresh tab at ?paid=1 — the gift context was
+  // stashed in localStorage when the gift was created. Resume at the Seal,
+  // which sees paid=1 and finalizes (mark-paid + seal) on its own.
+  useEffect(() => {
+    if (tokenFromUrl()) return; // recipient link wins
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('paid') !== '1') return;
+    const stashed = unstashGift();
+    if (!stashed) return;
+    let dead = false;
+    getGift(stashed.id)
+      .then((g) => {
+        if (dead || !g) return;
+        setDirection(stashed.direction);
+        setGiftId(stashed.id);
+        setGift(g);
+        setLive(true);
+        setDemo(false);
+        go('seal');
+      })
+      .catch(() => {});
+    return () => { dead = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const handlePhotos = useCallback(
     async (files: File[]) => {
       const urls = files.map((f) => URL.createObjectURL(f));
@@ -100,6 +148,7 @@ export default function App() {
       try {
         if (await apiHealthy()) {
           const created = await createGift(files, direction);
+          stashGift(created.giftId, direction);
           setGiftId(created.giftId);
           setLive(true);
           go('reading');
