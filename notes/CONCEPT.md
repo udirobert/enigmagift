@@ -156,17 +156,23 @@ something real — the most filmable, talkable moment a £19 product can buy.
 
 ## Build order
 
-1. Door → photos of the *place* (copy changes; UI survives).
-2. Vision pass → located observations → clue chain + **hide-spot proposals**.
-3. Buyer editor → approve clues + hide spot → "hide it" checklist with photo
-   verification of the hide.
-4. Seal → recipient rounds → throughline resolves to place (+ Atlas map).
-5. Code entry → keepsake unlock (letter + world + film — film is v2+).
-6. Stripe £19 → `/stripe connect` + TrustMRR.
+**Core is live (2026-11-17).** The Atlas map, flythrough film, and print card are
+the remaining spectacle layer (v2+).
 
-The riskiest technical piece is unchanged and still unproven: a vision pass
-that returns **located** observations well enough to auto-generate crops and
-hide-spot proposals. Spike that before wiring the frontend to it.
+1. ✅ Door → photos of the *place*.
+2. ✅ Vision pass → located observations → clue chain + **hide-spot proposals**
+   (SandBase primary, Gemini fallback; running in production).
+3. ✅ Buyer editor → approve/edit clues + pick hide spot → "hide it" (photo
+   verification of the hide is the natural next polish).
+4. ✅ Seal → recipient 3-round trail → throughline resolves to the place
+   (Atlas map still to add).
+5. ✅ Code entry → keepsake unlock (letter now; world + film are v2+).
+6. ✅ Stripe £19 Payment Link at the seal (live; success URL → `?paid=1`).
+
+~~The riskiest technical piece~~ **Resolved (17 Nov):** the vision spike
+(`notes/SPIKE.md`) proved located observations are feasible, and the live
+pipeline now produces throughlines, hide-spot proposals, and three quiz
+rounds end-to-end on production.
 
 ## Named risks
 

@@ -3,6 +3,12 @@
 **Verdict: FEASIBLE.** Gemini 2.5 Flash returns structured, bbox-localised
 observations good enough for auto-crops and hide-spot proposals.
 
+> **Status (same day, end):** shipped. The pipeline is live in production and the
+> "Not yet tested" / "Next" items below are all done. Vision now runs through
+> **SandBase** (OpenAI-compatible) with Gemini as fallback — see `OPS.md`. The
+> cross-image pass works, HEIC is handled (multer + `image-size`), and live gifts
+> produce grounded throughlines / placeGuess / hide spots in ~80–110s.
+
 ## Setup
 
 - Model: `gemini-2.5-flash` via existing key (found in Dev .env files; never printed)
@@ -28,11 +34,22 @@ observations good enough for auto-crops and hide-spot proposals.
   flagged; signs/facades not). Needs the cross-image pass to turn flags into
   actual hide-spot *proposals*.
 
-## Not yet tested
+## Now done (was "not yet tested")
 
-- Cross-image pass: feed all observations from one place → throughline +
-  3 concrete hide-spot proposals. (Next spike step — cheap, same key.)
-- HEIC handling (buyers will upload iPhone photos).
+- **Cross-image pass** — works live. Feeds all per-photo observations into one
+  call → throughline, placeGuess, hide-spot proposals, and round material. On
+  real gifts it produces concrete, photo-grounded output (e.g. "Fort Point
+  National Historic Site under the Golden Gate Bridge"). A guard
+  (`isGenericPlaceGuess` in `pipeline.js`) rejects generic scene categories and
+  falls back to the throughline's phrasing.
+- **HEIC handling** — partially. multer accepts `.heic/.heif` and `image-size`
+  reads their dimensions, so the vision pass works on them. But the frontend
+  crop framing loads the image via `new Image()`, which only Safari can decode
+  — in other browsers a HEIC gift's crops fall back to a 4:5 aspect. Low
+  priority: most buyers compress to JPEG before upload.
+- **JSON reliability** — the spike's 3/6 clean-parse concern is handled by
+  `repairJson` (fence-strip + trailing-comma + balanced-brace slice), a nudge
+  retry on malformed output, and cross-model failover.
 
 ## Pipeline implication
 
@@ -43,8 +60,9 @@ free-tier-ish at our volumes.
 Artifacts: `/tmp/enigmabox-spike/` (images, `out/*.json`, `verify_results.json`).
 Ephemeral — re-run `vision_spike.py` if needed.
 
-## Next
+## Next (all shipped)
 
-1. Cross-image pass test (throughline + hide spots) — small follow-up spike.
-2. Then wire: upload → per-image observe (parallel) → aggregate → editor UI.
-3. The Door's "it noticed" captions become REAL once this pipeline exists.
+1. Cross-image pass test (throughline + hide spots) — done, live.
+2. Wiring: upload → per-image observe (parallel) → aggregate → editor UI — done.
+3. The Door's "it noticed" captions are real now that this pipeline exists.
+4. Deploy + Stripe £19 gate — done (see `OPS.md`).
