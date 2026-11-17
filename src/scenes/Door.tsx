@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { gsap } from 'gsap';
 import { prefersReducedMotion } from '../lib/motion';
+import { TableBackdrop } from '../components/TableBackdrop';
 import type { Direction } from '../App';
 
 interface DoorProps {
@@ -53,6 +54,7 @@ export function Door({ onPhotos, onDemo, direction, onDirection }: DoorProps) {
 
   return (
     <section className="scene scene-door" ref={rootRef}>
+      <TableBackdrop />
       <div className="scene-inner door-inner">
         <p className="kicker door-anim">a gift only one person can open</p>
         <h1 className="wordmark door-anim">enigmagift</h1>
