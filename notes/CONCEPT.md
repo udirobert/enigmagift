@@ -123,16 +123,105 @@ passive unwrap — the reaction video has a middle, not just an end.
 
 ---
 
+## The spectacle layer — you walk *into* the photograph
+
+This is the differentiator, and it's available to us today because of credits we
+already hold. **World Labs Atlas / Marble** turns a flat photo into a real 3D
+space you can move through. **LTX-2.5** is the film and motion layer on top.
+
+### What Atlas actually gives us
+
+| Capability | What it means for the gift |
+|---|---|
+| Single image → explorable 3D world | **Step inside a memory.** The defining feature |
+| Multi-image reconstruction (2–25+ imgs) | More photos of one place = a faithful reconstruction, not a guess |
+| **Spatial context interpolation** | Place two unrelated photos in 3D and it *imagines the corridor between them* — doorways, hallways, transitions |
+| **Compose** (Studio) | Connect separate worlds into one seamless environment |
+| **Record** (Studio) | Cinematic camera animation → flythrough video = the shareable artefact |
+| Export | **Browser share link**, VR link, Gaussian splats (render on-device, high FPS) |
+
+The gift stops being an image. It becomes **a place you can walk around in, in a
+browser, on a phone, or in VR.**
+
+### How it rebuilds each round
+
+- **Round 1 · the detail** — not a static crop. The camera *flies into* the
+  photograph, pushing past the foreground until the detail fills the frame.
+  A crop tells you where to look; a push-in makes you *lean in*.
+- **Round 2 · the connection** — this is the showpiece. Atlas puts two memories
+  from different years into one spatial context and **generates the corridor
+  between them**. You physically walk out of 2019 and into 2026. Nothing else on
+  the market can do this, and it's a native feature, not a hack.
+- **Round 3 · the throughline** — `Compose` stitches every memory into one
+  connected world, and `Record` flies a single unbroken camera path through all
+  of them, landing on the pattern. One continuous shot through someone's life.
+
+### Why this wins on virality specifically
+
+The shareable isn't a screenshot of a nice picture — it's **a camera moving
+through a real person's real memories**. That is inherently watchable, has a
+beginning/middle/end, and the recipient's reaction has something to react *to*
+at every beat. It also hands us a second shareable for free: the recipient can
+send the explorable world link onward, and everyone who opens it is inside our
+product.
+
+### Feasibility — the honest timing math
+
+Measured generation times (World Labs docs):
+
+| Operation | Time |
+|---|---|
+| Pano from single image | **~30 s** |
+| Draft world (any input) | ~20 s |
+| Full world | ~5 min |
+| Pano from multi-image / video | ~2 min |
+| High-quality mesh | ~1 hr |
+
+Eight photos × 5 min full worlds = ~40 min. **Too slow for an impulse purchase**,
+so v1 must be built on the fast path:
+
+- **Free tier** = one photo → pano/draft (~30 s). You step inside one memory.
+  That is a complete, astonishing core experience — exactly what the freemium
+  research says the free tier must be.
+- **Paid tier** = the composed multi-memory world + the recorded flythrough,
+  generated **after** payment, delivered by link in a few minutes. The wait is
+  not a flaw here: "your gift is being built" is *correct* theatre for a gift,
+  and it mirrors the `jejak` arrives-unfinished pattern we already like.
+
+**LTX** then does what Atlas doesn't: image-to-video motion on individual stills,
+HDR polish, and alpha-channel elements for titles/overlays composited over the
+flythrough. Open weights + API, so it's cheap at volume — and **neither comp
+deducts AI/API cost** (MMM excludes it from the £100; SoD doesn't subtract it
+from profit), so we can spend freely on production quality.
+
+### Risk this introduces
+
+Atlas *imagines* what it can't see. For a gift built on "this is really your
+life," invented detail is the cardinal sin. Mitigations: feed multiple photos of
+the same place (docs: "the more it sees, the less it imagines"), keep camera
+paths **close to the real photo** rather than flying off into generated space,
+and keep the buyer-as-editor gate — they approve the flythrough before it sends.
+
+---
+
 ## Freemium line
 
-| | Free | Paid — **£14** (sweet spot under the £25 ceiling) |
+| | Free | Paid — **£19** |
 |---|---|---|
 | Build an enigma | ✅ | ✅ |
+| **Step inside one photo** (pano, ~30s) | ✅ | ✅ |
 | See the reveal yourself | ✅ | ✅ |
-| **Send it to them** | watermarked, 1 question | ✅ full 3-question seal, no watermark |
-| The keepsake | screen only | high-res + **print-ready PDF** (card / A4 / framed) |
-| Voice | — | the letter read aloud |
-| Chapters | 1 | up to 5 (one per memory) |
+| **Send it to them** | watermarked, 1 round | ✅ full 3-round seal, no watermark |
+| **The corridor between two memories** | — | ✅ the showpiece |
+| **Composed world + flythrough film** | — | ✅ the shareable artefact |
+| Explorable world link (+ VR) | — | ✅ theirs to keep and pass on |
+| Print-ready keepsake PDF | — | ✅ |
+| Voice — the letter read aloud | — | ✅ |
+
+Price moved **£14 → £19**: the free tier now gives away something genuinely
+astonishing (you step inside your own photograph), so the paid tier has to be,
+and is, a categorically bigger thing — a composed world and a film, not a
+nicer image. £19 still sits under the £25 ceiling the market stated.
 
 The free tier is deliberately *complete as an experience* — you feel the whole
 thing — and deliberately *incomplete as an object*. You pay to make it real and
@@ -183,7 +272,8 @@ after Christmas, so it isn't a seasonal one-shot.
 
 ## Build order (today)
 
-1. One box, one page. Upload photos → vision pass → clue chain → **buyer edits** →
+1. One box. Upload photos → vision pass → **Atlas pano on one photo (~30s)** →
+   clue chain → **buyer edits** →
    sealed link. **No accounts.**
 2. Reveal page: crops → throughline → letter, laid over the real photos.
    (Film is v2 — don't block launch on render time.)
