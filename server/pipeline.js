@@ -61,6 +61,45 @@ function deriveClues(observations, n = 3) {
   }));
 }
 
+// Generic scene categories read badly in the recipient letter ("you stood where
+// urban streetscapes stand"). A specific place names a building or spot; a
+// generic one just names a category of scene.
+// Words that name a *category of place* rather than the place itself.
+const CATEGORY_WORDS = new Set([
+  'streetscape', 'streetscapes', 'cityscape', 'landscapes', 'areas', 'districts',
+  'neighborhoods', 'neighbourhoods', 'zones', 'plazas', 'squares',
+  'outdoor', 'public', 'spaces', 'scenes', 'street', 'streets', 'urban',
+  'entrances', 'building', 'buildings',
+  // singular category nouns — generic only when short and un-anchored
+  'area', 'zone', 'plaza', 'square', 'scene', 'streetscape', 'space',
+]);
+const GENERIC_PLACE_PATTERNS = [
+  /^(urban|historic|residential|commercial|suburban|industrial|open|public|outdoor)\s+(and\s+)?(streetscapes?|areas?|districts?|buildings?|entrances?|streets?|plazas?|scenes?|public spaces?|outdoor spaces?|spaces?)/i,
+  /featuring\s+(cafes|shops|restaurants|parks|outdoor|public)/i,
+  /outdoor public spaces/i,
+];
+function hasProperNoun(t) {
+  // an internal capitalised word, or a quote (possessive) — a name, not a category
+  const words = t.split(/\s+/).filter(Boolean);
+  return words.slice(1).some((w) => /[A-Z]/.test(w)) || /['’]/.test(t);
+}
+const STOP_WORDS = new Set([
+  'a', 'an', 'the', 'and', 'or', 'with', 'near', 'at', 'on', 'in', 'by',
+  'of', 'to', 'over', 'under', 'beside', 'next', 'between', 'along', 'from',
+]);
+function isGenericPlaceGuess(g) {
+  if (!g || typeof g !== 'string') return true;
+  const t = g.toLowerCase().trim();
+  if (t.length > 90) return true; // a paragraph, not a place
+  if (GENERIC_PLACE_PATTERNS.some((re) => re.test(t))) return true;
+  if (hasProperNoun(g)) return false; // named place — keep
+  const words = t.split(/[^a-z]+/).filter(Boolean);
+  const cat = words.filter((w) => CATEGORY_WORDS.has(w)).length;
+  const concrete = words.filter((w) => !CATEGORY_WORDS.has(w) && !STOP_WORDS.has(w)).length;
+  // generic when it's mostly category words with (almost) nothing concrete
+  return cat >= 2 && cat >= concrete;
+}
+
 function deriveHideSpots(cross, photoCount) {
   const spots = Array.isArray(cross?.hideSpots) ? cross.hideSpots : [];
   return spots.slice(0, 5).map((s, i) => ({
@@ -416,8 +455,16 @@ async function runPipelineInner(giftId) {
 
   const clues = deriveClues(flat, 3);
   const throughline = cross?.throughline || null;
-  const placeGuess = cross?.placeGuess || null;
+  let placeGuess = cross?.placeGuess || null;
   const roundMaterial = cross?.roundMaterial || null;
+  if (placeGuess && isGenericPlaceGuess(placeGuess)) {
+    // generic scene categories read badly in the recipient letter — fall back
+    // to the throughline's concrete phrasing
+    placeGuess = (throughline || '').toLowerCase()
+      .replace(/^the /, '')
+      .replace(/[.!?]+$/, '');
+    console.warn(`[pipeline ${giftId}] generic placeGuess replaced with throughline`);
+  }
 
   const rounds = buildRounds(flat, throughline, placeGuess, roundMaterial);
 

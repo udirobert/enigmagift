@@ -326,7 +326,7 @@ export const CROSS_PROMPT = `You are designing a gift-hunt trail for a real-worl
 Return ONLY valid JSON (no markdown fences) with this exact shape:
 {
   "throughline": "one short sentence, max ~15 words, naming the concrete observed detail(s) that unite the photos, e.g. 'every shot centres the same blue door on a brick wall'",
-  "placeGuess": "short specific place name or type, e.g. 'a blue-doored cafe in Seongsu' — not a list, not a paragraph",
+  "placeGuess": "a concrete, specific place a person could point at — name it if you can read it (signs, plaques, street names), otherwise describe the exact building with its most distinctive observed features. e.g. 'Fort Point under the Golden Gate Bridge', 'the cafe under the blue-doored entrance on the corner'. NEVER a generic scene category ('urban streetscapes', 'a cafe area', 'outdoor public spaces') — that is a wrong answer",
   "hideSpots": [
     {
       "description": "a concrete physical hiding spot for a small gift, specific enough to find in person",
@@ -348,7 +348,7 @@ Rules:
 - hideSpots: 3-5 proposals, ordered best-first. Prefer durable, concealed, public/semi-public spots. Ground each in a specific observed detail (name the detail, not just the photo).
 - basedOnObservation is the 0-based photo index shown below.
 - throughline must be CONCRETE and photo-grounded: name the actual observed details (objects, colours, text, repeated elements). Max ~15 words. No poetry, no metaphor, no meta-commentary, nothing generic.
-- placeGuess: a short specific place name or description grounded in the observations. Do NOT list observations; do NOT hedge at length.
+- placeGuess: concrete and specific — name the actual place (from any readable sign/plaque/street name in the photos), or describe the exact building with its most distinctive observed features. A generic scene category ('urban streetscapes', 'a cafe area', 'outdoor public spaces', 'historic brick walls') is a WRONG answer; if you cannot name a specific place, say so in one clause (e.g. 'a small plaza with a white-columned entrance'). Do NOT list observations; do NOT hedge at length.
 - roundMaterial: write it like a real quiz master who has seen the photos — natural questions and answers grounded in the actual observations. r2Distractors/r3Distractors must be plausible but clearly wrong. Never leak internal field names or dump raw observation text into answers.
 - Do NOT invent details not supported by the observations below; mark guesses inside placeGuess if unsure.`;
 
