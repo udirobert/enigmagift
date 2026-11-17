@@ -56,18 +56,18 @@ export function Door({ onPhotos, onDemo, direction, onDirection }: DoorProps) {
     <section className="scene scene-door" ref={rootRef}>
       <TableBackdrop />
       <div className="scene-inner door-inner">
-        <p className="kicker door-anim">a gift only one person can open</p>
+        <p className="kicker door-anim">a gift only one person can find</p>
         <h1 className="wordmark door-anim">enigmagift</h1>
         <p className="lede door-anim">
-          give it the photographs. it finds the one thread running through all of
-          them — and that becomes the lock only they can pick.
+          photograph a place that matters. it reads them for what only you would
+          know — and that becomes the trail only they can follow.
         </p>
 
         <div
           className={`dropzone door-anim ${dragging ? 'is-dragging' : ''}`}
           role="button"
           tabIndex={0}
-          aria-label="drop photos of the two of you, or click to browse"
+          aria-label="drop photos of the place, or click to browse"
           onClick={() => inputRef.current?.click()}
           onKeyDown={(e) => e.key === 'Enter' && inputRef.current?.click()}
           onDragOver={(e) => {
@@ -87,10 +87,11 @@ export function Door({ onPhotos, onDemo, direction, onDirection }: DoorProps) {
           <span className="dropzone-label">
             {count > 0
               ? `${count} photo${count === 1 ? '' : 's'} gathered — reading them now`
-              : 'drop photos of the two of you'}
+              : 'drop photos of the place'}
           </span>
           <span className="dropzone-sub">
-            or click to browse — jpg, png, heic · 5 to 10 works best
+            or click to browse — jpg, png, heic · the more of it you show it, the
+            better the trail
           </span>
           <input
             ref={inputRef}

@@ -64,19 +64,19 @@ export function Reveal({ photos, demo }: RevealProps) {
         <article className="letter reveal-anim">
           <p className="letter-salutation">dear you,</p>
           <p>
-            some gifts you unwrap. this one you solve — three looks, then it
-            gives itself up.
+            some gifts you unwrap. this one you follow — three looks down the
+            trail, then it gives itself up.
           </p>
           <p>
-            in every photograph we have, you stand on my left. the hire car, the
-            café in october, the platform at seven in the morning. nobody ever
-            said it out loud. i didn't either, until now.
+            every photograph you were given pointed at the same corner of the
+            same street. the blue door, the chalkboard, the bench where the
+            light sits warmest. you found what i left where i said it would be.
           </p>
           <p>
-            the world between those days is being built as you read this. walk
+            the world around that place is being built as you read this. walk
             it when it's ready — it's yours to keep, and yours to pass on.
           </p>
-          <p className="letter-sign">— yours, always on your right</p>
+          <p className="letter-sign">— the one who left it there</p>
         </article>
 
         <div className="build-status reveal-anim">
@@ -84,7 +84,7 @@ export function Reveal({ photos, demo }: RevealProps) {
           <div className="build-text">
             <p className="build-title">your gift is being built</p>
             <p className="build-sub mono">
-              composing the world between your memories<span className="dots" />
+              composing the world around the place<span className="dots" />
             </p>
           </div>
         </div>

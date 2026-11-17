@@ -10,14 +10,14 @@ export interface MockPhoto {
 }
 
 export const MOCK_PHOTOS: MockPhoto[] = [
-  { id: 'eg-2019-pub', year: '2019', note: 'the pub, march' },
-  { id: 'eg-2021-hirecar', year: '2021', note: 'the hire car' },
+  { id: 'eg-2019-pub', year: '2019', note: 'the pub on the corner' },
+  { id: 'eg-2021-hirecar', year: '2021', note: 'the car park' },
   { id: 'eg-2023-cafe-oct', year: '2023', note: 'the café, october' },
   { id: 'eg-2024-cafe-oct', year: '2024', note: 'the same café' },
-  { id: 'eg-2026-summer', year: '2026', note: 'this summer' },
-  { id: 'eg-2020-kitchen', year: '2020', note: 'the kitchen' },
-  { id: 'eg-2022-beach', year: '2022', note: 'the beach' },
-  { id: 'eg-2025-station', year: '2025', note: 'the station' },
+  { id: 'eg-2026-summer', year: '2026', note: 'the view from the bench' },
+  { id: 'eg-2020-kitchen', year: '2020', note: 'the back door' },
+  { id: 'eg-2022-beach', year: '2022', note: 'the beach hut' },
+  { id: 'eg-2025-station', year: '2025', note: 'the station approach' },
 ];
 
 export const mockUrl = (p: MockPhoto, w = 800, h = 1000) =>
@@ -30,7 +30,7 @@ export const mockGallery = () => MOCK_PHOTOS.map((p) => mockUrl(p, 640, 800));
 export const readSteps = (n: number) => [
   `i read ${n} photo${n === 1 ? '' : 's'}`,
   'i found 3 details you can see, and 2 i’m guessing at',
-  'i found the pub carpet, a number plate, and the same table in october',
+  'i found the blue door, the chalkboard, and the same table in october',
   'i found one thing that runs through all of them',
   'i built the chain',
 ];
@@ -49,21 +49,21 @@ export interface Clue {
 
 export const CLUES: Clue[] = [
   {
-    text: 'the hire car’s number plate — readable in two separate years',
+    text: 'the blue door — the same shade in every photo since 2019',
     kind: 'seen',
-    photo: 1,
+    photo: 0,
     zoom: 2.6,
     focus: '62% 56%',
   },
   {
-    text: 'the same café, the same table, every october since 2019',
+    text: 'the same table by the window, every october',
     kind: 'seen',
     photo: 2,
     zoom: 1.5,
     focus: '50% 62%',
   },
   {
-    text: 'in every photo, she is the one standing on your left',
+    text: 'the light is warmest on the left — that’s where the good seats are',
     kind: 'inferred',
     photo: 4,
     zoom: 1.35,
@@ -74,7 +74,7 @@ export const CLUES: Clue[] = [
 /* ---------------------------- recipient ---------------------------- */
 
 export const THROUGHLINE =
-  'in every photo from 2019 to 2026, she stands on your left.';
+  'every photograph was taken within a hundred metres of the blue door.';
 
 export interface RoundConfig {
   kicker: string;
@@ -86,14 +86,14 @@ export interface RoundConfig {
 export const ROUND_1: RoundConfig = {
   kicker: 'round one — the detail',
   question: 'what is this?',
-  options: ['a number plate', 'the pub carpet', 'a train ticket'],
+  options: ['the blue door', 'a chalkboard', 'a street sign'],
   answer: 0,
 };
 
 export const ROUND_2: RoundConfig = {
   kicker: 'round two — the connection',
-  question: 'what do these two days share?',
-  options: ['both were in october', 'both were rainy', 'both were birthdays'],
+  question: 'what do these two shots share?',
+  options: ['both face the same corner', 'both were in october', 'both were rainy'],
   answer: 0,
 };
 
