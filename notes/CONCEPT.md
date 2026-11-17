@@ -1,17 +1,21 @@
 # EnigmaGift
 
 > **A gift that only one person in the world can open.**
-> The lock is made of your shared memories.
+> The lock is made of your own photographs.
 
 ---
 
 ## The one-liner
 
-You make a gift for someone. Before they can see it, they have to answer a few
-things only *they* would know. The lock *is* the gift: it proves somebody paid
-attention. Then it opens into a keepsake made about them.
+Give it photos of the two of you. It looks closely, finds the details — and the
+one pattern running through all of them that neither of you ever noticed. That
+becomes a chain of clues only they can solve, and solving it *is* the gift.
 
-One box. Type a name. That's the whole front door.
+One box. Drop in photos. That's the whole front door.
+
+**The core trick:** the clues aren't *written about* the memories, they're
+**cropped out of** them. Real material, real evidence, nothing generated. The
+recipient isn't being tested on recall — they're *discovering* something true.
 
 ---
 
@@ -41,55 +45,81 @@ distribution engine, because the reveal is a reaction video waiting to happen.
 ```
           EnigmaGift
    ┌────────────────────────────────┐
-   │  Who is this for?              │
+   │  drop in your photos ↑         │
    └────────────────────────────────┘
         for someone   ·   for me
 ```
 
 Nothing else on the page. No pricing table, no feature grid, no hero carousel.
 
-### 1 · Tell it about them (60 seconds)
+### 1 · Give it your photos (60 seconds)
 
-Free text, voice, or a photo. "My mum Ada. We argue about the crossword. She
-taught me to drive in a Nissan Micra she called The Beast."
+Drop in 5–10 photos of the two of you. Optionally a line of context
+("my mum Ada, we argue about the crossword"). Nothing else to fill in.
 
-The agent asks **three** follow-ups, max. Each one should feel like a person who
-is actually listening, not a form.
+The photos are the raw material — and crucially they are **real**. Everything
+the recipient sees is their own life, not a render. This is what stops the whole
+product feeling generated.
 
-### 2 · It builds the enigma — visibly
+### 2 · It reads them — and finds the throughline
 
-Borrowed from `jejak`: the work **arrives unfinished**, step by step, with the
-real material attached.
+The agent looks *closely*. Not "two people smiling" — the specific stuff:
+the pub carpet, the hire-car number plate, who's on whose left, the same coat in
+four different winters, the receipt on the table.
+
+Then it does the thing that makes this a gift rather than a quiz: it
+**cross-references across photos to find a pattern neither of you noticed.**
+
+> *"In every photo from 2019 to 2026, she is standing on your left."*
+> *"You have been to this same café in four different years, each time in October."*
+
+Borrowed from `jejak`, the work **arrives unfinished** — step by step, with the
+evidence attached, and with honest labels: *seen in the photo* vs *inferred*.
 
 ```
-  ✓ I kept three things you said
-  ✓ I turned the Micra into a question only she can answer
-  ✓ I wrote the letter that sits behind the lock
-  ✓ I sealed it
+  ✓ I read 8 photos
+  ✓ I found 3 details you can see, and 2 I'm guessing at
+  ✓ I found one thing that runs through all of them
+  ✓ I built the chain
 ```
 
-Showing the work *is* the proof of effort. This is the single most important
-screen in the product.
+### 3 · You are the editor
 
-### 3 · The seal
+The agent proposes; **you approve**. Every clue is shown with the crop it came
+from, and you can cut, reword, or re-pick it.
 
-A link. Send it however you like — WhatsApp, text, print the QR into a card.
+This is doing three jobs at once: it stops a hallucinated detail ever reaching
+the recipient, it keeps the moment emotionally safe (you'd know if a photo was
+painful), and it makes the buyer a **co-author** — which is more effort signal,
+not less.
 
-When Ada opens it, she doesn't get the gift. She gets a question:
+### 4 · The seal — a chain of deduction
 
-> *"What did I call the car you learned to drive in?"*
+A link. Send it however you like — WhatsApp, text, QR printed into a card.
 
-Three questions, all drawn from the memories you gave it. Wrong answers are
-gentle — it nudges, it never locks her out. (The lock is theatre, not security.
-It must never feel like a password reset.)
+When Ada opens it she doesn't get the gift. She gets a **tight crop** of
+something from one of the photos, and a question. Three rounds, escalating:
 
-### 4 · The reveal
+| Round | What she sees | What she's doing |
+|---|---|---|
+| **1 · The detail** | One close crop — the number plate, the carpet, a mug | *Recognition*. Warm, easy, "oh my god I know this" |
+| **2 · The connection** | Two crops, side by side, different years | *Deduction*. What do these two days share? |
+| **3 · The throughline** | The pattern across all of them | Not a question — **this is the reveal** |
 
-It opens into the keepsake: an illustrated portrait, a short letter in your
-voice, and a 15-second film. Her name is in it. The Micra is in it.
+Round 3 is the payload: she doesn't answer it, she's *told* it. The app noticed
+something true about the two of you that neither of you had ever noticed.
 
-**This is the shareable frame.** The gift records nothing — but the *moment* is
-exactly the reaction-video format that already works on TikTok.
+Wrong answers are gentle — it nudges, it opens anyway after three tries. The
+lock is theatre, not security; it must never feel like a password reset.
+
+### 5 · The reveal
+
+It opens into the keepsake, built from the real photos: the throughline laid out
+across them, the letter in your voice, and a short film that moves through the
+crops to the whole picture.
+
+**This is the shareable frame.** Deduction makes it *much* more watchable than a
+passive unwrap — the reaction video has a middle, not just an end.
 
 ---
 
@@ -153,20 +183,31 @@ after Christmas, so it isn't a seasonal one-shot.
 
 ## Build order (today)
 
-1. One box, one page. Name → 3 questions → sealed link. **No accounts.**
-2. Reveal page: letter + portrait. (Film is v2 — don't block launch on render time.)
+1. One box, one page. Upload photos → vision pass → clue chain → **buyer edits** →
+   sealed link. **No accounts.**
+2. Reveal page: crops → throughline → letter, laid over the real photos.
+   (Film is v2 — don't block launch on render time.)
 3. Stripe link for £14. Wire the same account to `/stripe connect` *and* TrustMRR.
 4. Ship it, then make 10 enigmas for 10 strangers and post the reveals.
 
-Everything else — voice, chapters, print PDF, film — is a *paid upgrade we can
-add while it's already selling*.
+The hard part is only step 1's middle: a vision pass that returns **structured,
+located observations** (what, and where in the frame) so crops are generated
+rather than hand-picked. Everything else — voice, chapters, print PDF, film —
+is a *paid upgrade we can add while it's already selling*.
 
 ## Named risks
 
-- **AI-slop perception.** Mitigation: keep real material real (the `wowowify`
-  lesson — never let the model redraw a supplied face), and show the work.
-- **The lock must never frustrate.** Gentle nudges, unlimited attempts, a
-  "just open it" escape hatch after three tries.
-- **Creepiness line.** Only use what the buyer typed in. No scraping the
-  recipient, ever.
+- **Hallucinated detail.** The whole product dies if it asserts something that
+  isn't in the photo. Mitigations: label *seen* vs *inferred* (`jejak`
+  discipline), never build a clue on an inferred detail, and the **buyer-as-editor
+  gate** means nothing unreviewed reaches the recipient.
+- **AI-slop perception.** Largely solved by the photo mechanic — the material is
+  real. Keep it that way: never let a model redraw a supplied face (`wowowify`
+  lesson). Generated imagery is garnish, never the substance.
+- **Photos are sensitive.** Private by default, no training on uploads, delete on
+  request, and say so plainly on the one page. Trust is the whole product here.
+- **The lock must never frustrate.** Gentle nudges, unlimited attempts, opens
+  anyway after three tries.
+- **Creepiness line.** Only ever use what the buyer uploaded. No scraping the
+  recipient, no face matching against anything external, ever.
 - **Both comps ban friends/family purchases** — every sale must be a stranger.
