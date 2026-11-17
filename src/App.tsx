@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
 import Lenis from 'lenis';
-import { mockGallery } from './data';
 import { apiHealthy, createGift, getGift, getTrail, tokenFromUrl } from './lib/api';
 import type { Gift, GiftDirection, HideSpot, Trail } from './lib/types';
 
 import { Door } from './scenes/Door';
+import { WatchIt } from './scenes/WatchIt';
 import { Reading } from './scenes/Reading';
 import { Editor } from './scenes/Editor';
 import { Hide } from './scenes/Hide';
@@ -35,6 +35,7 @@ function unstashGift(): { id: string; direction: GiftDirection } | null {
 
 export type SceneId =
   | 'door'
+  | 'watch'
   | 'reading'
   | 'editor'
   | 'hide'
@@ -66,6 +67,10 @@ export default function App() {
     window.scrollTo(0, 0);
     setScene(s);
   }, []);
+
+  // true when the door is opened again from the tour's "make one" — the door
+  // then lands on the dropzone rather than replaying the hero.
+  const [fromTour, setFromTour] = useState(false);
 
   // smooth scroll (Lenis) — scenes that overflow still glide
   useEffect(() => {
@@ -137,6 +142,7 @@ export default function App() {
     async (files: File[]) => {
       const urls = files.map((f) => URL.createObjectURL(f));
       setDemo(false);
+      setFromTour(false);
       setPhotos(urls);
       setGift(null);
       setGiftId(null);
@@ -162,16 +168,21 @@ export default function App() {
     [direction, go],
   );
 
-  const handleDemo = useCallback(() => {
-    setDemo(true);
-    setLive(false);
-    setGiftId(null);
-    setGift(null);
-    setHideSpot(null);
-    setTrail(null);
-    setPhotos(mockGallery());
-    go('reading');
+  // "watch it work" — the payoff, self-playing, before they upload anything
+  const handleWatch = useCallback(() => {
+    go('watch');
   }, [go]);
+
+  // the tour's "make one" — they've felt it, now they build. Back to the door,
+  // where the dropzone is the obvious next step.
+  const handleBuild = useCallback(
+    (d: Direction) => {
+      setDirection(d);
+      setFromTour(true);
+      go('door');
+    },
+    [go],
+  );
 
   // Reading finished — the live gift (when the poll caught it) goes to the editor
   const handleRead = useCallback(
@@ -225,10 +236,14 @@ export default function App() {
       {scene === 'door' && (
         <Door
           onPhotos={handlePhotos}
-          onDemo={handleDemo}
+          onWatch={handleWatch}
           direction={direction}
           onDirection={setDirection}
+          initialSection={fromTour ? 'start' : 'hero'}
         />
+      )}
+      {scene === 'watch' && (
+        <WatchIt onBack={() => go('door')} onBuild={handleBuild} />
       )}
       {scene === 'reading' && (
         <Reading

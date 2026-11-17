@@ -28,8 +28,7 @@ Live: **https://enigmagift.netlify.app**
 - **Frontend** — Vite + React + TypeScript, GSAP + Lenis. Six-scene state
   machine (no router): Door → Reading → Editor → Hide → Seal → Rounds →
   Reveal. Deployed to Netlify (`dist/` is the publish dir).
-- **Backend** — Node + Express + SQLite (better-sqlite3-style `node:sqlite`
-  via `server/db.js`), Multer uploads. Deployed to Fly.io
+- **Backend** — Node + Express + SQLite via `node:sqlite` (`server/db.js`), Multer uploads. Deployed to Fly.io
   (`enigmagift-api`, region `iad`, persistent volume at `/data`).
 - **Vision** — Gemini API (`server/gemini.js`): per-image observation +
   cross-image synthesis. Fails over across all working key×model pairs.
@@ -101,7 +100,4 @@ GitHub: https://github.com/udirobert/enigmagift
 
 Pre-commit hook (`.githooks/pre-commit`) scans staged diffs for secrets and
 runs prettier on web files — enable with `git config core.hooksPath .githooks`.
-The Stripe payment link URL is public by design and safe to commit.
-The `buy.stripe.com` link itself is not a secret.
-
-Hmm wait — I added a stray line "The `buy.stripe.com` link itself is not a secret." that's awkward/redundant. Let me fix that in the file — remove it. Also double check: does db.js use node:sqlite? Let me verify quickly to keep docs accurate.<|end_message|><|message_model|>exec<|content_invoke_tool_json|>{
+The `buy.stripe.com` payment link is public by design and safe to commit.
