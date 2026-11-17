@@ -11,15 +11,33 @@ interface WorldProps {
   className?: string;
   /** called when the model is ready and interactive */
   onReady?: () => void;
+  /** spin speed (worlds-per-~60s) — the ambient backdrop drifts slower than
+   *  the tour beat */
+  spin?: number;
+  /**
+   * interactive = the visitor can drag to orbit and wheel to zoom (tour
+   * climax). ambient = the model just drifts on its own and lets every
+   * pointer event fall through to the page (a landing backdrop) — no
+   * OrbitControls, no scroll capture.
+   */
+  interactive?: boolean;
 }
 
 /**
  * The world of the place — a generated 3D model the recipient can orbit.
- * Auto-rotates; drag to look, wheel/pinch to zoom (scroll is captured by the
- * canvas only while the pointer is over it). If the GLB can't load it falls
- * back to a slow Ken-Burns still of the place, so the beat is never empty.
+ * interactive: auto-rotates; drag to look, wheel/pinch to zoom (scroll is
+ * captured by the canvas only while the pointer is over it). ambient: slow
+ * self-spin, input passes through. If the GLB can't load it falls back to a
+ * slow Ken-Burns still of the place, so the beat is never empty.
  */
-export function World({ src, fallback, className = '', onReady }: WorldProps) {
+export function World({
+  src,
+  fallback,
+  className = '',
+  onReady,
+  spin,
+  interactive = true,
+}: WorldProps) {
   const mountRef = useRef<HTMLDivElement>(null);
   const [failed, setFailed] = useState(false);
 
@@ -58,20 +76,30 @@ export function World({ src, fallback, className = '', onReady }: WorldProps) {
     const amb = new THREE.AmbientLight(0xfff2e0, 0.95);
     scene.add(key, fill, hemi, amb);
 
-    const controls = new OrbitControls(camera, renderer.domElement);
-    controls.enableDamping = true;
-    controls.dampingFactor = 0.08;
-    controls.enablePan = false;
-    controls.autoRotate = true;
-    controls.autoRotateSpeed = 0.9;
-    controls.minDistance = 1.4;
-    controls.maxDistance = 14;
-    // stop auto-rotate while the visitor looks
-    let interacted = false;
-    controls.addEventListener('start', () => {
-      interacted = true;
-      controls.autoRotate = false;
-    });
+    // interactive: full OrbitControls — the tour beat where the visitor
+    // looks around themselves. ambient: a plain slow spin, and every pointer
+    // event falls through to the page (it's a backdrop, not a gadget).
+    const controls = interactive
+      ? new OrbitControls(camera, renderer.domElement)
+      : null;
+    if (controls) {
+      controls.enableDamping = true;
+      controls.dampingFactor = 0.08;
+      controls.enablePan = false;
+      controls.autoRotate = true;
+      // static per usage site — deliberately not in the effect deps, or the
+      // scene would re-initialise when it changes
+      controls.autoRotateSpeed = spin ?? 0.9;
+      controls.minDistance = 1.4;
+      controls.maxDistance = 14;
+      // stop auto-rotate while the visitor looks
+      controls.addEventListener('start', () => {
+        controls.autoRotate = false;
+      });
+    } else {
+      // backdrop spin — slow enough to read as weather, not a wheel
+      camera.position.set(0.8, 0.4, 4.4);
+    }
 
     const resize = () => {
       const w = mount.clientWidth || 1;
@@ -85,23 +113,43 @@ export function World({ src, fallback, className = '', onReady }: WorldProps) {
     const ro = new ResizeObserver(resize);
     ro.observe(mount);
 
-    // capture wheel over the canvas so zoom doesn't scroll the page
-    const onWheel = (e: WheelEvent) => e.preventDefault();
-    renderer.domElement.addEventListener('wheel', onWheel, { passive: false });
+    // interactive only: capture wheel over the canvas so zoom doesn't
+    // scroll the page. ambient: no listener — the page owns the wheel.
+    let onWheel: ((e: WheelEvent) => void) | null = null;
+    if (controls) {
+      onWheel = (e) => e.preventDefault();
+      renderer.domElement.addEventListener('wheel', onWheel, { passive: false });
+    }
+
+    // don't burn frames off-screen — the world can sit mounted as a
+    // backdrop while the visitor reads or scrolls
+    let mountVisible = true;
+    const io = new IntersectionObserver(
+      ([entry]) => {
+        mountVisible = entry.isIntersecting;
+      },
+      { threshold: 0 },
+    );
+    io.observe(mount);
 
     let model: THREE.Object3D | null = null;
+    let modelBaseY = 0;
+    // rad/frame — the ambient drift; 0 when the visitor drives the camera
+    const spinRate = interactive ? 0 : (spin ?? 0.35) * 0.05;
     const frame = () => {
       if (disposed) return;
-      // gently resume the drift if they've been hands-off a while
-      if (interacted && !renderer.domElement.matches(':active') && Math.random() < 0.002) {
-        controls.autoRotate = true;
+      if (mountVisible) {
+        if (controls) {
+          controls.update();
+        } else if (model) {
+          model.rotation.y = modelBaseY + (performance.now() / 1000) * spinRate;
+        }
+        if (model) {
+          // a slow breathing sway, like wind
+          model.rotation.z = Math.sin(performance.now() / 4000) * 0.012;
+        }
+        renderer.render(scene, camera);
       }
-      controls.update();
-      if (model) {
-        // a slow breathing sway, like wind
-        model.rotation.z = Math.sin(performance.now() / 4000) * 0.012;
-      }
-      renderer.render(scene, camera);
       raf = requestAnimationFrame(frame);
     };
 
@@ -121,9 +169,10 @@ export function World({ src, fallback, className = '', onReady }: WorldProps) {
           obj.scale.setScalar(s);
           scene.add(obj);
           model = obj;
+          modelBaseY = obj.rotation.y;
           // frame it
           camera.position.set(0.8, 0.4, 4.4);
-          controls.target.set(0, 0, 0);
+          controls?.target.set(0, 0, 0);
           onReady?.();
         },
         undefined,
@@ -139,8 +188,9 @@ export function World({ src, fallback, className = '', onReady }: WorldProps) {
       disposed = true;
       cancelAnimationFrame(raf);
       ro.disconnect();
-      renderer.domElement.removeEventListener('wheel', onWheel);
-      controls.dispose();
+      io.disconnect();
+      if (onWheel) renderer.domElement.removeEventListener('wheel', onWheel);
+      controls?.dispose();
       scene.traverse((o) => {
         const m = o as THREE.Mesh;
         if (m.geometry) m.geometry.dispose();
@@ -151,11 +201,11 @@ export function World({ src, fallback, className = '', onReady }: WorldProps) {
       renderer.dispose();
       if (renderer.domElement.parentNode === mount) mount.removeChild(renderer.domElement);
     };
-  }, [src, onReady]);
+  }, [src, onReady, interactive]);
 
   if (failed) {
     return (
-      <div className={`wt-world wt-world-fallback ${className}`} aria-hidden>
+      <div className={`world world-fallback ${className}`} aria-hidden>
         {fallback && <img src={fallback} alt="" draggable={false} />}
       </div>
     );

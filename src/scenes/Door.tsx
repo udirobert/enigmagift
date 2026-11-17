@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { gsap } from 'gsap';
 import { prefersReducedMotion } from '../lib/motion';
-import { HeroFilm } from '../components/HeroFilm';
-import { TableBackdrop, type TableBackdropHandle } from '../components/TableBackdrop';
+import {
+  WorldBackdrop,
+  type WorldBackdropHandle,
+} from '../components/WorldBackdrop';
 import type { Direction } from '../App';
 
 const isFileDrag = (e: DragEvent) =>
@@ -13,23 +15,34 @@ interface DoorProps {
   onWatch: () => void;
   direction: Direction;
   onDirection: (d: Direction) => void;
-  /** land on the dropzone instead of the hero (after the story's "make one") */
+  /** land on the dock (after the story's "make one") rather than the cold-open */
   initialSection?: 'hero' | 'start';
 }
 
 /**
- * The landing. Cold-opens on a real film of the place, then one move: make one
- * (the dropzone). The story lives behind "watch it work" — the product shows
- * itself; the page doesn't describe it.
+ * The landing — one scene, one place, almost no words. A single photograph
+ * of the place lifts into its 3D world on a slow loop behind everything;
+ * the product's own words ("round 1", "hidden here", "the keepsake") float
+ * on the world, so the backdrop shows the product instead of describing it.
+ * The dock — drop photos + for whom — is the only move the page offers.
  */
-export function Door({ onPhotos, onWatch, direction, onDirection, initialSection = 'hero' }: DoorProps) {
+export function Door({
+  onPhotos,
+  onWatch,
+  direction,
+  onDirection,
+  initialSection = 'hero',
+}: DoorProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const rootRef = useRef<HTMLElement>(null);
-  const backdropRef = useRef<TableBackdropHandle>(null);
+  const backdropRef = useRef<WorldBackdropHandle>(null);
+  const dockRef = useRef<HTMLDivElement>(null);
   const dragDepth = useRef(0);
   const [tableDrag, setTableDrag] = useState(false);
   const [hintPos, setHintPos] = useState<{ x: number; y: number } | null>(null);
   const [count, setCount] = useState(0);
+  const [phase, setPhase] = useState<'photo' | 'world'>('photo');
+  const [dockPulse, setDockPulse] = useState(false);
 
   const handleFiles = useCallback(
     (files: FileList | null) => {
@@ -90,11 +103,11 @@ export function Door({ onPhotos, onWatch, direction, onDirection, initialSection
     };
   }, [handleFiles]);
 
+  /* returning from the story — the dock is where they go */
   useEffect(() => {
     if (initialSection !== 'start') return;
-    const t = window.setTimeout(() => {
-      rootRef.current?.querySelector('.dropzone')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }, 150);
+    setDockPulse(true);
+    const t = window.setTimeout(() => setDockPulse(false), 2600);
     return () => window.clearTimeout(t);
   }, [initialSection]);
 
@@ -117,69 +130,70 @@ export function Door({ onPhotos, onWatch, direction, onDirection, initialSection
     return () => ctx.revert();
   }, []);
 
-  const scrollToStart = () =>
-    rootRef.current?.querySelector('.door-start')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  const openPicker = () => inputRef.current?.click();
 
   return (
     <section className="scene scene-door" ref={rootRef}>
-      {/* ---------------------------- the cold-open ---------------------- */}
-      <div className="hero">
-        <HeroFilm />
-        <div className="hero-content">
-          <p className="kicker hero-anim">a gift only one person in the world can find</p>
-          <h1 className="wordmark hero-anim">enigmagift</h1>
-          <p className="lede hero-anim">
-            photograph a place that matters. it builds a trail only they can follow —
-            and a code in what you hide opens the keepsake.
+      {/* the world behind everything — one photograph, its 3D world */}
+      <div className="door-stage">
+        <WorldBackdrop
+          ref={backdropRef}
+          dragActive={tableDrag}
+          onPhase={setPhase}
+        />
+        <div className="door-scrim" aria-hidden />
+
+        {tableDrag && hintPos && (
+          <div
+            className="drop-hint"
+            style={{ left: hintPos.x, top: hintPos.y }}
+            aria-hidden="true"
+          >
+            spread them on the table
+          </div>
+        )}
+
+        {/* the words — bottom-left, over the world */}
+        <div className="door-copy">
+          <p className="kicker door-anim">a gift only one person in the world can find</p>
+          <h1 className="wordmark door-anim">enigmagift</h1>
+          <p className="lede door-anim">
+            photograph a place that matters. it builds a trail only they can
+            follow — and a code in what you hide opens the keepsake.
           </p>
-          <div className="hero-actions hero-anim">
+          <div className="hero-actions door-anim">
             <button className="btn btn-primary" onClick={onWatch}>
               watch it work
             </button>
-            <button className="demo-link" onClick={scrollToStart}>
-              make one for £19 ↓
-            </button>
           </div>
         </div>
-      </div>
 
-      {tableDrag && hintPos && (
-        <div className="drop-hint" style={{ left: hintPos.x, top: hintPos.y }} aria-hidden="true">
-          spread them on the table
-        </div>
-      )}
-
-      {/* ------------------------- make one — the start ------------------ */}
-      <div className="door-start">
-        <TableBackdrop ref={backdropRef} dragActive={tableDrag} />
-        <div className="scene-inner door-start-inner">
+        {/* the move — a glass dock on the world */}
+        <div
+          ref={dockRef}
+          className={`door-dock door-anim${dockPulse ? ' is-pulse' : ''}`}
+        >
           <div
-            className={`dropzone door-anim ${tableDrag ? 'is-dragging' : ''}`}
+            className={`dock-drop${tableDrag ? ' is-dragging' : ''}`}
             role="button"
             tabIndex={0}
             aria-label="drop photos of the place, or click to browse"
-            onClick={() => inputRef.current?.click()}
-            onKeyDown={(e) => e.key === 'Enter' && inputRef.current?.click()}
-            onDragOver={(e) => e.preventDefault()}
-            onDrop={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              handleFiles(e.dataTransfer.files);
-            }}
+            onClick={openPicker}
+            onKeyDown={(e) => e.key === 'Enter' && openPicker()}
           >
-            <span className="dropzone-glyph" aria-hidden>
+            <span className="dock-glyph" aria-hidden>
               ↑
             </span>
-            <span className="dropzone-label">
+            <span className="dock-label">
               {count > 0
                 ? count >= 5
                   ? `${count} photo${count === 1 ? '' : 's'} gathered — reading them now`
                   : `a trail needs at least five — you have ${count}`
                 : 'drop photos of the place'}
             </span>
-            <span className="dropzone-sub">
-              or click to browse — jpg, png, heic · 5–12 shots · the more of it you
-              show it, the better the trail
+            <span className="dock-sub">
+              or click to browse · 5–12 shots · one is a start, more makes the
+              truer
             </span>
             <input
               ref={inputRef}
@@ -193,21 +207,45 @@ export function Door({ onPhotos, onWatch, direction, onDirection, initialSection
               }}
             />
           </div>
-
-          <div className="seg door-anim" role="group" aria-label="who is this gift for">
+          <div
+            className="seg dock-seg"
+            role="group"
+            aria-label="who is this gift for"
+          >
             <button
               className={direction === 'someone' ? 'is-active' : ''}
-              onClick={() => onDirection('someone')}
+              onClick={(e) => {
+                e.stopPropagation();
+                onDirection('someone');
+              }}
             >
               for someone
             </button>
             <button
               className={direction === 'me' ? 'is-active' : ''}
-              onClick={() => onDirection('me')}
+              onClick={(e) => {
+                e.stopPropagation();
+                onDirection('me');
+              }}
             >
               for me
             </button>
           </div>
+        </div>
+
+        {/* the promise, live — tracks the backdrop's photo ⇄ world loop */}
+        <div className="door-caption mono" aria-live="polite">
+          {phase === 'world' ? (
+            <span className="is-on">
+              one photograph <span className="door-caption-arrow">→</span> a
+              world of it
+            </span>
+          ) : (
+            <span>
+              one photograph <span className="door-caption-arrow dim">→</span>{' '}
+              a world of it
+            </span>
+          )}
         </div>
       </div>
     </section>
