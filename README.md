@@ -12,8 +12,10 @@ Live: **https://enigmagift.netlify.app**
 
 ## How it works
 
+0. **Watch it** — an auto-playing showcase of a real gift's recipient side
+   (the sales pitch before the ask).
 1. **Door** — drop 5–12 photos of a place (or "for me" / demo mode).
-2. **Reading** — Gemini vision pass returns located observations per photo.
+2. **Reading** — vision pass (SandBase → Gemini fallback) returns located observations per photo.
 3. **Editor** — buyer approves/cuts the proposed clues (hallucination gate).
 4. **Hide** — agent-proposed hide spots; buyer physically hides a note/object
    and writes the unlock code into it.
@@ -23,15 +25,19 @@ Live: **https://enigmagift.netlify.app**
    connection → throughline reveal), then the physical find + code unlocks
    the keepsake (throughline, place guess, letter).
 
+Scene order in code: WatchIt → Door → Reading → Editor → Hide → Seal →
+R1 → R2 → R3 → Reveal (state machine in `src/App.tsx`, no router).
+
 ## Stack
 
-- **Frontend** — Vite + React + TypeScript, GSAP + Lenis. Six-scene state
-  machine (no router): Door → Reading → Editor → Hide → Seal → Rounds →
-  Reveal. Deployed to Netlify (`dist/` is the publish dir).
+- **Frontend** — Vite + React + TypeScript, GSAP + Lenis. Scene state
+  machine (no router). Deployed to Netlify (`dist/` is the publish dir).
 - **Backend** — Node + Express + SQLite via `node:sqlite` (`server/db.js`), Multer uploads. Deployed to Fly.io
   (`enigmagift-api`, region `iad`, persistent volume at `/data`).
-- **Vision** — Gemini API (`server/gemini.js`): per-image observation +
-  cross-image synthesis. Fails over across all working key×model pairs.
+- **Vision** — `server/gemini.js` (name is historical): SandBase
+  (OpenAI-compatible vision, primary) with Google Gemini as fallback.
+  Per-image observation + cross-image synthesis, failing over across all
+  working key×model pairs.
 - **Payments** — Stripe Payment Link (live, GBP £19 one-time) on the
   "EnigmaGift" Stripe account. `VITE_STRIPE_LINK` is baked at build time.
 
@@ -48,7 +54,9 @@ npm run dev          # API on :8787 (node --watch)
 
 Env (backend, `server/.env` or Fly secrets):
 
-- `GEMINI_API_KEY` — required. `GOOGLE_API_KEY` /
+- `SANDBASE_API_KEY` — primary vision provider (local copy in
+  `server/sandbase.env`, gitignored; set on Fly via `fly secrets set`).
+- `GEMINI_API_KEY` — fallback provider; `GOOGLE_API_KEY` /
   `GOOGLE_GENERATIVE_AI_API_KEY` are also picked up as extra quota pools.
 - `DB_PATH`, `UPLOADS_DIR` — default to `./data` locally, `/data/*` on Fly.
 
@@ -74,6 +82,8 @@ Frontend env:
 | `GET /api/photo/:giftId/:i` | original photo by sorted index |
 
 ## Deploy
+
+Full runbook: `notes/OPS.md` (topology, secrets, redeploy, gotchas).
 
 - **Frontend**: `netlify deploy --prod --build` (build command `npm run
   build`, env `VITE_STRIPE_LINK` in Netlify production context).
