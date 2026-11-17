@@ -5,7 +5,7 @@ import { join, extname } from 'node:path';
 import { imageSize } from 'image-size';
 import crypto from 'node:crypto';
 import { db, UPLOADS_DIR } from './db.js';
-import { getClient, observeImage, crossImage, mimeFor } from './gemini.js';
+import { getCandidates, observeImage, crossImage, mimeFor } from './gemini.js';
 
 const IMAGE_EXT = new Set(['.jpg', '.jpeg', '.png', '.webp', '.gif', '.heic', '.heif']);
 const rand = (n) => crypto.randomBytes(n).toString('hex');
@@ -307,9 +307,10 @@ async function runPipelineInner(giftId) {
   if (!gift) return;
   const photos = listPhotos(giftId);
 
-  let client;
-  try { client = await getClient(); }
-  catch (e) {
+  try {
+    const cands = await getCandidates();
+    if (!cands.length) throw new Error('no working gemini key/model');
+  } catch (e) {
     db.prepare("UPDATE gifts SET status='error' WHERE id=?").run(giftId);
     console.error(`[pipeline ${giftId}] no gemini client:`, e.message);
     return;
@@ -318,7 +319,7 @@ async function runPipelineInner(giftId) {
   // per-image observation, bounded worker pool (concurrency 3)
   const settled = await mapPool(photos, OBSERVE_CONCURRENCY, async (p, photoIndex) => {
     const buf = readFileSync(p.path);
-    let data = await observeImage(client, buf, mimeFor(p.file));
+    let data = await observeImage(buf, mimeFor(p.file));
     data = normalizeBboxes(data, p.path);
     return { photoIndex, photoFile: p.file, data };
   });
@@ -379,7 +380,7 @@ async function runPipelineInner(giftId) {
 
   let cross = null;
   try {
-    cross = await crossImage(client, bundleLines.join('\n'));
+    cross = await crossImage(bundleLines.join('\n'));
   } catch (e) {
     console.error(`[pipeline ${giftId}] cross-image call failed:`, e.message);
   }

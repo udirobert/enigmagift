@@ -7,13 +7,15 @@ import { join } from 'node:path';
 // 2.5-flash has a small free-tier daily quota — newer flash models are the fallback.
 const MODELS = [
   'gemini-2.5-flash',
-  'gemini-3.5-flash',
   'gemini-3.5-flash-lite',
   'gemini-3.1-flash-lite',
+  'gemini-2.5-flash-lite',
+  'gemini-3.5-flash',
 ];
 const DEV_DIR = '/Users/udingethe/Dev';
 
-let cached = null; // {key, model}
+let cachedList = null; // [{key, model}] — working pairs, best first
+let lastGood = 0;         // index into cachedList that last succeeded
 
 function* envFiles() {
   try {
@@ -69,18 +71,46 @@ async function testModel(key, model) {
   } catch { return false; }
 }
 
-export async function getClient() {
-  if (cached) return cached;
+// All working key+model pairs, best first. Quota is per-key-per-model, so a
+// dead pair (daily 429) doesn't poison the others — failover walks this list.
+export async function getCandidates() {
+  if (cachedList) return cachedList;
+  const out = [];
   for (const key of candidateKeys()) {
     for (const model of MODELS) {
-      if (await testModel(key, model)) {
-        cached = { key, model };
-        console.log(`[gemini] using ${model} key...${key.slice(-4)}`);
-        return cached;
-      }
+      if (await testModel(key, model)) out.push({ key, model });
     }
   }
-  throw new Error('No working Gemini API key found (set GEMINI_API_KEY)');
+  cachedList = out;
+  if (out.length) console.log(`[gemini] ${out.length} working pair(s): ${out.map(c=>c.model+'...'+c.key.slice(-4)).join(', ')}`);
+  return out;
+}
+
+// Kept for callers that want a single client — first working pair.
+export async function getClient() {
+  const list = await getCandidates();
+  if (!list.length) throw new Error('No working Gemini API key found (set GEMINI_API_KEY)');
+  return list[lastGood];
+}
+
+// Try candidates in order (last-success first), fail over on any error.
+async function callVision(parts, opts) {
+  const list = await getCandidates();
+  if (!list.length) throw new Error('No working Gemini API key found (set GEMINI_API_KEY)');
+  const order = [...list.slice(lastGood), ...list.slice(0, lastGood)];
+  let lastErr = null;
+  for (let i = 0; i < order.length; i++) {
+    const c = order[i];
+    try {
+      const r = await generateContent(c, parts, opts);
+      lastGood = list.indexOf(c);
+      return r;
+    } catch (e) {
+      lastErr = e;
+      console.warn(`[gemini] ${c.model}...${c.key.slice(-4)} failed: ${e.message?.slice(0,120)}`);
+    }
+  }
+  throw lastErr || new Error('All Gemini candidates failed');
 }
 
 // ---------- JSON repair ----------
@@ -232,15 +262,15 @@ export function mimeFor(filename) {
   return MIME_BY_EXT[ext] || 'image/jpeg';
 }
 
-export async function observeImage(client, imgBuffer, mime) {
+export async function observeImage(imgBuffer, mime) {
   const b64 = imgBuffer.toString('base64');
-  return generateContent(client, [
+  return callVision([
     { inline_data: { mime_type: mime, data: b64 } },
     { text: OBSERVE_PROMPT },
   ], { temperature: 0.2, maxOutputTokens: 4096 });
 }
 
-export async function crossImage(client, bundle) {
+export async function crossImage(bundle) {
   const prompt = CROSS_PROMPT + '\n\nPHOTOS AND OBSERVATIONS:\n' + bundle;
-  return generateContent(client, [{ text: prompt }], { temperature: 0.3, maxOutputTokens: 2048 });
+  return callVision([{ text: prompt }], { temperature: 0.3, maxOutputTokens: 2048 });
 }
