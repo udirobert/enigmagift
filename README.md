@@ -8,7 +8,7 @@ only they would know — and builds a sealed trail of clues that leads the
 recipient to what was left behind. A code in the hidden thing unlocks the
 digital keepsake.
 
-Live: **https://enigmagift.netlify.app**
+Live: **https://enigmagift.pages.dev**
 
 ## How it works
 
@@ -85,11 +85,15 @@ Frontend env:
 
 Full runbook: `notes/OPS.md` (topology, secrets, redeploy, gotchas).
 
-- **Frontend**: `netlify deploy --prod --build` (build command `npm run
-  build`, env `VITE_STRIPE_LINK` in Netlify production context).
+- **Frontend**: Cloudflare Pages project `enigmagift`
+  (`enigmagift.pages.dev`). `npm run build` then
+  `npx wrangler pages deploy dist --project-name=enigmagift --branch=main`
+  with `VITE_STRIPE_LINK` set at build time. `/api/*` is proxied to Fly by
+  the Pages Function `functions/api/[[path]].js` (Pages `_redirects`
+  cannot proxy external domains). Netlify remains as a legacy mirror.
 - **Backend**: `cd server && fly deploy`.
 - Stripe return URL is configured on the Payment Link:
-  `https://enigmagift.netlify.app/?paid=1&sid={CHECKOUT_SESSION_ID}`.
+  `https://enigmagift.pages.dev/?paid=1&sid={CHECKOUT_SESSION_ID}`.
   The gift ID survives the new-tab checkout via `localStorage`
   (`enigmagift.gift.v1`), so `?paid=1` resumes at the Seal scene.
 

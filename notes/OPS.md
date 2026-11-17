@@ -9,12 +9,12 @@ secrets, the gotchas that actually bit us, and how to verify the live flow.
 
 | Piece | Where | Notes |
 |---|---|---|
-| Frontend | Netlify — `enigmagift.netlify.app` (site id `146e87a7-…`) | `npm run build` → Netlify. Redirects `/api/*` → Fly, `/*` → `index.html` (SPA). |
+| Frontend | Cloudflare Pages — `enigmagift.pages.dev` (project `enigmagift`) | `npm run build` → `wrangler pages deploy dist --project-name=enigmagift --branch=main`. `/api/*` proxied to Fly by `functions/api/[[path]].js`; `/*` → `index.html` via `_redirects`. Netlify (`enigmagift.netlify.app`) still live as legacy mirror. |
 | Backend | Fly.io — `enigmagift-api.fly.dev`, app `enigmagift-api`, region `iad` | `fly deploy` from `server/`. 512MB shared-cpu-1x, `/data` volume for SQLite + uploads. |
 | Vision | SandBase `api.sandbase.ai/v1` (primary) + Google Gemini (fallback) | Key held as a Fly secret + local `server/sandbase.env`. |
 
-Frontend and backend are **not** on the same host. Netlify is static-only, so all
-state (DB, uploads) lives on the Fly volume.
+Frontend and backend are **not** on the same host. Pages is static-only (+ the
+`/api` proxy Function), so all state (DB, uploads) lives on the Fly volume.
 
 ---
 
@@ -60,15 +60,16 @@ Gotchas:
 - Big build-context warning (node_modules ~81MB) is harmless; `.dockerignore`
   already excludes node_modules/uploads/db.
 
-### Frontend (Netlify)
+### Frontend (Cloudflare Pages)
 
 ```bash
-npm run build      # produces dist/
-# then either netlify deploy (local folder) or push to GitHub → Netlify deploys
+VITE_STRIPE_LINK="https://buy.stripe.com/<id>" npm run build
+npx wrangler pages deploy dist --project-name=enigmagift --branch=main
 ```
 
-`VITE_STRIPE_LINK` must be present in the **production** context for the £19 gate
-to appear. Verify it's inlined:
+`/api/*` is proxied to Fly by `functions/api/[[path]].js` — Pages `_redirects`
+cannot proxy external domains, so don't try to express the API route there.
+`VITE_STRIPE_LINK` must be set at **build** time for the £19 gate to appear. Verify it's inlined:
 
 ```bash
 grep -hoE 'https://buy\.stripe\.com/[A-Za-z0-9?=_&.-]{6,20}' dist/assets/*.js
@@ -86,7 +87,7 @@ opens it in a new tab with `client_reference_id=<giftId>`. For the buyer to retu
 and auto-seal, the Payment Link's **success URL** must be:
 
 ```
-https://enigmagift.netlify.app/?paid=1
+https://enigmagift.pages.dev/?paid=1
 ```
 
 The app detects `?paid=1` on return (or on window focus), calls
@@ -119,7 +120,7 @@ backend or set `VITE_API_URL` to the backend.
 ```bash
 # health through both hops
 curl -s https://enigmagift-api.fly.dev/api/health            # {"ok":true}
-curl -s https://enigmagift.netlify.app/api/health           # {"ok":true} (proxy works)
+curl -s https://enigmagift.pages.dev/api/health           # {"ok":true} (proxy works)
 
 # create a gift (5 real photos from server/uploads/<gift>/)
 curl -s -X POST https://enigmagift-api.fly.dev/api/gifts \
@@ -137,7 +138,7 @@ curl -s -X POST https://enigmagift-api.fly.dev/api/trail/<token>/unlock \
 ```
 
 Then confirm the recipient journey in a real browser at
-`https://enigmagift.netlify.app/?t=<token>` (round 1 crop+options → code gate →
+`https://enigmagift.pages.dev/?t=<token>` (round 1 crop+options → code gate →
 keepsake). Use the `ego-browser` skill, not Playwright.
 
 ---

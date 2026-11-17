@@ -1,10 +1,14 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { Suspense, useCallback, useEffect, useRef, useState, lazy } from 'react';
 import { gsap } from 'gsap';
 import { prefersReducedMotion, seeded } from '../lib/motion';
 import { Crop } from '../components/Crop';
-import { World } from '../components/World';
 import { Polaroid } from '../components/Photo';
 import { SHOWCASE, SHOWCASE_CODE } from '../lib/showcase';
+
+// three.js is only for the world beat — keep it out of the initial bundle
+const World = lazy(() =>
+  import('../components/World').then((m) => ({ default: m.World })),
+);
 
 interface WatchItProps {
   onBack: () => void;
@@ -198,11 +202,13 @@ export function WatchIt({ onBack, onBuild }: WatchItProps) {
                 playsInline
                 preload="auto"
               />
-              <World
-                src="/world.glb"
-                fallback="/showcase/0.jpg"
-                onReady={handleWorldReady}
-              />
+              <Suspense fallback={null}>
+                <World
+                  src="/world.glb"
+                  fallback="/showcase/0.jpg"
+                  onReady={handleWorldReady}
+                />
+              </Suspense>
             </div>
             <div className="wt-world-copy wt-in">
               <p className="wt-throughline">“{SHOWCASE.throughline}”</p>
