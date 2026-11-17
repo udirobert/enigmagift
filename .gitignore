@@ -11,3 +11,6 @@ next-env.d.ts
 server/uploads/
 *.db
 *.db-journal
+
+# Local Netlify folder
+.netlify

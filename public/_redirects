@@ -1,0 +1,6 @@
+# API calls go to the Fly.io backend (also set as VITE_API_URL at build time
+# for absolute URLs; relative /api/* paths like photo URLs hit this proxy).
+/api/* https://enigmagift-api.fly.dev/api/:splat 200
+
+# SPA fallback for client-side routes (/t/:token etc.)
+/* /index.html 200
