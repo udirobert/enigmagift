@@ -3,10 +3,14 @@ import express from 'express';
 import cors from 'cors';
 import multer from 'multer';
 import crypto from 'node:crypto';
-import { join } from 'node:path';
-import { mkdirSync } from 'node:fs';
+import { join, dirname } from 'node:path';
+import { mkdirSync, existsSync, readdirSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { db, UPLOADS_DIR } from './db.js';
 import { runPipeline } from './pipeline.js';
+
+const HERE = dirname(fileURLToPath(import.meta.url));
+const DIST = join(HERE, '..', 'dist');
 
 const app = express();
 const PORT = process.env.PORT || 8787;
@@ -22,9 +26,13 @@ const upload = multer({
       mkdirSync(dir, { recursive: true });
       cb(null, dir);
     },
-    filename: (_req, file, cb) => {
+    filename: (req, file, cb) => {
       const ext = (file.originalname.match(/\.[^.]+$/) || ['.jpg'])[0].toLowerCase();
-      cb(null, `${crypto.randomBytes(6).toString('hex')}${IMAGE_EXT.test(ext) ? ext : '.jpg'}`);
+      const e = IMAGE_EXT.test(ext) ? ext : '.jpg';
+      // zero-padded upload order → sorted filenames === upload order,
+      // so photoIndex (sorted order) matches what the buyer saw first
+      const n = ((req._uploadN = (req._uploadN || 0) + 1) || 1) - 1;
+      cb(null, `${String(n).padStart(3, '0')}_${crypto.randomBytes(4).toString('hex')}${e}`);
     },
   }),
   limits: { fileSize: 25 * 1024 * 1024, files: 12 },
@@ -66,10 +74,23 @@ function safeParse(s) {
   try { return JSON.parse(s); } catch { return {}; }
 }
 
+// uploaded originals, sorted — the index is the photoIndex the pipeline used
+function photoFiles(giftId) {
+  try {
+    return readdirSync(join(UPLOADS_DIR, giftId)).sort();
+  } catch { return []; }
+}
+
+function photoUrl(giftId, i) {
+  return `/api/photo/${giftId}/${i}`;
+}
+
 function trailPayload(t, gift) {
+  const files = gift ? photoFiles(gift.id) : [];
   return {
     token: t.token,
     rounds: safeParse(t.rounds),
+    photoUrls: files.map((_, i) => photoUrl(gift.id, i)),
     throughline: gift?.throughline ?? null,
     placeGuess: gift?.place_guess ?? null,
     unlocked: !!t.unlocked,
@@ -152,9 +173,13 @@ app.post('/api/gifts/:id/seal', (req, res) => {
   if (!g) return res.status(404).json({ error: 'not found' });
   if (g.status === 'reading') return res.status(409).json({ error: 'still reading' });
   // idempotent: return existing trail if already sealed
-  const existing = db.prepare('SELECT token FROM trails WHERE gift_id=?').get(g.id);
+  const existing = db.prepare('SELECT token, unlock_code FROM trails WHERE gift_id=?').get(g.id);
   if (existing) {
-    return res.json({ trailToken: existing.token, trailUrl: `/t/${existing.token}` });
+    return res.json({
+      trailToken: existing.token,
+      trailUrl: `/t/${existing.token}`,
+      unlockCode: existing.unlock_code,
+    });
   }
   const token = crypto.randomBytes(12).toString('base64url');
   const unlockCode = (() => {
@@ -169,7 +194,11 @@ app.post('/api/gifts/:id/seal', (req, res) => {
   if (g.status !== 'paid') {
     db.prepare("UPDATE gifts SET status='sealed' WHERE id=?").run(g.id);
   }
-  res.json({ trailToken: token, trailUrl: `/t/${token}` });
+  res.json({
+    trailToken: token,
+    trailUrl: `/t/${token}`,
+    unlockCode, // the buyer writes this into the hidden thing
+  });
 });
 
 app.post('/api/gifts/:id/mark-paid', (req, res) => {
@@ -230,5 +259,22 @@ app.post('/api/trail/:token/unlock', (req, res) => {
   }
   res.json({ unlocked: false });
 });
+
+// original photo (sorted index) — serves crops to both buyer editor and trail
+app.get('/api/photo/:giftId/:i', (req, res) => {
+  const g = getGift(req.params.giftId);
+  if (!g) return res.status(404).json({ error: 'not found' });
+  const i = Math.max(0, Math.min(11, parseInt(req.params.i, 10) || 0));
+  const files = photoFiles(g.id);
+  if (i >= files.length) return res.status(404).json({ error: 'no photo' });
+  res.sendFile(join(UPLOADS_DIR, g.id, files[i]));
+});
+
+// ---------- static (prod: server hosts the build) ----------
+if (existsSync(DIST)) {
+  app.use(express.static(DIST));
+  // SPA fallback for deep links like /?t=token — keep /api/* and /api/photo/* off
+  app.get(/^(?!\/api\/).*/, (_req, res) => res.sendFile(join(DIST, 'index.html')));
+}
 
 app.listen(PORT, () => console.log(`[enigmagift-server] http://localhost:${PORT}`));
