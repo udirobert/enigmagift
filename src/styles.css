@@ -184,6 +184,23 @@ img { display: block; max-width: 100%; }
 }
 .demo-link:hover { color: var(--rust-soft); }
 
+/* quiet secondary door — an alternative, not a competitor to upload */
+.demo-cta {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.16em;
+  color: var(--paper-dim);
+  border: 1px dashed var(--line-strong);
+  border-radius: 999px;
+  padding: 0.7rem 1.5rem;
+  transition: border-color 0.3s, color 0.3s, background 0.3s;
+}
+.demo-cta:hover {
+  border-color: var(--rust);
+  color: var(--rust-soft);
+  background: rgba(192, 95, 46, 0.05);
+}
+
 /* --------------------------------- door ------------------------------ */
 
 .door-inner {
@@ -882,6 +899,86 @@ img { display: block; max-width: 100%; }
   stroke-dasharray: 1.5 17;
 }
 
+/* cards are hover/tap targets for the agent-note captions — the wrapper
+   stays pointer-events:none, cards opt back in. They sit at the edges so
+   the centre (dropzone) is never blocked. */
+.tb-card { pointer-events: auto; }
+.tb-card:hover .tb-frame { opacity: 0.95; }
+.tb-frame { transition: opacity 0.5s ease; }
+
+/* drop-on-table affordance: while files are dragged over the scene the
+   prints on the table brighten a touch */
+.tb-wrap.is-drop-hover .tb-frame { opacity: 0.95; }
+
+/* the agent's marginalia — a small handwritten-feel note pinned under
+   (or above, for low cards) each photograph */
+.tb-notice {
+  position: absolute;
+  left: 50%;
+  top: calc(100% + 0.45rem);
+  transform: translateX(-50%) rotate(-1.6deg);
+  width: max-content;
+  max-width: 16rem;
+  font-family: var(--mono);
+  font-size: 0.66rem;
+  line-height: 1.45;
+  letter-spacing: 0.04em;
+  color: var(--paper);
+  text-align: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.45s ease, transform 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.8);
+}
+.tb-notice.is-above {
+  top: auto;
+  bottom: calc(100% + 0.45rem);
+  transform: translateX(-50%) rotate(1.4deg);
+}
+.tb-notice.is-on {
+  opacity: 0.85;
+  transform: translateX(-50%) rotate(-1.6deg) translateY(-2px);
+}
+.tb-notice.is-above.is-on {
+  transform: translateX(-50%) rotate(1.4deg) translateY(2px);
+}
+
+/* temporary polaroids scattered by a drop — they arrive, linger, fade */
+.tb-temp { pointer-events: none; }
+.tb-temp-rot { transform-origin: 50% 50%; }
+.tb-temp .tb-frame { opacity: 0.9; }
+.tb-temp {
+  animation: temp-life 5.6s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@keyframes temp-life {
+  0% { opacity: 0; transform: translateY(-18px); }
+  9% { opacity: 0.9; }
+  82% { opacity: 0.9; }
+  100% { opacity: 0; transform: translateY(10px); }
+}
+
+/* the "spread them on the table" hint that follows the cursor mid-drag */
+.drop-hint {
+  position: fixed;
+  z-index: 70;
+  transform: translate(-50%, 16px);
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.14em;
+  color: var(--paper-dim);
+  background: rgba(22, 17, 13, 0.72);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 0.4rem 0.9rem;
+  pointer-events: none;
+  white-space: nowrap;
+  animation: hint-in 0.3s ease both;
+}
+@keyframes hint-in {
+  from { opacity: 0; transform: translate(-50%, 10px); }
+  to { opacity: 1; transform: translate(-50%, 16px); }
+}
+
 @media (max-width: 640px) {
   .tb-card.is-extra { display: none; }
 }
@@ -894,5 +991,7 @@ img { display: block; max-width: 100%; }
   .build-spinner { animation-duration: 3s; }
   .step-caret { animation: none; opacity: 0; }
   .dots::after { animation: none; content: '…'; }
-  .dropzone, .btn, .attempt, .clue-card { transition-duration: 0.01s; }
+  .dropzone, .btn, .attempt, .clue-card, .demo-cta, .tb-notice, .tb-frame, .drop-hint { transition-duration: 0.01s; }
+  .tb-temp { animation: none; opacity: 0.9; }
+  .drop-hint { animation: none; }
 }

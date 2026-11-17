@@ -25,6 +25,22 @@ export const mockUrl = (p: MockPhoto, w = 800, h = 1000) =>
 
 export const mockGallery = () => MOCK_PHOTOS.map((p) => mockUrl(p, 640, 800));
 
+/* ------------------------- agent notices ----------------------------- */
+/* What the agent "noticed" in each photograph — surfaced as a small     */
+/* handwritten-feel caption when a card on the Door table is hovered or  */
+/* tapped. Lowercase, specific, observant: the agent's eye, not a label. */
+
+export const NOTICES: Record<string, string> = {
+  'eg-2019-pub': 'it noticed: the blue door, same shade since 2019',
+  'eg-2021-hirecar': 'it noticed: the same bay, third from the left, every visit',
+  'eg-2023-cafe-oct': 'it noticed: the same table by the window, every october',
+  'eg-2024-cafe-oct': 'it noticed: the leaves on the pavement had turned since last october',
+  'eg-2026-summer': 'it noticed: the bench faces the water, not the path',
+  'eg-2020-kitchen': 'it noticed: the back door sticks in wet weather',
+  'eg-2022-beach': 'it noticed: the hut number is half-hidden behind the rope',
+  'eg-2025-station': 'it noticed: the same poster has been up for months',
+};
+
 /* ------------------------------ reading ---------------------------- */
 
 export const readSteps = (n: number) => [
