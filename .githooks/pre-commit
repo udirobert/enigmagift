@@ -1,0 +1,24 @@
+#!/bin/sh
+# Secret scan on staged changes + format staged web files if tooling exists.
+set -e
+
+# --- secrets scan (skip the hook itself and docs that quote patterns) ---
+PATTERNS='sk_live_|rk_live_|sk_test_|rk_test_|ghp_|gho_|github_pat_|xox[baprs]-|AKIA[0-9A-Z]{16}|-----BEGIN [A-Z ]*PRIVATE KEY|api[_-]?key["'"'"' ]*[:=]["'"'"' ]*[A-Za-z0-9_\-]{20,}|password["'"'"' ]*[:=]["'"'"' ]*[^"'"'"' ]{8,}|Bearer [A-Za-z0-9_\-\.]{20,}'
+STAGED_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep -v '^\.githooks/' || true)
+if [ -n "$STAGED_FILES" ]; then
+  if echo "$STAGED_FILES" | while read -r f; do git show ":$f" 2>/dev/null; done | grep -nEi "$PATTERNS" >/dev/null 2>&1; then
+    echo "❌ pre-commit: possible secret detected in staged changes."
+    git diff --cached -- "$STAGED_FILES" | grep -nEi "$PATTERNS" | head -5
+    exit 1
+  fi
+fi
+
+# --- prettier staged web files if installed ---
+if [ -d node_modules ] && [ -f package.json ]; then
+  WEB_STAGED=$(echo "$STAGED_FILES" | grep -E '\.(ts|tsx|js|jsx|css|html|json|md)$' || true)
+  if [ -n "$WEB_STAGED" ]; then
+    echo "$WEB_STAGED" | xargs npx --no-install prettier --write --ignore-unknown >/dev/null 2>&1 || true
+    echo "$WEB_STAGED" | xargs git add -- 2>/dev/null || true
+  fi
+fi
+exit 0
