@@ -9,29 +9,95 @@ import {
   ROUND_2,
   THROUGHLINE,
 } from '../data';
-
 import { prefersReducedMotion, seeded } from '../lib/motion';
 import { Photo, Polaroid } from '../components/Photo';
+import { aspectKnown, bboxToCrop, useImageAspect } from '../lib/crop';
+import { answerRound, type Trail } from '../lib/api';
 
 interface RoundProps {
-  round: 1 | 2 | 3;
-  photos: string[];
   demo: boolean;
+  /** recipient trail (real mode) — null in demo */
+  trail: Trail | null;
+  round: 1 | 2 | 3;
   onDone: () => void;
+}
+
+/** Unified round shape: the API's `correct` and the mock's `answer` become `answer`. */
+interface RoundCfg {
+  kicker: string;
+  question: string;
+  options: string[];
+  answer: number;
+  cropPhotoIndex?: number;
+  crop?: [number, number, number, number];
+  cropPhotoIndex2?: number;
+  crop2?: [number, number, number, number];
+}
+
+/** A crop of a real photo, computed from the observation bbox. */
+function RealCrop({
+  url,
+  bbox,
+  className = '',
+  alt = 'a detail from the photographs',
+}: {
+  url: string;
+  bbox: [number, number, number, number];
+  className?: string;
+  alt?: string;
+}) {
+  const aspect = useImageAspect(url);
+  const crop = bboxToCrop(bbox, aspect);
+  if (!aspectKnown(url)) {
+    return (
+      <div className={`photo ${className}`} aria-hidden>
+        <div
+          className="photo-mat"
+          style={{ aspectRatio: '4 / 5', background: 'var(--ink-3)' }}
+        />
+      </div>
+    );
+  }
+  return (
+    <Photo
+      className={className}
+      src={url}
+      zoom={crop.zoom}
+      focus={crop.focus}
+      pos={crop.pos}
+      ratio={crop.ratio}
+      alt={alt}
+    />
+  );
 }
 
 /**
  * The recipient's side. Warm, slow, forgiving — the lock is theatre,
  * never a password. Wrong answers nudge; after three tries it opens anyway.
  */
-export function Round({ round, photos, demo, onDone }: RoundProps) {
+export function Round({ demo, trail, round, onDone }: RoundProps) {
   const rootRef = useRef<HTMLElement>(null);
   const [attempts, setAttempts] = useState(0);
   const [solved, setSolved] = useState(false);
   const [nudge, setNudge] = useState<string | null>(null);
   const doneRef = useRef(false);
 
-  const gallery = demo || photos.length === 0 ? mockGallery() : photos;
+  const real = !demo && !!trail;
+  const apiRound = real ? trail!.rounds[round - 1] : undefined;
+  // a trail with fewer rounds than expected degrades to the scripted round
+  const live = real && !!apiRound;
+  const cfg: RoundCfg = live
+    ? {
+        kicker: apiRound!.kicker,
+        question: apiRound!.question,
+        options: apiRound!.options,
+        answer: apiRound!.correct,
+        cropPhotoIndex: apiRound!.cropPhotoIndex,
+        crop: apiRound!.crop,
+        cropPhotoIndex2: apiRound!.cropPhotoIndex2,
+        crop2: apiRound!.crop2,
+      }
+    : ((round === 1 ? ROUND_1 : ROUND_2) as unknown as RoundCfg);
   const mockSet = demo ? MOCK_PHOTOS : null;
 
   const finish = () => {
@@ -70,7 +136,7 @@ export function Round({ round, photos, demo, onDone }: RoundProps) {
 
   // demo mode auto-plays: pause, then answer correctly
   useEffect(() => {
-    if (!demo || round === 3) return;
+    if (demo || round === 3) return;
     const t = window.setTimeout(() => {
       setSolved(true);
       window.setTimeout(finish, 1100);
@@ -104,8 +170,10 @@ export function Round({ round, photos, demo, onDone }: RoundProps) {
 
   const pick = (i: number) => {
     if (solved) return;
-    const cfg = round === 1 ? ROUND_1 : ROUND_2;
     if (i === cfg.answer) {
+      if (live) {
+        answerRound(trail!.token, round - 1, i).catch(() => {});
+      }
       setSolved(true);
       setNudge(null);
       window.setTimeout(finish, 1100);
@@ -120,7 +188,21 @@ export function Round({ round, photos, demo, onDone }: RoundProps) {
     }
   };
 
-  const cfg = round === 1 ? ROUND_1 : ROUND_2;
+  // mock crops: prefer the seeded mock set, fall back to the plain gallery
+  const galleryUrls = mockGallery();
+  const mockSrc = (i: number, w = 700, h = 880) =>
+    mockSet ? mockUrl(mockSet[i], w, h) : galleryUrls[i] ?? galleryUrls[0];
+
+  const photoUrl = (i: number) =>
+    real
+      ? (trail!.photoUrls ?? [])[i] ?? (trail!.photoUrls ?? [])[0]
+      : undefined;
+
+  const fan = real
+    ? (trail!.photoUrls ?? []).slice(0, 5)
+    : mockSet
+      ? mockSet.map((p) => mockUrl(p, 640, 800)).slice(0, 5)
+      : mockGallery().slice(0, 5);
 
   return (
     <section className={`scene scene-round round-${round}`} ref={rootRef}>
@@ -128,7 +210,7 @@ export function Round({ round, photos, demo, onDone }: RoundProps) {
 
       <div className="scene-inner round-inner">
         <p className="kicker round-anim">
-          {round === 3 ? 'round three — the throughline' : cfg.kicker}
+          {cfg.kicker}
           <span className="round-count">
             {round} / 3
           </span>
@@ -137,7 +219,7 @@ export function Round({ round, photos, demo, onDone }: RoundProps) {
         {round === 3 ? (
           <>
             <div className="throughline-photos">
-              {gallery.slice(0, 5).map((src, i) => (
+              {fan.map((src, i) => (
                 <Polaroid
                   key={src}
                   src={src}
@@ -148,7 +230,12 @@ export function Round({ round, photos, demo, onDone }: RoundProps) {
                 />
               ))}
             </div>
-            <h2 className="throughline round-anim">{THROUGHLINE}</h2>
+            <h2 className="throughline round-anim">
+              {real ? trail!.throughline || THROUGHLINE : THROUGHLINE}
+            </h2>
+            {real && trail!.placeGuess && (
+              <p className="throughline-sub round-anim">{trail!.placeGuess}</p>
+            )}
             <button className="demo-link round-anim" onClick={finish}>
               open the keepsake →
             </button>
@@ -156,14 +243,31 @@ export function Round({ round, photos, demo, onDone }: RoundProps) {
         ) : (
           <>
             <div className={`round-photos round-photos-${round}`}>
-              {round === 1 ? (
+              {live ? (
+                round === 1 ? (
+                  <RealCrop
+                    className="round-photo round-anim"
+                    url={photoUrl(cfg.cropPhotoIndex ?? 0) ?? ''}
+                    bbox={cfg.crop!}
+                  />
+                ) : (
+                  <>
+                    <RealCrop
+                      className="round-photo round-anim"
+                      url={photoUrl(cfg.cropPhotoIndex ?? 0) ?? ''}
+                      bbox={cfg.crop!}
+                    />
+                    <RealCrop
+                      className="round-photo round-anim"
+                      url={photoUrl(cfg.cropPhotoIndex2 ?? 1) ?? ''}
+                      bbox={(cfg.crop2 ?? cfg.crop)!}
+                    />
+                  </>
+                )
+              ) : round === 1 ? (
                 <Photo
                   className="round-photo round-anim"
-                  src={
-                    mockSet
-                      ? mockUrl(mockSet[1], 800, 1000)
-                      : gallery[1] ?? gallery[0]
-                  }
+                  src={mockSrc(1, 800, 1000)}
                   zoom={2.7}
                   focus="62% 56%"
                   ratio="4 / 5"
@@ -175,7 +279,7 @@ export function Round({ round, photos, demo, onDone }: RoundProps) {
                     <Photo
                       key={idx}
                       className="round-photo round-anim"
-                      src={mockSet ? mockUrl(mockSet[idx], 700, 880) : gallery[idx] ?? gallery[0]}
+                      src={mockSrc(idx, 700, 880)}
                       zoom={1.45}
                       focus="50% 60%"
                       ratio="4 / 5"
@@ -188,7 +292,11 @@ export function Round({ round, photos, demo, onDone }: RoundProps) {
 
             <h2 className="round-question round-anim">{cfg.question}</h2>
 
-            <div className="attempts round-anim" role="group" aria-label="answer attempts">
+            <div
+              className="attempts round-anim"
+              role="group"
+              aria-label="answer attempts"
+            >
               {cfg.options.map((opt, i) => (
                 <button
                   key={opt}
@@ -202,9 +310,11 @@ export function Round({ round, photos, demo, onDone }: RoundProps) {
             </div>
 
             <p className={`round-nudge ${nudge ? 'is-visible' : ''}`} aria-live="polite">
-              {nudge ?? ' '}
+              {nudge ?? ' '}
             </p>
-            <p className="round-hint round-anim">there are no wrong doors here — only three looks</p>
+            <p className="round-hint round-anim">
+              there are no wrong doors here — only three looks
+            </p>
           </>
         )}
       </div>

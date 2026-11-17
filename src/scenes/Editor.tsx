@@ -3,20 +3,91 @@ import { gsap } from 'gsap';
 import { CLUES, mockGallery } from '../data';
 import { prefersReducedMotion, seeded } from '../lib/motion';
 import { Photo } from '../components/Photo';
+import { aspectKnown, bboxToCrop, useImageAspect } from '../lib/crop';
+import { updateClues, type ApiClue, type Gift, type HideSpot } from '../lib/api';
 
 interface EditorProps {
-  photos: string[];
   demo: boolean;
-  onSeal: (kept: number) => void;
+  gift: Gift | null;
+  /** kept count + the hide spot the buyer chose (null = "somewhere else") */
+  onSeal: (kept: number, hideSpot: HideSpot | null) => void;
 }
 
-export function Editor({ photos, demo, onSeal }: EditorProps) {
+/** Real clue crop: bbox from the observation, measured against the photo. */
+function ClueCrop({
+  url,
+  bbox,
+}: {
+  url: string;
+  bbox: [number, number, number, number];
+}) {
+  const aspect = useImageAspect(url);
+  const crop = bboxToCrop(bbox, aspect);
+  if (!aspectKnown(url)) {
+    return (
+      <div
+        className="photo-mat"
+        style={{ aspectRatio: '4 / 5', background: 'var(--ink-3)' }}
+        aria-hidden
+      />
+    );
+  }
+  return (
+    <Photo
+      src={url}
+      zoom={crop.zoom}
+      focus={crop.focus}
+      pos={crop.pos}
+      ratio={crop.ratio}
+      taped
+      alt=""
+    />
+  );
+}
+
+export function Editor({ demo, gift, onSeal }: EditorProps) {
   const rootRef = useRef<HTMLElement>(null);
-  const [status, setStatus] = useState<('in' | 'out')[]>(CLUES.map(() => 'in'));
+  const real = !demo && !!gift && !!gift.clues?.length;
+
+  // one view shape for both real (pipeline) and mock (demo) clues
+  const clues: {
+    id: string;
+    text: string;
+    kind: 'seen' | 'inferred';
+    photoIndex: number;
+    bbox?: [number, number, number, number];
+    zoom?: number;
+    focus?: string;
+  }[] = real
+    ? (gift!.clues as ApiClue[]).map((c) => ({
+        id: c.id,
+        text: c.text,
+        kind: 'seen',
+        photoIndex: c.photoIndex ?? 0,
+        bbox: c.bbox as [number, number, number, number] | undefined,
+      }))
+    : CLUES.map((c, i) => ({
+        id: `mock-${i}`,
+        text: c.text,
+        kind: c.kind,
+        photoIndex: c.photo,
+        zoom: c.zoom,
+        focus: c.focus,
+      }));
+
+  const [status, setStatus] = useState<('in' | 'out')[]>(clues.map(() => 'in'));
+  const [edits, setEdits] = useState<Record<number, string>>({});
+  const [hideIdx, setHideIdx] = useState<number | null>(0);
+  const [sealing, setSealing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const hideSpots = real ? (gift!.hideSpots ?? []) : [];
   const kept = status.filter((s) => s === 'in').length;
 
-  // gallery the clues crop from — demo fills with the mock set
-  const gallery = demo || photos.length === 0 ? mockGallery() : photos;
+  // gallery for mock crops; real crops come from /api/photo
+  const mockGalleryUrls = mockGallery();
+  const photoUrl = (i: number) =>
+    real ? `/api/photo/${gift!.id}/${i}` : mockGalleryUrls[i] ?? mockGalleryUrls[0];
 
   useEffect(() => {
     const ctx = gsap.context(() => {
@@ -49,6 +120,35 @@ export function Editor({ photos, demo, onSeal }: EditorProps) {
     setStatus((prev) => prev.map((s, j) => (j === i ? (s === 'in' ? 'out' : 'in') : s)));
   };
 
+  const clueText = (i: number) => edits[i] ?? clues[i].text;
+
+  const seal = async () => {
+    if (sealing || kept === 0) return;
+    setSealing(true);
+    setError(null);
+    if (real) {
+      try {
+        const keepIds: string[] = [];
+        const ed: Record<string, string> = {};
+        status.forEach((s, i) => {
+          if (s !== 'in') return;
+          keepIds.push(clues[i].id);
+          const t = clueText(i);
+          if (t !== clues[i].text) ed[clues[i].id] = t;
+        });
+        await updateClues(gift!.id, keepIds, ed);
+      } catch (e: any) {
+        setError(e.message || 'couldn’t save — try again');
+        setSealing(false);
+        return;
+      }
+    }
+    // nothing is posted to /hide here — the chosen spot travels to the
+    // hide-it scene, which records the hide when the buyer says it's done
+    const spot = hideIdx != null ? (hideSpots[hideIdx] ?? null) : null;
+    onSeal(kept, spot);
+  };
+
   return (
     <section className="scene scene-editor" ref={rootRef}>
       <div className="scene-inner">
@@ -56,34 +156,49 @@ export function Editor({ photos, demo, onSeal }: EditorProps) {
           <p className="kicker">step three — you are the editor</p>
           <h2 className="scene-title">the agent proposes. you approve.</h2>
           <p className="lede small">
-            three things it noticed in your photographs. keep what feels true —
-            cut what doesn't. nothing reaches them unreviewed.
+            {clues.length} thing{clues.length === 1 ? '' : 's'} it noticed in your
+            photographs. keep what feels true — cut what doesn’t. nothing
+            reaches them unreviewed.
           </p>
         </header>
 
         <div className="clue-grid">
-          {CLUES.map((c, i) => {
+          {clues.map((c, i) => {
             const out = status[i] === 'out';
-            const src = gallery[c.photo] ?? gallery[0];
             return (
               <article
-                key={c.text}
+                key={c.id}
                 className={`clue-card ${out ? 'is-out' : ''}`}
                 style={{ rotate: `${(seeded(i, 7) - 0.5) * 2.4}deg` }}
               >
                 <div className="clue-media">
-                  <Photo
-                    src={src}
-                    zoom={c.zoom}
-                    focus={c.focus}
-                    ratio="4 / 5"
-                    taped
-                    alt=""
-                  />
+                  {real ? (
+                    <ClueCrop
+                      url={photoUrl(c.photoIndex)}
+                      bbox={c.bbox!}
+                    />
+                  ) : (
+                    <Photo
+                      src={photoUrl(c.photoIndex)}
+                      zoom={c.zoom}
+                      focus={c.focus}
+                      ratio="4 / 5"
+                      taped
+                      alt=""
+                    />
+                  )}
                   {out && <span className="cut-stamp">cut</span>}
                 </div>
                 <div className="clue-body">
-                  <p className="clue-text">{c.text}</p>
+                  <textarea
+                    className="clue-text is-editable"
+                    rows={2}
+                    value={clueText(i)}
+                    onChange={(e) =>
+                      setEdits((prev) => ({ ...prev, [i]: e.target.value }))
+                    }
+                    aria-label={`clue ${i + 1} text`}
+                  />
                   <div className="clue-foot">
                     <span className={`clue-tag is-${c.kind}`}>
                       {c.kind === 'seen' ? 'seen in photo' : 'inferred'}
@@ -109,14 +224,48 @@ export function Editor({ photos, demo, onSeal }: EditorProps) {
           })}
         </div>
 
+        {real && hideSpots.length > 0 && (
+          <div className="hide-picker clue-card" style={{ rotate: '0.4deg' }}>
+            <div className="clue-body">
+              <p className="clue-kicker">and where will you hide it?</p>
+              <div className="hide-list" role="radiogroup" aria-label="hide spot">
+                {hideSpots.map((h, i) => (
+                  <label
+                    key={h.id}
+                    className={`hide-option ${hideIdx === i ? 'is-active' : ''}`}
+                  >
+                    <input
+                      type="radio"
+                      name="hide-spot"
+                      checked={hideIdx === i}
+                      onChange={() => setHideIdx(i)}
+                    />
+                    <span>{h.description}</span>
+                  </label>
+                ))}
+                <label className={`hide-option ${hideIdx === null ? 'is-active' : ''}`}>
+                  <input
+                    type="radio"
+                    name="hide-spot"
+                    checked={hideIdx === null}
+                    onChange={() => setHideIdx(null)}
+                  />
+                  <span>somewhere else — i’ll decide in person</span>
+                </label>
+              </div>
+            </div>
+          </div>
+        )}
+
         <div className="editor-foot">
-          <p className="foot-note">
-            {kept === 0
-              ? 'nothing kept — the gift needs at least one true thing'
-              : `${kept} clue${kept === 1 ? '' : 's'} kept · you can change your mind later`}
+          <p className="foot-note" aria-live="polite">
+            {error ??
+              (kept === 0
+                ? 'nothing kept — the gift needs at least one true thing'
+                : `${kept} clue${kept === 1 ? '' : 's'} kept · now go hide it`)}
           </p>
-          <button className="btn btn-primary" onClick={() => onSeal(kept)} disabled={kept === 0}>
-            seal it →
+          <button className="btn btn-primary" onClick={seal} disabled={kept === 0 || sealing}>
+            {sealing ? 'sealing…' : 'seal it →'}
           </button>
         </div>
       </div>

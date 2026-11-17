@@ -797,6 +797,130 @@ img { display: block; max-width: 100%; }
   75% { content: '...'; }
 }
 
+.throughline-sub {
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  letter-spacing: 0.12em;
+  color: var(--paper-faint);
+  margin-top: -1.2rem;
+}
+
+/* ------------------------------ code entry --------------------------- */
+
+.code-letter { margin-bottom: 0.5rem; }
+
+.code-entry {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.9rem;
+  max-width: 22rem;
+}
+
+.code-input {
+  width: 100%;
+  font-family: var(--mono);
+  font-size: 1.4rem;
+  letter-spacing: 0.35em;
+  text-align: center;
+  padding: 0.9rem 1rem;
+  border-radius: 10px;
+  border: 1px solid var(--line-strong);
+  background: rgba(240, 230, 214, 0.04);
+  color: var(--paper);
+  outline: none;
+  transition: border-color 0.25s, box-shadow 0.25s;
+}
+.code-input:focus {
+  border-color: var(--rust);
+  box-shadow: 0 0 0 3px rgba(192, 95, 46, 0.18);
+}
+.code-input::placeholder {
+  letter-spacing: 0.35em;
+  color: var(--paper-faint);
+  font-size: 0.9rem;
+}
+
+/* ------------------------------ editor addenda ----------------------- */
+
+.clue-text.is-editable {
+  width: 100%;
+  resize: vertical;
+  min-height: 2.6em;
+  background: transparent;
+  border: none;
+  border-bottom: 1px dashed transparent;
+  color: inherit;
+  outline: none;
+  transition: border-color 0.25s;
+}
+.clue-text.is-editable:hover { border-bottom-color: var(--line); }
+.clue-text.is-editable:focus { border-bottom-color: var(--rust); }
+
+.clue-kicker {
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--paper-dim);
+}
+
+.hide-list { display: flex; flex-direction: column; gap: 0.5rem; }
+
+.hide-option {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.7rem 0.9rem;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: border-color 0.25s, background 0.25s;
+}
+.hide-option:hover { border-color: var(--line-strong); }
+.hide-option.is-active {
+  border-color: var(--rust);
+  background: rgba(192, 95, 46, 0.08);
+}
+.hide-option input { accent-color: var(--rust); margin: 0; }
+.hide-option span {
+  font-family: var(--serif);
+  font-size: 0.98rem;
+  line-height: 1.4;
+  color: var(--paper);
+}
+
+.seal-link.is-waiting .seal-link-url { color: var(--paper-faint); }
+
+.seal-code {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.55rem;
+  max-width: 24rem;
+}
+.seal-code-label {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.14em;
+  color: var(--paper-dim);
+}
+.seal-code-row {
+  display: flex;
+  align-items: stretch;
+  gap: 0.5rem;
+}
+.seal-code-value {
+  font-family: var(--mono);
+  font-size: 1.35rem;
+  letter-spacing: 0.4em;
+  padding: 0.75rem 1.4rem;
+  border-radius: 10px;
+  border: 1px dashed var(--line-strong);
+  background: rgba(192, 95, 46, 0.06);
+  color: var(--rust-soft);
+}
+
 /* ------------------------------ responsive --------------------------- */
 
 @media (max-width: 760px) {
@@ -981,6 +1105,113 @@ img { display: block; max-width: 100%; }
 
 @media (max-width: 640px) {
   .tb-card.is-extra { display: none; }
+}
+
+/* --------------------------------- hide ------------------------------ */
+/* step four — the buyer physically hides the thing. warm, checklist,    */
+/* one optional note, two honest exits.                                  */
+
+.scene-hide { background: var(--ink); }
+
+.hide-inner {
+  max-width: 44rem;
+  gap: clamp(1.3rem, 3.5vh, 2.2rem);
+}
+.hide-head { max-width: 38rem; }
+
+.hide-spot {
+  display: grid;
+  grid-template-columns: minmax(0, 11rem) minmax(0, 1fr);
+  gap: 1.2rem;
+  align-items: start;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 1.1rem 1.2rem;
+  background: rgba(240, 230, 214, 0.025);
+}
+.hide-spot-media { max-width: 11rem; }
+.hide-spot-body { display: flex; flex-direction: column; gap: 0.55rem; }
+.hide-spot-text {
+  font-family: var(--serif);
+  font-weight: 460;
+  font-variation-settings: 'opsz' 32, 'SOFT' 50;
+  font-size: clamp(1.15rem, 2.6vw, 1.45rem);
+  line-height: 1.4;
+}
+.hide-spot-sub {
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.1em;
+  color: var(--paper-faint);
+}
+
+.hide-checklist {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  max-width: 34rem;
+}
+.hide-checklist li {
+  display: flex;
+  align-items: baseline;
+  gap: 0.8rem;
+  font-family: var(--serif);
+  font-weight: 400;
+  font-variation-settings: 'opsz' 26, 'SOFT' 60;
+  font-size: 1.02rem;
+  line-height: 1.5;
+  color: var(--paper-dim);
+}
+.hide-check {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border: 1px solid var(--rust);
+  border-radius: 2px;
+  transform: translateY(2px);
+}
+
+.hide-note-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-width: 34rem;
+}
+.hide-note {
+  font: inherit;
+  font-family: var(--serif);
+  font-size: 1rem;
+  color: var(--paper);
+  background: rgba(240, 230, 214, 0.03);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 0.8rem 1rem;
+  resize: vertical;
+  transition: border-color 0.3s;
+}
+.hide-note::placeholder { color: var(--paper-faint); font-style: italic; }
+.hide-note:focus { outline: none; border-color: var(--rust); }
+
+.hide-actions {
+  display: flex;
+  align-items: center;
+  gap: 1.2rem;
+  flex-wrap: wrap;
+}
+
+.reading-note { text-align: left; margin-top: 0.6rem; }
+
+.seal-pay {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.8rem;
+}
+
+@media (max-width: 640px) {
+  .hide-spot { grid-template-columns: 1fr; }
+  .hide-spot-media { max-width: 12rem; }
 }
 
 /* --------------------------- reduced motion -------------------------- */

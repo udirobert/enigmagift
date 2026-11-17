@@ -5,8 +5,10 @@ interface PhotoProps {
   alt?: string;
   /** zoomed "crop" — scales the img around `focus` */
   zoom?: number;
-  /** object-position + transform-origin, e.g. '62% 56%' */
+  /** transform-origin, e.g. '62% 56%' */
   focus?: string;
+  /** object-position (defaults to `focus`) */
+  pos?: string;
   ratio?: string;
   taped?: boolean;
   className?: string;
@@ -22,6 +24,7 @@ export function Photo({
   alt = '',
   zoom = 1,
   focus = '50% 50%',
+  pos,
   ratio = '4 / 5',
   taped = false,
   className = '',
@@ -31,7 +34,7 @@ export function Photo({
     aspectRatio: ratio,
     transform: zoom !== 1 ? `scale(${zoom})` : undefined,
     transformOrigin: focus,
-    objectPosition: focus,
+    objectPosition: pos ?? focus,
   };
   return (
     <figure className={`photo ${className}`}>

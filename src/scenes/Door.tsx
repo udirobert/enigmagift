@@ -5,7 +5,7 @@ import { TableBackdrop, type TableBackdropHandle } from '../components/TableBack
 import type { Direction } from '../App';
 
 interface DoorProps {
-  onPhotos: (urls: string[]) => void;
+  onPhotos: (files: File[]) => void;
   onDemo: () => void;
   direction: Direction;
   onDirection: (d: Direction) => void;
@@ -46,17 +46,25 @@ export function Door({ onPhotos, onDemo, direction, onDirection }: DoorProps) {
   const handleFiles = useCallback(
     (files: FileList | null) => {
       if (!files || files.length === 0) return;
-      const urls = Array.from(files)
-        .filter((f) => f.type.startsWith('image/'))
-        .slice(0, 12)
-        .map((f) => URL.createObjectURL(f));
-      if (urls.length === 0) return;
-      setCount(urls.length);
+      const images = Array.from(files)
+        .filter(
+          (f) => f.type.startsWith('image/') || /\.(heic|heif)$/i.test(f.name)
+        )
+        .slice(0, 12);
+      if (images.length === 0) return;
+      setCount(images.length);
+      if (images.length < 5) {
+        // not enough for a trail — the counter shows, then clears
+        window.setTimeout(() => setCount(0), 1800);
+        return;
+      }
       // scatter a few onto the table before the scene moves on
-      backdropRef.current?.scatter(urls.slice(0, 5));
+      backdropRef.current?.scatter(
+        images.slice(0, 5).map((f) => URL.createObjectURL(f))
+      );
       // let the counter breathe for a beat, then move on
       const delay = prefersReducedMotion() ? 250 : 900;
-      window.setTimeout(() => onPhotos(urls), delay);
+      window.setTimeout(() => onPhotos(images), delay);
     },
     [onPhotos],
   );
@@ -149,7 +157,9 @@ export function Door({ onPhotos, onDemo, direction, onDirection }: DoorProps) {
           </span>
           <span className="dropzone-label">
             {count > 0
-              ? `${count} photo${count === 1 ? '' : 's'} gathered — reading them now`
+              ? count >= 5
+                ? `${count} photo${count === 1 ? '' : 's'} gathered — reading them now`
+                : `a trail needs at least five — you have ${count}`
               : 'drop photos of the place'}
           </span>
           <span className="dropzone-sub">

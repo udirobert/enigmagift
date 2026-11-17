@@ -1,9 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
 import Lenis from 'lenis';
 import { mockGallery } from './data';
+import { apiHealthy, createGift, getTrail, tokenFromUrl } from './lib/api';
+import type { Gift, GiftDirection, HideSpot, Trail } from './lib/types';
 import { Door } from './scenes/Door';
 import { Reading } from './scenes/Reading';
 import { Editor } from './scenes/Editor';
+import { Hide } from './scenes/Hide';
 import { Seal } from './scenes/Seal';
 import { Round } from './scenes/Round';
 import { Reveal } from './scenes/Reveal';
@@ -12,13 +15,14 @@ export type SceneId =
   | 'door'
   | 'reading'
   | 'editor'
+  | 'hide'
   | 'seal'
   | 'r1'
   | 'r2'
   | 'r3'
   | 'reveal';
 
-export type Direction = 'someone' | 'me';
+export type Direction = GiftDirection;
 
 export default function App() {
   const [scene, setScene] = useState<SceneId>('door');
@@ -26,6 +30,15 @@ export default function App() {
   const [demo, setDemo] = useState(false);
   const [direction, setDirection] = useState<Direction>('someone');
   const [kept, setKept] = useState(3);
+
+  // live-api state — all null in demo/offline mode
+  const [live, setLive] = useState(false);
+  const [giftId, setGiftId] = useState<string | null>(null);
+  const [gift, setGift] = useState<Gift | null>(null);
+  const [hideSpot, setHideSpot] = useState<HideSpot | null>(null);
+  const [trail, setTrail] = useState<Trail | null>(null);
+  // true when this session is a recipient who opened a sealed link (?t=)
+  const [recipient, setRecipient] = useState(false);
 
   const go = useCallback((s: SceneId) => {
     window.scrollTo(0, 0);
@@ -47,20 +60,113 @@ export default function App() {
     };
   }, []);
 
+  // recipient entry: a sealed link opens with ?t=token → load the trail and
+  // jump straight to round one. Without this the link would land on the Door.
+  useEffect(() => {
+    const token = tokenFromUrl();
+    if (!token) return;
+    let dead = false;
+    getTrail(token)
+      .then((t) => {
+        if (dead) return;
+        setRecipient(true);
+        setDemo(false);
+        setLive(false);
+        setTrail(t);
+        go('r1');
+      })
+      .catch(() => {
+        // unknown/expired token — stay on the Door, no crash
+        if (!dead) go('door');
+      });
+    return () => {
+      dead = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const handlePhotos = useCallback(
-    (urls: string[]) => {
+    async (files: File[]) => {
+      const urls = files.map((f) => URL.createObjectURL(f));
       setDemo(false);
       setPhotos(urls);
+      setGift(null);
+      setGiftId(null);
+      setHideSpot(null);
+      setTrail(null);
+      setLive(false);
+
+      // try the real backend first — never hard-fail the user
+      try {
+        if (await apiHealthy()) {
+          const created = await createGift(files, direction);
+          setGiftId(created.giftId);
+          setLive(true);
+          go('reading');
+          return;
+        }
+      } catch {
+        /* fall through to the offline demo read */
+      }
       go('reading');
     },
-    [go],
+    [direction, go],
   );
 
   const handleDemo = useCallback(() => {
     setDemo(true);
+    setLive(false);
+    setGiftId(null);
+    setGift(null);
+    setHideSpot(null);
+    setTrail(null);
     setPhotos(mockGallery());
     go('reading');
   }, [go]);
+
+  // Reading finished — the live gift (when the poll caught it) goes to the editor
+  const handleRead = useCallback(
+    (g?: Gift) => {
+      setGift(g ?? null);
+      go('editor');
+    },
+    [go],
+  );
+
+  // Editor approved the clues — now the buyer physically hides the thing
+  const handleEditorSeal = useCallback(
+    (n: number, spot: HideSpot | null) => {
+      setKept(n);
+      setHideSpot(spot);
+      go('hide');
+    },
+    [go],
+  );
+
+  // Hide done ("i've hidden it" or "later") — on to the seal
+  const handleHidden = useCallback(() => {
+    go('seal');
+  }, [go]);
+
+  // Seal sent — a real token means a real trail to preview
+  const handleSend = useCallback(
+    async (token: string | null) => {
+      if (token) {
+        try {
+          setTrail(await getTrail(token));
+        } catch {
+          setTrail(null); // preview falls back to the scripted rounds
+        }
+      } else {
+        setTrail(null);
+      }
+      go('r1');
+    },
+    [go],
+  );
+
+  // the recipient opened a real link (live=false for them) — real trail, not the mock
+  const trailDemo = demo || (!live && !recipient);
 
   return (
     <>
@@ -76,30 +182,50 @@ export default function App() {
         />
       )}
       {scene === 'reading' && (
-        <Reading photos={photos} onDone={() => go('editor')} />
+        <Reading
+          demo={demo}
+          giftId={live ? giftId : null}
+          offline={!live && !demo}
+          photoCount={photos.length || 8}
+          preview={photos}
+          onDone={handleRead}
+        />
       )}
       {scene === 'editor' && (
         <Editor
-          photos={photos}
-          demo={demo}
-          onSeal={(n) => {
-            setKept(n);
-            go('seal');
-          }}
+          demo={demo || !live || !gift}
+          gift={live ? gift : null}
+          onSeal={handleEditorSeal}
         />
       )}
-      {scene === 'seal' && <Seal kept={kept} onSend={() => go('r1')} />}
+      {scene === 'hide' && (
+        <Hide
+          demo={demo || !live}
+          giftId={live ? giftId : null}
+          hideSpot={hideSpot}
+          preview={photos}
+          onDone={handleHidden}
+        />
+      )}
+      {scene === 'seal' && (
+        <Seal
+          demo={trailDemo}
+          giftId={live ? giftId : null}
+          kept={kept}
+          onSend={handleSend}
+        />
+      )}
       {scene === 'r1' && (
-        <Round round={1} photos={photos} demo={demo} onDone={() => go('r2')} />
+        <Round round={1} demo={trailDemo} trail={trail} onDone={() => go('r2')} />
       )}
       {scene === 'r2' && (
-        <Round round={2} photos={photos} demo={demo} onDone={() => go('r3')} />
+        <Round round={2} demo={trailDemo} trail={trail} onDone={() => go('r3')} />
       )}
       {scene === 'r3' && (
-        <Round round={3} photos={photos} demo={demo} onDone={() => go('reveal')} />
+        <Round round={3} demo={trailDemo} trail={trail} onDone={() => go('reveal')} />
       )}
       {scene === 'reveal' && (
-        <Reveal photos={photos} demo={demo} direction={direction} />
+        <Reveal demo={trailDemo} trail={trail} direction={direction} />
       )}
     </>
   );
