@@ -16,8 +16,10 @@ import type {
 // Re-export the view types scenes import from here.
 export type { ApiClue, Clue, Gift, HideSpot, SealResult, Trail, TrailRound, ApiObservation, ObsItem } from './types';
 
-const BASE: string =
-  (import.meta.env.VITE_API_URL as string | undefined) ?? 'http://localhost:8787';
+// Same-origin by default: in dev Vite proxies /api → the server (see
+// vite.config.ts); in prod the server hosts this build, so relative works.
+// Set VITE_API_URL only if the API is hosted separately from the site.
+const BASE: string = (import.meta.env.VITE_API_URL as string | undefined) ?? '';
 
 const TIMEOUT_MS = 15_000;
 
@@ -135,6 +137,15 @@ export async function sealGift(id: string): Promise<SealResult> {
     method: 'POST',
     body: JSON.stringify({}),
   });
+}
+
+/** Read ?t=<token> from the URL — the recipient's entry point. */
+export function tokenFromUrl(): string | null {
+  try {
+    return new URL(window.location.href).searchParams.get('t');
+  } catch {
+    return null;
+  }
 }
 
 /** POST /api/gifts/:id/mark-paid — called on the Stripe return */
