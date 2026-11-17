@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { gsap } from 'gsap';
 import { prefersReducedMotion, seeded } from '../lib/motion';
 import { Crop } from '../components/Crop';
+import { World } from '../components/World';
 import { Polaroid } from '../components/Photo';
 import { SHOWCASE, SHOWCASE_CODE } from '../lib/showcase';
 
@@ -14,7 +15,7 @@ type Beat =
   | { id: 'photos'; label: string }
   | { id: 'read'; label: string }
   | { id: 'round'; round: number; label: string }
-  | { id: 'reveal'; label: string }
+  | { id: 'world'; label: string }
   | { id: 'keepsake'; label: string };
 
 const BEATS: Beat[] = [
@@ -22,43 +23,48 @@ const BEATS: Beat[] = [
   { id: 'read', label: 'the reading' },
   { id: 'round', round: 0, label: 'the first look' },
   { id: 'round', round: 1, label: 'the connection' },
-  { id: 'reveal', label: 'the place, named' },
+  { id: 'round', round: 2, label: 'the place, named' },
+  { id: 'world', label: 'the world of it' },
   { id: 'keepsake', label: 'the keepsake' },
 ];
 
-/** ms each beat holds before the next — the reveal + keepsake hold longer. */
 const beatMs = (b: Beat) => {
-  if (b.id === 'photos') return 3600;
-  if (b.id === 'read') return 4200;
-  if (b.id === 'round') return b.round === 0 ? 4200 : 4600;
-  if (b.id === 'reveal') return 4600;
-  return 5600; // keepsake
+  if (b.id === 'photos') return 3200;
+  if (b.id === 'read') return 3600;
+  if (b.id === 'round') return b.round === 2 ? 4400 : 4000;
+  if (b.id === 'world') return 14000; // let them look around
+  return 6000; // keepsake
 };
 
 /**
- * "watch it work" — a real gift, played on its own. This is the payoff the
- * landing leads with: the recipient's side, self-playing. It uses a genuine
- * EnigmaGift trail (baked in) with real photo crops, so a visitor feels what
- * the other person gets without uploading a single photo.
+ * The story — a real gift, played on its own. One place throughout: the hero
+ * film, the trail, the 3D world and the letter are all the same spot, so the
+ * product shows itself instead of being described. Almost no narration: the
+ * product's own words (kickers, questions, throughline, letter) do the work.
  */
 export function WatchIt({ onBack, onBuild }: WatchItProps) {
   const [beat, setBeat] = useState(0);
   const [solved, setSolved] = useState(false);
+  const [worldReady, setWorldReady] = useState(false);
   const [direction, setDirection] = useState<'someone' | 'me'>('someone');
   const rootRef = useRef<HTMLElement>(null);
   const timers = useRef<number[]>([]);
+
+  // stable — World's effect keys off this, and an inline arrow would reload
+  // the model on every re-render
+  const handleWorldReady = useCallback(() => setWorldReady(true), []);
 
   const clear = () => {
     timers.current.forEach((t) => window.clearTimeout(t));
     timers.current = [];
   };
 
-  // advance on a timer; re-arm on beat change
   useEffect(() => {
     clear();
     setSolved(false);
-    // for a round beat, reveal the correct answer partway through
     const b = BEATS[beat];
+    // re-entering the world beat replays the flythrough, then the 3D handover
+    setWorldReady(false);
     if (b.id === 'round') {
       timers.current.push(window.setTimeout(() => setSolved(true), 1900));
     }
@@ -69,7 +75,6 @@ export function WatchIt({ onBack, onBuild }: WatchItProps) {
     return clear;
   }, [beat]);
 
-  // entrance animation per beat
   useEffect(() => {
     const ctx = gsap.context(() => {
       const els = gsap.utils.toArray('.wt-in');
@@ -125,11 +130,6 @@ export function WatchIt({ onBack, onBuild }: WatchItProps) {
                 />
               ))}
             </div>
-            <h2 className="wt-head wt-in">
-              someone photographed a place that mattered.
-              <br />
-              five shots, one rainy tuesday.
-            </h2>
           </div>
         )}
 
@@ -150,11 +150,6 @@ export function WatchIt({ onBack, onBuild }: WatchItProps) {
                 caption={`it noticed: ${SHOWCASE.notices[1]}`}
               />
             </div>
-            <h2 className="wt-head wt-in">
-              it read every frame, and found the details
-              <br />
-              only you would know.
-            </h2>
           </div>
         )}
 
@@ -189,18 +184,33 @@ export function WatchIt({ onBack, onBuild }: WatchItProps) {
           </div>
         )}
 
-        {/* ---------------- the reveal — the place, named ---------------- */}
-        {b.id === 'reveal' && (
-          <div className="wt-stage wt-stage-reveal">
-            <div className="wt-throughline-wrap wt-in">
+        {/* ---------------- the world of the place ----------------------- */}
+        {b.id === 'world' && (
+          <div className="wt-stage wt-stage-world">
+            <div className={`wt-world wt-in ${worldReady ? 'is-ready' : ''}`}>
+              <video
+                className="wt-world-clip"
+                src="/world.mp4"
+                poster="/showcase/0.jpg"
+                autoPlay
+                muted
+                loop
+                playsInline
+                preload="auto"
+              />
+              <World
+                src="/world.glb"
+                fallback="/showcase/0.jpg"
+                onReady={handleWorldReady}
+              />
+            </div>
+            <div className="wt-world-copy wt-in">
               <p className="wt-throughline">“{SHOWCASE.throughline}”</p>
               <p className="wt-place">{SHOWCASE.placeGuess}</p>
+              <p className="wt-world-hint mono">
+                {worldReady ? 'drag to look around' : 'building the world of this place…'}
+              </p>
             </div>
-            <h2 className="wt-head wt-in">
-              the last look names the place itself.
-              <br />
-              that’s where the thing is waiting.
-            </h2>
           </div>
         )}
 
@@ -218,18 +228,12 @@ export function WatchIt({ onBack, onBuild }: WatchItProps) {
                 some gifts you unwrap. this one you <em>followed</em> — three looks down the
                 trail, then it gave itself up. you stood where{' '}
                 <strong>{SHOWCASE.placeGuess.toLowerCase()}</strong> stands, and you found it.
-                the photographs all pointed there — but only you could have followed them.
               </p>
             </div>
-            <h2 className="wt-head wt-in">
-              that’s the payoff. the lock is the photographs;
-              <br />
-              the code is yours to write.
-            </h2>
           </div>
         )}
 
-        {/* ---------------- the call to make one ---------------- */}
+        {/* ---------------- make one ------------------------------------ */}
         {beat === BEATS.length - 1 && (
           <div className="wt-build">
             <div className="seg wt-in" role="group" aria-label="who is this gift for">
@@ -247,11 +251,8 @@ export function WatchIt({ onBack, onBuild }: WatchItProps) {
               </button>
             </div>
             <button className="btn btn-primary wt-in" onClick={() => onBuild(direction)}>
-              make one — £19
+              make yours — £19
             </button>
-            <p className="foot-note wt-in">
-              you’ll photograph the place, hide the thing, and send them the trail
-            </p>
           </div>
         )}
       </div>

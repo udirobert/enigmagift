@@ -377,121 +377,24 @@ img { display: block; max-width: 100%; }
   opacity: 0.7;
 }
 
-/* --------------------------- the door body ---------------------------- */
+/* ---------------------------- the door start -------------------------- */
+/* the "make one" — a table the photos land on. The product isn't described
+   here; the story (WatchIt) is the description. */
 
-.door-body {
+.door-start {
   position: relative;
   isolation: isolate;
   min-height: 100dvh;
-  padding: clamp(3rem, 8vh, 6rem) clamp(1.1rem, 5vw, 4rem);
+  padding: clamp(3rem, 10vh, 7rem) clamp(1.1rem, 5vw, 4rem);
   background: var(--ink);
 }
-.door-body .tb-wrap { z-index: 0; }
+.door-start .tb-wrap { z-index: 0; }
 
-.door-body-inner {
+.door-start-inner {
   position: relative;
   z-index: 1;
-  gap: clamp(2.4rem, 6vh, 4.5rem);
+  gap: clamp(2rem, 5vh, 3.5rem);
 }
-
-.door-beat { display: block; }
-
-.door-beat-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
-  gap: clamp(1.6rem, 4vw, 3rem);
-  align-items: center;
-}
-.door-beat-flip .door-crops { order: 2; }
-.door-beat-flip .door-beat-copy { order: 1; }
-
-.door-crops { display: flex; gap: 1rem; }
-.door-crops .crop { flex: 1; }
-
-.door-beat-h {
-  font-family: var(--serif);
-  font-weight: 460;
-  font-variation-settings: 'opsz' 60;
-  font-size: clamp(1.4rem, 3.4vw, 2.1rem);
-  line-height: 1.12;
-  color: var(--paper);
-}
-.door-beat-h em { color: var(--rust-soft); font-style: normal; }
-.door-beat-p {
-  font-size: clamp(0.95rem, 2vw, 1.06rem);
-  color: var(--paper-dim);
-  margin-top: 0.9rem;
-  max-width: 28rem;
-}
-.door-beat-p em { color: var(--paper); font-style: normal; }
-
-/* the mini trail card — a crop + a question + the answer, like one round */
-.door-trailcard {
-  display: flex;
-  flex-direction: column;
-  gap: 0.9rem;
-  align-items: stretch;
-}
-.door-trailcard .crop { flex: none; }
-.door-trail-q {
-  font-family: var(--serif);
-  font-weight: 440;
-  font-size: 1.02rem;
-  color: var(--paper);
-}
-.door-trail-a { display: flex; flex-direction: column; gap: 0.4rem; }
-.door-trail-a span {
-  font-family: var(--mono);
-  font-size: 0.72rem;
-  color: var(--paper-faint);
-  padding: 0.35rem 0.7rem;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-}
-.door-trail-a span.is-right {
-  color: var(--rust-soft);
-  border-color: rgba(192, 95, 46, 0.5);
-  background: rgba(192, 95, 46, 0.08);
-}
-
-/* the keepsake mini — code + a line of the letter */
-.door-keepsake-mini {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-  padding: clamp(1.4rem, 3vw, 2rem);
-  border: 1px solid var(--line);
-  border-radius: 14px;
-  background: rgba(240, 230, 214, 0.02);
-}
-.door-code-label {
-  font-family: var(--mono);
-  font-size: 0.66rem;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--paper-faint);
-}
-.door-code-value {
-  font-size: clamp(1.8rem, 5vw, 2.6rem);
-  letter-spacing: 0.28em;
-  color: var(--gold);
-}
-.door-letter-mini {
-  font-family: var(--serif);
-  font-style: italic;
-  font-size: clamp(1.02rem, 2.4vw, 1.2rem);
-  color: var(--paper-dim);
-  line-height: 1.4;
-}
-
-.door-cta {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 1rem;
-  padding: clamp(1.6rem, 4vh, 2.4rem) 0;
-}
-.door-cta .btn + .btn { margin-left: 0.75rem; }
 
 /* the crop — a located detail, framed at the photo's own aspect */
 .crop { margin: 0; }
@@ -669,6 +572,67 @@ img { display: block; max-width: 100%; }
 }
 .wt-build .btn + .btn { margin-left: 0.75rem; }
 .wt-build .seg { flex-wrap: wrap; }
+
+/* the world of the place — the LTX flythrough holds, then the generated
+   3D model fades in and the visitor can orbit it */
+.wt-stage-world { align-items: center; }
+.wt-world {
+  position: relative;
+  width: min(92vw, 40rem);
+  aspect-ratio: 16 / 9;
+  border-radius: 18px;
+  overflow: hidden;
+  border: 1px solid var(--line-strong);
+  background: var(--ink-2);
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.5);
+}
+.wt-world canvas {
+  position: absolute;
+  inset: 0;
+  width: 100% !important;
+  height: 100% !important;
+  cursor: grab;
+  opacity: 0;
+  transition: opacity 1.2s ease;
+  touch-action: none;
+}
+.wt-world canvas:active { cursor: grabbing; }
+.wt-world.is-ready canvas { opacity: 1; }
+
+.wt-world-clip {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: opacity 1.2s ease;
+}
+.wt-world.is-ready .wt-world-clip { opacity: 0; pointer-events: none; }
+
+.wt-world-fallback img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.wt-world .wt-world-fallback {
+  position: absolute;
+  inset: 0;
+}
+
+.wt-world-copy {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+  text-align: center;
+}
+.wt-world-hint {
+  margin-top: 0.8rem;
+  font-size: 0.66rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--paper-faint);
+}
 
 /* -------------------------------- reading ---------------------------- */
 
@@ -1318,28 +1282,13 @@ img { display: block; max-width: 100%; }
   .editor-foot { flex-direction: column; align-items: stretch; text-align: center; }
   .editor-foot .foot-note { text-align: center; }
 
-  /* the landing — beats stack, crops get room, backdrop recedes */
-  .door-beat-grid {
-    grid-template-columns: 1fr;
-    gap: 1.4rem;
-  }
-  .door-beat-flip .door-crops { order: 0; }
-  .door-beat-flip .door-beat-copy { order: 1; }
-  .door-beat-copy { order: 2; }
-  .door-crops { gap: 0.8rem; flex-wrap: wrap; }
-  .door-crops .crop { flex: 1 1 100%; }
-  .crop .photo-mat { max-width: 15rem; margin: 0 auto; }
-  .crop-cap { text-align: center; }
-  .door-trailcard .crop { max-width: 15rem; }
-  .door-body .tb-card { opacity: 0.16; }
-  .door-body .tb-thread { opacity: 0.4; }
-
-  /* the tour */
-  .wt-notices { gap: 0.8rem; }
+  /* the tour — compact */
+  .wt-notices { gap: 0.8rem; flex-wrap: wrap; }
   .wt-notices .crop { width: clamp(8.5rem, 42vw, 11rem); }
   .wt-round .crop { width: clamp(9rem, 46vw, 13rem); }
   .wt-round-2 { gap: 0.8rem; }
   .wt-fan .polaroid { width: clamp(6.5rem, 24vw, 8rem); }
+  .wt-world { width: 92vw; }
 }
 
 /* ------------------------------ door backdrop ------------------------ */
