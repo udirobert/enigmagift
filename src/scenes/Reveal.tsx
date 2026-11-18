@@ -1,4 +1,4 @@
-import { Suspense, useEffect, useRef, useState, lazy } from 'react';
+import { Suspense, useCallback, useEffect, useRef, useState, lazy } from 'react';
 import { gsap } from 'gsap';
 import { mockGallery } from '../data';
 import { prefersReducedMotion, seeded } from '../lib/motion';
@@ -31,14 +31,27 @@ export function Reveal({ demo, trail, direction }: RevealProps) {
   const [checking, setChecking] = useState(false);
   const [wrong, setWrong] = useState(false);
 
-  // the 3D world of the place — built after sealing; the reveal is where it
-  // finally shows up ("the world around that place is being built as you
-  // read this"). Real trails poll the build; the demo renders the showcase
-  // world so the letter's promise holds in preview too.
+  // the 3D world of the place — built at seal time, so by the time the
+  // recipient unlocks it's usually already done. Real trails poll the build;
+  // the demo renders the showcase world so the letter's promise holds in
+  // preview too.
   const [worldState, setWorldState] = useState<WorldStatus>(
     real ? (trail!.worldStatus ?? 'worlding') : 'ready',
   );
   const worldUrl = real ? trail!.worldUrl : '/world.glb';
+  // did the world finish before they unlocked, or did they watch it build?
+  const [worldNote, setWorldNote] = useState<'instant' | 'built' | null>(null);
+  const [worldLoaded, setWorldLoaded] = useState(false);
+  const onWorldReady = useCallback(() => setWorldLoaded(true), []);
+  useEffect(() => {
+    if (codeDone && worldNote === null) {
+      setWorldNote(worldState === 'ready' ? 'instant' : 'built');
+    }
+  }, [codeDone, worldState, worldNote]);
+  // re-entering a build (it just finished on this page) replays the assemble
+  useEffect(() => {
+    if (worldState !== 'ready') setWorldLoaded(false);
+  }, [worldState]);
 
   const gallery = real
     ? (trail!.photoUrls ?? []).slice(0, 6)
@@ -157,24 +170,34 @@ export function Reveal({ demo, trail, direction }: RevealProps) {
                 followed them.
               </p>
               <p>
-                the world around that place is being built as you read this.
-                walk it when it’s ready — it’s yours to keep, and yours to pass
-                on.
+                while you were following the trail, your photographs became a
+                world you can stand inside. it’s right here — it’s yours to
+                keep, and yours to pass on.
               </p>
               <p className="letter-sign">— the one who left it there</p>
             </article>
 
             {worldState === 'ready' && worldUrl ? (
               <div className="reveal-world reveal-anim">
-                <div className="reveal-world-stage">
+                <div className={`reveal-world-stage${worldLoaded ? ' is-loaded' : ''}`}>
+                  {/* the flat photo holds, then the world assembles out of it */}
+                  <div className="reveal-world-photo" aria-hidden>
+                    <img src={gallery[0] ?? '/showcase/0.jpg'} alt="" draggable={false} />
+                  </div>
                   <Suspense fallback={null}>
                     <World
                       src={worldUrl}
                       interactive
+                      onReady={onWorldReady}
                       className="reveal-world-canvas"
                     />
                   </Suspense>
                 </div>
+                <p className="reveal-world-note mono">
+                  {worldNote === 'built'
+                    ? 'it finished while you were here'
+                    : 'it finished while you were away'}
+                </p>
                 <div className="reveal-world-actions">
                   <a
                     className="btn btn-primary"
@@ -199,12 +222,13 @@ export function Reveal({ demo, trail, direction }: RevealProps) {
                 </div>
               </div>
             ) : (
-              <div className="build-status reveal-anim">
+              <div className="build-status build-status-building reveal-anim">
                 <span className="build-spinner" aria-hidden />
                 <div className="build-text">
                   <p className="build-title">building the world of your place</p>
                   <p className="build-sub mono">
-                    turning a photograph into something you can stand in
+                    turning a photograph into something you can stand in — it’s
+                    usually done before you finish reading the letter above
                     <span className="dots" />
                   </p>
                 </div>

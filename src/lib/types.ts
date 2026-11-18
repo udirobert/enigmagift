@@ -59,6 +59,8 @@ export interface Gift {
   status: GiftStatus;
   direction?: GiftDirection;
   photoCount: number;
+  /** how many photos have been read — live while status is 'reading' */
+  photosObserved?: number;
   observations?: ApiObservation[];
   clues?: Clue[];
   hideSpots?: HideSpot[];

@@ -23,6 +23,38 @@ function listPhotos(giftId) {
 // ---------- derivation (deterministic, no extra LLM calls) ----------
 const CLUE_CATS = new Set(['detail', 'sign', 'text']);
 
+/**
+ * Pick the photo that best shows what the throughline points at. The 3D world
+ * is built from that shot, so the world and the throughline line up exactly.
+ * Scores each photo by observation salience + word overlap with the
+ * throughline; falls back to salience alone if there's no throughline, and to
+ * null (→ world.js uses the first supported photo) if there's nothing to rank.
+ */
+function pickWorldSource(throughline, byPhoto) {
+  if (!byPhoto || !byPhoto.size) return null;
+  const tokens = new Set(
+    String(throughline || '')
+      .toLowerCase()
+      .replace(/[^a-z0-9\s]/g, ' ')
+      .split(/\s+/)
+      .filter((t) => t.length >= 4), // drop stopwords
+  );
+  let best = null;
+  let bestScore = -Infinity;
+  for (const [photoIndex, obsList] of byPhoto) {
+    let score = 0;
+    for (const ob of obsList) {
+      score += ob.confidence ?? 0; // salience
+      const desc = String(ob.description || '').toLowerCase();
+      for (const t of tokens) if (desc.includes(t)) score += 2; // throughline overlap
+      if (ob.hideSpotPotential) score += 0.5;
+    }
+    // tie-break toward earlier photos (upload order ≈ intent)
+    if (score > bestScore) { bestScore = score; best = photoIndex; }
+  }
+  return best;
+}
+
 function deriveClues(observations, n = 3) {
   // observations: [{photoIndex, obs:{description,category,bbox,confidence,hideSpotPotential}}]
   const scored = observations.map((o) => {
@@ -355,11 +387,18 @@ async function runPipelineInner(giftId) {
     return;
   }
 
-  // per-image observation, bounded worker pool (concurrency 3)
+  // per-image observation, bounded worker pool (concurrency 3). Each photo
+  // lands in the DB the moment it's read and the gift's photos_observed
+  // counter ticks — the buyer watches the reads arrive live, not a spinner.
+  const insObs = db.prepare('INSERT INTO observations (gift_id, photo_index, data) VALUES (?,?,?)');
   const settled = await mapPool(photos, OBSERVE_CONCURRENCY, async (p, photoIndex) => {
     const buf = readFileSync(p.path);
     let data = await observeImage(buf, mimeFor(p.file));
     data = normalizeBboxes(data, p.path);
+    if (data && Array.isArray(data.observations)) {
+      insObs.run(giftId, photoIndex, JSON.stringify({ placeType: data.placeType, observations: data.observations }));
+      db.prepare('UPDATE gifts SET photos_observed = photos_observed + 1 WHERE id=?').run(giftId);
+    }
     return { photoIndex, photoFile: p.file, data };
   });
 
@@ -378,13 +417,6 @@ async function runPipelineInner(giftId) {
     obsRows.push({ giftId, photoIndex, data: JSON.stringify({ placeType: data.placeType, observations: data.observations }) });
     for (const ob of data.observations) flat.push({ photoIndex, photoFile, obs: ob });
   });
-
-  const insObs = db.prepare('INSERT INTO observations (gift_id, photo_index, data) VALUES (?,?,?)');
-  db.exec('BEGIN');
-  try {
-    for (const r of obsRows) insObs.run(r.giftId, r.photoIndex, r.data);
-    db.exec('COMMIT');
-  } catch (e) { db.exec('ROLLBACK'); throw e; }
 
   // tolerate partial failure: need at least 3 photos observed successfully
   if (obsRows.length < 3) {
@@ -468,19 +500,26 @@ async function runPipelineInner(giftId) {
 
   const rounds = buildRounds(flat, throughline, placeGuess, roundMaterial);
 
+  // the world is built from the shot the throughline points at (see
+  // pickWorldSource) — null means "let world.js pick the first supported photo"
+  const worldSource = pickWorldSource(throughline, byPhoto);
+
   const insClue = db.prepare('INSERT INTO clues (id, gift_id, position, text, meta) VALUES (?,?,?,?,?)');
   const insHide = db.prepare('INSERT INTO hide_spots (id, gift_id, position, data) VALUES (?,?,?,?)');
+  // duration measurement (created_at → ready) — computed before the tx so it's
+  // in scope for the log after commit
+  const readMs = Date.now() - Date.parse(gift.created_at || 0);
   db.exec('BEGIN');
   try {
     for (const c of clues) insClue.run(c.id, giftId, c.position, c.text, c.meta);
     for (const h of hideSpots) insHide.run(h.id, giftId, h.position, h.data);
-    // guard: don't overwrite 'error' if the watchdog already fired
-    db.prepare("UPDATE gifts SET status=?, throughline=?, place_guess=?, rounds=? WHERE id=? AND status='reading'")
-      .run('ready', throughline, placeGuess, JSON.stringify(rounds), giftId);
+    // stamp read_ready_at; guard: don't overwrite 'error' if the watchdog fired
+    db.prepare("UPDATE gifts SET status=?, throughline=?, place_guess=?, rounds=?, read_ready_at=?, world_source=? WHERE id=? AND status='reading'")
+      .run('ready', throughline, placeGuess, JSON.stringify(rounds), new Date().toISOString(), worldSource, giftId);
     db.exec('COMMIT');
   } catch (e) { db.exec('ROLLBACK'); throw e; }
 
-  console.log(`[pipeline ${giftId}] ready: ${obsRows.length} photos observed, ${flat.length} observations, ${clues.length} clues, ${hideSpots.length} hide spots, ${rounds.length} rounds`);
+  console.log(`[pipeline ${giftId}] ready in ${Math.round(readMs / 1000)}s: ${obsRows.length} photos observed, ${flat.length} observations, ${clues.length} clues, ${hideSpots.length} hide spots, ${rounds.length} rounds`);
 }
 
 export { buildRounds };

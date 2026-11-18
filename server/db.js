@@ -24,9 +24,13 @@ CREATE TABLE IF NOT EXISTS gifts (
   rounds TEXT,
   hides TEXT,
   paid INTEGER NOT NULL DEFAULT 0,
+  photos_observed INTEGER NOT NULL DEFAULT 0,
+  read_ready_at TEXT,
   world_status TEXT NOT NULL DEFAULT 'pending',
   world_file TEXT,
+  world_source INTEGER,
   world_started_at TEXT,
+  world_ready_at TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
@@ -75,3 +79,7 @@ function addColumnIfMissing(table, col, def) {
 addColumnIfMissing('gifts', 'world_status', "TEXT NOT NULL DEFAULT 'pending'");
 addColumnIfMissing('gifts', 'world_file', 'TEXT');
 addColumnIfMissing('gifts', 'world_started_at', 'TEXT');
+addColumnIfMissing('gifts', 'photos_observed', 'INTEGER NOT NULL DEFAULT 0');
+addColumnIfMissing('gifts', 'read_ready_at', 'TEXT');
+addColumnIfMissing('gifts', 'world_source', 'INTEGER');
+addColumnIfMissing('gifts', 'world_ready_at', 'TEXT');

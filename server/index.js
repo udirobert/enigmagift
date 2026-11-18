@@ -67,7 +67,12 @@ function giftPayload(g) {
     status: g.status,
     direction: g.direction,
     photoCount: g.photo_count,
-    observations: g.status === 'reading' ? undefined : observations,
+    // the read is streaming: how many photos have landed so far. The buyer
+    // watches this tick up instead of staring at a spinner.
+    photosObserved: g.status === 'reading' ? (g.photos_observed ?? 0) : g.photo_count,
+    // partial observations stream in as each photo is read — the buyer sees
+    // the agent discover their place in real time while still 'reading'.
+    observations,
     clues: clues.length ? clues : undefined,
     hideSpots: hideSpots.length ? hideSpots : undefined,
     throughline: g.throughline ?? undefined,
@@ -84,10 +89,12 @@ function safeParse(s) {
   try { return JSON.parse(s); } catch { return {}; }
 }
 
-// uploaded originals, sorted — the index is the photoIndex the pipeline used
+// uploaded originals, sorted — the index is the photoIndex the pipeline used.
+// Filter to image extensions: the gift dir also holds world.glb (and its temp)
+// once the 3D world is built, and that must never be served as a "photo".
 function photoFiles(giftId) {
   try {
-    return readdirSync(join(UPLOADS_DIR, giftId)).sort();
+    return readdirSync(join(UPLOADS_DIR, giftId)).filter((f) => IMAGE_EXT.test(f)).sort();
   } catch { return []; }
 }
 

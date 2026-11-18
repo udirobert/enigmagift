@@ -34,21 +34,29 @@ function getSandbaseKey() {
   return null;
 }
 
-/** The photo to turn into the world — the first shot TRELLIS can read.
- *  Photos are the gift's originals; we send the bytes as a base64 data URL.
- *  Skips HEIC (no texture pipeline for it) and falls to the next supported
- *  photo — they're all of the same place, so any one is the icon. */
-function worldPhotoDataUrl(giftId) {
+/** The photo to turn into the world — the shot the pipeline picked as most
+ *  iconic (world_source: the one the throughline points at), so the world and
+ *  the throughline line up. Falls back to the first readable photo. Photos are
+ *  the gift's originals; we send the bytes as a base64 data URL. Skips HEIC
+ *  (no texture pipeline for it). */
+function worldPhotoDataUrl(giftId, preferredIndex = null) {
   let files = [];
   try { files = readdirSync(join(UPLOADS_DIR, giftId)).sort(); } catch {}
-  for (const f of files) {
+  const usable = files.filter((f) => {
     const ext = (f.match(/\.[^.]+$/) || [''])[0].toLowerCase().replace('.', '');
-    const mime = MIME_BY_EXT[ext];
-    if (!mime) continue;
-    const buf = readFileSync(join(UPLOADS_DIR, giftId, f));
-    return `data:${mime};base64,${buf.toString('base64')}`;
-  }
-  return null; // nothing TRELLIS can read
+    return !!MIME_BY_EXT[ext];
+  });
+  // upload order: the Nth file is photo index N-1 (zero-padded filenames)
+  const indexToPhoto = (f) => {
+    const m = f.match(/^(\d+)/);
+    return m ? parseInt(m[1], 10) : null;
+  };
+  const pick = usable.find((f) => indexToPhoto(f) === preferredIndex)
+    ?? usable[0]; // fall back to the first readable photo
+  if (!pick) return null; // nothing TRELLIS can read
+  const buf = readFileSync(join(UPLOADS_DIR, giftId, pick));
+  const mime = MIME_BY_EXT[(pick.match(/\.[^.]+$/) || [''])[0].toLowerCase().replace('.', '')];
+  return `data:${mime};base64,${buf.toString('base64')}`;
 }
 
 function worldFile(giftId) {
@@ -70,15 +78,17 @@ export async function buildWorld(giftId) {
     return;
   }
 
-  const gift = db.prepare('SELECT id, world_file, world_status, world_started_at FROM gifts WHERE id=?').get(giftId);
+  const gift = db.prepare('SELECT id, world_file, world_status, world_started_at, world_source FROM gifts WHERE id=?').get(giftId);
   if (!gift) return;
   // idempotent — already built
   if (gift.world_file && existsSync(gift.world_file)) {
     db.prepare("UPDATE gifts SET world_status='ready' WHERE id=?").run(giftId);
     return;
   }
+  // the photo the pipeline picked as the place's icon (null → first photo)
+  const preferred = typeof gift.world_source === 'number' ? gift.world_source : null;
   // nothing TRELLIS can read → fail now, don't sit in 'worlding'
-  const dataUrl = worldPhotoDataUrl(giftId);
+  const dataUrl = worldPhotoDataUrl(giftId, preferred);
   if (!dataUrl) {
     db.prepare("UPDATE gifts SET world_status='failed' WHERE id=?").run(giftId);
     console.warn(`[world ${giftId}] no usable photo — world skipped`);
@@ -156,9 +166,9 @@ export async function buildWorld(giftId) {
     writeFileSync(tmp, buf);
     renameSync(tmp, target);
 
-    db.prepare("UPDATE gifts SET world_status='ready', world_file=? WHERE id=?")
-      .run(target, giftId);
-    console.log(`[world ${giftId}] ready: ${(buf.byteLength / 1e6).toFixed(2)}MB in ${((Date.now() - started) / 1000).toFixed(0)}s`);
+    db.prepare("UPDATE gifts SET world_status='ready', world_file=?, world_ready_at=? WHERE id=?")
+      .run(target, new Date().toISOString(), giftId);
+    console.log(`[world ${giftId}] ready: ${(buf.byteLength / 1e6).toFixed(2)}MB in ${((Date.now() - started) / 1000).toFixed(0)}s (source photo ${preferred ?? 0})`);
   } catch (e) {
     db.prepare("UPDATE gifts SET world_status='failed' WHERE id=?").run(giftId);
     console.error(`[world ${giftId}] failed:`, e.message);
