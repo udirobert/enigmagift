@@ -33,11 +33,12 @@ export function Reveal({ demo, trail, direction }: RevealProps) {
 
   // the 3D world of the place — built after sealing; the reveal is where it
   // finally shows up ("the world around that place is being built as you
-  // read this"). Real trails only; the demo keeps the original letter.
+  // read this"). Real trails poll the build; the demo renders the showcase
+  // world so the letter's promise holds in preview too.
   const [worldState, setWorldState] = useState<WorldStatus>(
-    real ? (trail!.worldStatus ?? 'worlding') : 'pending',
+    real ? (trail!.worldStatus ?? 'worlding') : 'ready',
   );
-  const worldUrl = real ? trail!.worldUrl : undefined;
+  const worldUrl = real ? trail!.worldUrl : '/world.glb';
 
   const gallery = real
     ? (trail!.photoUrls ?? []).slice(0, 6)
