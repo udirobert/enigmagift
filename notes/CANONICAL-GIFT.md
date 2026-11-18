@@ -31,6 +31,26 @@ Start silent and make sound opt-in; the gift must work completely with captions 
 
 Test £4.99 for the complete silent hunt, £9.99 for a richer Story with a voiced witness and optional soundtrack, £19 for the already-proposed set of three Story gifts. Never charge the recipient. Do not gate hints, direct interaction, captions or the reveal on a premium tier. Test willingness to pay and cost per fulfilled gift before making audio entitlements promises.
 
+## Tabletop cut (experiment preview)
+
+The [silent preview](https://for-you-room--enigmagift.netlify.app/) remains the control. The local tabletop preview (not published) (`dog-gift-tabletop/`) keeps everything else identical and changes only the three interactions below.
+
+1. **Accent what was touched.** A chair tap outlines the specific chair back or leg patch for a moment, rather than answering for the whole object class.
+2. **The dog's viewpoint is optional.** After meeting the dog, 'Look from here' drops to a low camera beside it where a paper edge shows under the table lip; 'Back to my spot' restores the previous pose.
+3. **The note lives on the table.** A folded paper sits on the table lip. A first touch offers Unfold; a second unfolds in place and the invitation reads beside the table, not in a modal.
+
+Run card: give a first-time recipient ONE build with the neutral instruction 'Someone sent you this. Open it as you normally would.' Assign different people to different cuts so nobody learns the solution. Observe intended versus registered taps, why they chose the table, and whether they keep exploring after opening. No analytics ship with these builds; these are proposed observations, not results.
+
 ## What to test first
 
-Keep the silent preview as the comparison. Change only three things: accent the part of the chair that was touched; offer the dog's viewpoint so the paper edge can be seen; let the recipient unfold the note on the tabletop. Keep the text alternative, direct open and post-reveal exploration. No new world or audio generation is needed. With uncoached recipients, compare intended versus registered taps, ask what evidence led them to the table, and watch whether they explore after the invitation. These are proposed tests, not observed outcomes.
+The run card above describes the next experiment. No further builds are needed to run it; these are proposed tests, not observed outcomes.
+
+## From recipient to giver (local pilot)
+
+The same tabletop cut now runs two local builds: `:4295` serves the earlier approved snapshot; `:4296` serves the latest family-room pilot with the 360 keepsakes, private keepsake recap, help ladder, the two-place still atlas and the recipient-preview remix. The giver shortcut `:4296/?make=1` opens a clean editor without playing the demo; submitting it opens the draft inside an isolated same-origin iframe (`?recipientPreview=1`) where the recipient cover is signed with the giver's names — nothing leaves the tab.
+
+A room revision owns the licensed world, calibrated objects and permitted template. A gift edition references that revision but owns its private recipient, words and reward. A play session belongs to one recipient; it is never copied. Only a room owner can opt a private world into reuse; a playable link is not a licence to republish a home. In production enforce that on the server, offer revocation and never fork gift links, codes, voice recordings or run history. The sample prototype has a local flag, not an access-control service.
+
+Play and remix previews stay free. Test £4.99 for sending a new personal edition of an approved room; test £9.99 for a richer authored Story and £19 for three Story sends. A new world build is a separate cost experiment, not included by assumption. No checkout or sends exist in this pilot.
+
+Manually author the first rooms and log minutes for object placement, writing and corrections. Reuse approved anchors, fallback descriptions and revision once, not private stories. Count recipient → started a draft → previewed → paid and sent to a different person → next recipient opened. Measure contribution per reused send after fees, VAT where due, serving, moderation/support and amortised world cost; compare to fresh rooms. Invite people to opt in to measuring this during a pilot; no events leave this version.

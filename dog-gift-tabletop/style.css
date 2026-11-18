@@ -1,0 +1,600 @@
+:root {
+  --ink: #1c1712;
+  --paper: #f5efe3;
+  --rust: #bf5f2e;
+  --serif: 'Fraunces', Georgia, serif;
+  --sans: 'Instrument Sans', 'Helvetica Neue', sans-serif;
+}
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { margin: 0; height: 100%; }
+
+body {
+  font-family: var(--sans);
+  color: var(--paper);
+  background:
+    radial-gradient(120% 90% at 50% 0%, #3a2e22 0%, #191410 55%, #0d0a07 100%);
+}
+
+#app { min-height: 100%; }
+
+.stage { position: fixed; inset: 0; }
+
+/* the photo lives inside one frame sized to its native aspect —
+   never cropped, dog always inside, on any screen */
+.cover {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+.cover-frame {
+  position: relative;
+  margin: 0;
+  width: min(100vw, calc(100dvh * 1800 / 1281));
+  aspect-ratio: 1800 / 1281;
+  transition: transform 0.85s cubic-bezier(0.55, 0, 0.3, 1);
+}
+.cover-frame img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+/* paper-edge wipe: the whole frame slides away like a lifted sheet,
+   masking the swap from photo to rendered world */
+.cover-frame.is-wiped {
+  transform: translateX(-115%) rotate(-2.5deg);
+}
+.cover-frame::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 100%;
+  width: 26px;
+  background: linear-gradient(90deg, var(--paper), rgba(245, 239, 227, 0));
+}
+
+/* cream card tucked into the photo's own top-right corner */
+.paper-card {
+  position: absolute;
+  top: -1px;
+  right: -1px;
+  padding: 0.45em 0.9em 0.55em;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: clamp(0.9rem, 2.4vw, 1.25rem);
+  line-height: 1.2;
+  border-radius: 0 0 0 10px;
+  box-shadow: -3px 3px 7px rgba(0, 0, 0, 0.3);
+  clip-path: polygon(0 0, 100% 0, 100% 62%, 88% 100%, 0 100%);
+}
+
+.cover-line {
+  position: absolute;
+  inset: auto 0 0;
+  z-index: 3;
+  padding: 10vh 6vw 8vh;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.9rem;
+  background: linear-gradient(transparent, rgba(12, 9, 6, 0.82));
+}
+.cover-line .lead {
+  margin: 0;
+  font-family: var(--serif);
+  font-size: clamp(1.5rem, 4.4vw, 2.6rem);
+}
+
+.world { position: absolute; inset: 0; }
+.world-canvas { width: 100%; height: 100%; display: block; touch-action: none; }
+.world-canvas:focus-visible { outline: 3px solid var(--rust); outline-offset: -3px; }
+
+.status {
+  position: absolute;
+  left: 6vw;
+  bottom: 5.5rem;
+  max-width: 34rem;
+  margin: 0;
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: 1rem;
+  color: rgba(240, 230, 214, 0.92);
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.7);
+  pointer-events: none;
+  z-index: 4;
+}
+
+/* one-shot collar tag: swings once where the dog actually is */
+.collar-tag {
+  position: fixed;
+  z-index: 5;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+.collar-tag::before {
+  content: '';
+  position: absolute;
+  left: -14px;
+  top: -34px;
+  width: 26px;
+  height: 30px;
+  background: var(--paper);
+  border-radius: 4px 4px 10px 10px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
+  transform-origin: 50% 0;
+}
+.collar-tag::after {
+  content: '';
+  position: absolute;
+  left: -3px;
+  top: -4px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--rust);
+}
+.collar-tag.is-swing::before {
+  animation: swing 2.2s ease-out forwards;
+}
+@keyframes swing {
+  0% { transform: rotate(0); opacity: 0; }
+  8% { opacity: 1; }
+  20% { transform: rotate(24deg); }
+  40% { transform: rotate(-16deg); }
+  60% { transform: rotate(9deg); }
+  80% { transform: rotate(-4deg); }
+  100% { transform: rotate(0); opacity: 1; }
+}
+
+.hint-bubble {
+  position: fixed;
+  left: 50%;
+  bottom: 7.5rem;
+  transform: translateX(-50%);
+  z-index: 5;
+  margin: 0;
+  padding: 0.5rem 1rem;
+  border-radius: 999px;
+  background: rgba(240, 230, 214, 0.14);
+  border: 1px solid rgba(240, 230, 214, 0.35);
+  color: rgba(240, 230, 214, 0.9);
+  font-size: 0.82rem;
+  pointer-events: none;
+  transition: opacity 1.4s ease;
+}
+.hint-bubble.is-fading { opacity: 0; }
+
+/* cream ink ring where a tap lands */
+.ripple {
+  position: fixed;
+  z-index: 6;
+  width: 12px;
+  height: 12px;
+  margin: -6px 0 0 -6px;
+  border: 2px solid rgba(245, 239, 227, 0.95);
+  border-radius: 50%;
+  pointer-events: none;
+  animation: ripple-out 0.46s ease-out forwards;
+}
+.ripple.is-hit {
+  box-shadow: 0 0 18px 5px rgba(255, 214, 150, 0.55);
+  border-color: #ffd696;
+}
+@keyframes ripple-out {
+  from { transform: scale(0.6); opacity: 1; }
+  to { transform: scale(2.4); opacity: 0; }
+}
+
+.line {
+  position: fixed;
+  z-index: 5;
+  max-width: min(26rem, 84vw);
+  margin: 0;
+  padding: 0.75rem 1.1rem;
+  border-radius: 14px;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: 1.02rem;
+  line-height: 1.5;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.45);
+  pointer-events: none;
+}
+
+.hud {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 5;
+  padding: 1rem 6vw 1.4rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.8rem;
+  background: linear-gradient(transparent, rgba(12, 9, 6, 0.85));
+  pointer-events: none;
+}
+.hud button, .hud a { pointer-events: auto; }
+.hud .hint {
+  flex-basis: 100%;
+  margin: 0;
+  font-size: 0.8rem;
+  color: rgba(240, 230, 214, 0.7);
+}
+.row { display: flex; flex-wrap: wrap; gap: 0.6rem; }
+
+.steps { display: flex; gap: 0.5rem; margin-left: auto; }
+.steps button {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  border: 2px solid rgba(240, 230, 214, 0.7);
+  background: rgba(240, 230, 214, 0.08);
+  color: var(--paper);
+  font-size: 1.5rem;
+  cursor: pointer;
+}
+.steps button:active { background: rgba(240, 230, 214, 0.2); }
+
+.btn, .link { font-family: var(--sans); cursor: pointer; }
+.btn {
+  padding: 0.8rem 1.6rem;
+  border: none;
+  border-radius: 999px;
+  background: var(--rust);
+  color: #fff7ec;
+  font-size: 1rem;
+  font-weight: 600;
+  min-height: 44px;
+}
+.btn.small { padding: 0.5rem 1rem; font-size: 0.88rem; }
+.btn.ghost {
+  background: transparent;
+  border: 1.5px solid rgba(240, 230, 214, 0.6);
+  color: var(--paper);
+}
+.btn:disabled { opacity: 0.55; cursor: default; }
+.link {
+  border: none;
+  background: none;
+  color: rgba(240, 230, 214, 0.85);
+  text-decoration: underline;
+  font-size: 0.9rem;
+  min-height: 44px;
+  padding: 0 0.4rem;
+}
+
+.help {
+  position: fixed;
+  left: 50%;
+  bottom: 9rem;
+  transform: translateX(-50%);
+  z-index: 8;
+  max-width: min(30rem, 88vw);
+  padding: 1.2rem 1.4rem;
+  border-radius: 14px;
+  background: var(--paper);
+  color: var(--ink);
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.5);
+}
+.help .help-title {
+  margin: 0 0 0.4rem;
+  font-family: var(--serif);
+  font-size: 1.15rem;
+}
+.help .hint { margin: 0 0 0.9rem; font-size: 0.9rem; line-height: 1.5; }
+.help .link { color: var(--ink); }
+.help .btn.ghost { color: var(--ink); border-color: rgba(28, 23, 18, 0.5); }
+
+.note {
+  position: fixed;
+  inset: 0;
+  z-index: 7;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1.2rem;
+  padding: 6vw;
+  text-align: center;
+  background:
+    radial-gradient(90% 70% at 50% 30%, rgba(191, 95, 46, 0.2), transparent 65%),
+    rgba(10, 8, 5, 0.96);
+}
+.note-kicker {
+  margin: 0;
+  font-size: 0.78rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: rgba(240, 230, 214, 0.65);
+}
+.note blockquote { margin: 0; max-width: 30rem; }
+.note blockquote p {
+  margin: 0;
+  font-family: var(--serif);
+  font-size: clamp(1.3rem, 4vw, 2rem);
+  line-height: 1.45;
+}
+
+.textpath {
+  position: fixed;
+  left: 50%;
+  bottom: 8rem;
+  transform: translateX(-50%);
+  z-index: 6;
+  max-width: min(34rem, 90vw);
+  padding: 1.2rem 1.4rem;
+  border-radius: 14px;
+  background: var(--paper);
+  color: var(--ink);
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.5);
+}
+.textpath .help-title { margin: 0 0 0.5rem; font-family: var(--serif); font-size: 1.1rem; }
+.textpath .hint { margin: 0 0 0.7rem; font-size: 0.92rem; line-height: 1.5; }
+.textpath .link { color: var(--ink); }
+.textpath .btn.small { min-height: 40px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .cover-frame, .hint-bubble { transition: none; }
+  .collar-tag.is-swing::before { animation: none; opacity: 1; }
+  .ripple { animation: none; }
+}
+
+/* ---- tabletop experiment additions ---- */
+
+/* picked-patch accent drawn by the world (SVG over canvas) */
+.accent-svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 3;
+}
+.accent-svg polygon {
+  fill: rgba(245, 239, 227, 0.16);
+  stroke: rgba(255, 240, 205, 0.9);
+  stroke-width: 2;
+}
+
+/* small anchored action chips */
+.chip {
+  position: fixed;
+  z-index: 6;
+  transform: translateX(-50%);
+  padding: 0.5rem 0.95rem;
+  border: 1px solid rgba(245, 239, 227, 0.55);
+  border-radius: 999px;
+  background: rgba(24, 18, 12, 0.82);
+  color: var(--paper, #f5efe3);
+  font-family: var(--serif, serif);
+  font-size: 0.92rem;
+  font-style: italic;
+  cursor: pointer;
+  backdrop-filter: blur(3px);
+}
+.chip:hover, .chip:focus-visible {
+  border-color: #ffd696;
+  color: #ffd696;
+  outline: none;
+}
+
+/* eyelid cut for the viewpoint change */
+.blink {
+  position: fixed;
+  inset: 0;
+  z-index: 7;
+  background: #0c0906;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
+}
+.blink.is-shut { opacity: 1; }
+
+/* the note read in place — cream stationery, room stays visible behind it */
+.paper-note {
+  position: fixed;
+  inset: auto;
+  z-index: 6;
+  transform: translate(-50%, -50%);
+  color: #34271c;
+  background: linear-gradient(105deg, #f3e2c4, #fff6df 55%, #f6e7ca);
+  border-radius: 2px 3px 12px 3px;
+  width: min(22rem, calc(100vw - 32px));
+  max-height: 70dvh;
+  overflow: auto;
+  box-shadow: 0 8px 22px #271b1344;
+  gap: 0.9rem;
+  padding: 1.3rem 1.6rem;
+  display: flex;
+}
+/* faint central crease, like a card once folded */
+.paper-note::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 8%;
+  bottom: 8%;
+  width: 1px;
+  background: linear-gradient(rgba(176,140,90,0), rgba(176,140,90,0.28), rgba(176,140,90,0));
+  pointer-events: none;
+}
+.paper-note .note-kicker { font-size: 0.95rem; color: #7a5a38; }
+.paper-note blockquote p { font-size: 1.1rem; color: #34271c; }
+.paper-note .note-actions .btn,
+.paper-note .link { color: #7a4d1e; border-color: rgba(122,77,30,0.55); }
+.paper-note .btn:hover, .paper-note .btn:focus-visible,
+.paper-note .link:hover, .paper-note .link:focus-visible {
+  border-color: #9c4a2c;
+  color: #9c4a2c;
+  outline: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .blink { transition: none; }
+}
+
+/* ---- family pilot additions: recap + remix ---- */
+.recap-list {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 16px;
+  margin: 0 0 0.6rem;
+}
+.recap-list dt { color: #7a5a38; font-size: 0.82rem; }
+.recap-list dd { margin: 0; font-family: var(--serif, serif); }
+.note-sign {
+  font-style: italic;
+  color: #5a4025;
+  margin: 8px 0 0;
+}
+.remix form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  pointer-events: auto;
+}
+.remix label {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 0.85rem;
+  color: #5a4025;
+}
+.remix input,
+.remix textarea {
+  font: inherit;
+  color: #34271c;
+  background: #fffaf0;
+  border: 1px solid #b08c5a66;
+  border-radius: 4px;
+  padding: 6px 8px;
+  resize: vertical;
+}
+.remix input:focus, .remix textarea:focus {
+  outline: 2px solid #9c4a2c55;
+  border-color: #9c4a2c;
+}
+.remix-line {
+  font-size: 0.8rem;
+  color: #7a5a38;
+  font-style: italic;
+  margin: 0;
+}
+
+/* recap & remix float centered — the room stays behind */
+.recap, .remix {
+  left: 50%;
+  top: 50%;
+}
+
+/* recipient preview: a full-window sheet holding one same-origin frame */
+.preview-sheet {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  background: #1b130d;
+  display: flex;
+  flex-direction: column;
+}
+.preview-sheet iframe {
+  flex: 1;
+  width: 100%;
+  border: 0;
+  background: #1b130d;
+}
+.preview-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 12px;
+  background: #241a10;
+}
+.preview-label {
+  font-size: 0.75rem;
+  color: #b08c5a;
+  font-style: italic;
+}
+.preview-back {
+  flex: 0 0 auto;
+}
+/* one short paper-fold as the draft folds into the recipient's cover */
+@media (prefers-reduced-motion: no-preference) {
+  .preview-sheet {
+    animation: preview-fold 0.6s ease-out both;
+    transform-origin: 50% 100%;
+  }
+  @keyframes preview-fold {
+    0% { transform: perspective(1200px) rotateX(-38deg) scaleY(0.94); opacity: 0.4; }
+    60% { transform: perspective(1200px) rotateX(6deg); opacity: 1; }
+    100% { transform: none; }
+  }
+}
+
+/* the still atlas — real room crops, one spatial sentence */
+.atlas {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 6px;
+}
+.atlas .row {
+  flex-wrap: wrap;
+}
+.art-btn {
+  text-transform: capitalize;
+}
+.still {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.still img {
+  width: 100%;
+  max-width: 340px;
+  max-height: 42dvh;
+  object-fit: cover;
+  border-radius: 4px;
+  border: 1px solid #b08c5a55;
+  display: block;
+}
+.still figcaption {
+  font-size: 0.82rem;
+  color: #7a5a38;
+  font-style: italic;
+}
+
+/* small screens: keep the signed card inside the photo and the bar onscreen */
+.paper-card {
+  max-width: calc(100% - 24px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.preview-label {
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* the sheet's own button must not inherit the floating chip positioning */
+.preview-back.chip {
+  position: static;
+  transform: none;
+  flex: 0 0 auto;
+}
