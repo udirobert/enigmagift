@@ -1,0 +1,444 @@
+/* WorldGift — photo-first explorer, scoped under .wg */
+
+.wg {
+  min-height: 100dvh;
+  padding: clamp(1rem, 3vw, 2.5rem);
+  background: var(--ink);
+}
+
+.wg.is-in {
+  padding: 0;
+  overflow: hidden;
+}
+
+.wg-kicker {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--rust-soft);
+  margin-bottom: 0.5rem;
+}
+
+.wg-title {
+  font-family: var(--serif);
+  font-weight: 480;
+  font-variation-settings: 'opsz' 72, 'SOFT' 40, 'WONK' 0;
+  font-size: clamp(1.8rem, 5vw, 2.7rem);
+  line-height: 1.12;
+}
+
+.wg-lede {
+  font-family: var(--serif);
+  font-weight: 380;
+  font-size: clamp(0.95rem, 2vw, 1.1rem);
+  color: var(--paper-dim);
+  margin-top: 0.6rem;
+  max-width: 56ch;
+}
+
+.wg-fineprint {
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  line-height: 1.5;
+  color: var(--paper-faint);
+}
+
+/* ---------- cover ---------- */
+
+.wg-cover,
+.wg-edit {
+  max-width: 620px;
+  margin: 0 auto;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  align-items: center;
+  padding: clamp(1rem, 4vh, 3rem) 0;
+}
+
+/* explorer cover — one photo from first paint; copy rides the gradient */
+.wg-explorer .wg-cover {
+  position: fixed;
+  inset: auto 0 0;
+  z-index: 4;
+  max-width: none;
+  align-items: flex-start;
+  text-align: left;
+  padding: 8vh 6vw 7vh;
+  background: linear-gradient(transparent, rgba(12, 10, 8, 0.82));
+}
+
+.wg-edit { text-align: left; align-items: stretch; padding: clamp(1rem, 3vw, 2.5rem); }
+.wg-edit .wg-title, .wg-edit .wg-kicker { text-align: center; }
+.wg-edit .wg-lede { text-align: center; margin-inline: auto; }
+
+.wg-cover-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.7rem;
+  justify-content: center;
+  align-items: center;
+}
+
+/* ---------- buttons ---------- */
+
+.wg-btn {
+  font-family: var(--mono);
+  font-size: 0.8rem;
+  padding: 0.7rem 1.1rem;
+  border-radius: 4px;
+  border: 1.5px solid var(--rust);
+  background: var(--rust);
+  color: var(--paper);
+  cursor: pointer;
+  transition: transform 0.15s, background 0.2s;
+}
+
+.wg-btn:hover:not(:disabled) { transform: translateY(-1px); }
+.wg-btn:disabled { opacity: 0.5; cursor: default; }
+.wg-btn.ghost { background: transparent; color: var(--paper); border-color: var(--line-strong); }
+.wg-btn.accent { background: var(--rust); border-color: var(--rust); }
+
+.wg-btn:focus-visible,
+.wg-skip:focus-visible,
+.wg-chrome button:focus-visible,
+.wg-move button:focus-visible,
+.wg-picks button:focus-visible,
+.wg-drawer-close:focus-visible,
+.wg-form input:focus-visible,
+.wg-form textarea:focus-visible,
+.wg-stage canvas:focus-visible,
+.wg summary:focus-visible {
+  outline: 3px solid var(--rust);
+  outline-offset: 2px;
+}
+
+.wg-skip {
+  align-self: flex-start;
+  font-family: var(--mono);
+  font-size: 0.74rem;
+  color: var(--paper-dim);
+  background: none;
+  border: none;
+  border-bottom: 1px dashed var(--paper-faint);
+  padding: 0.3rem 0;
+  cursor: pointer;
+}
+
+.wg-skip:hover { color: var(--rust-soft); }
+
+/* ---------- edit form ---------- */
+
+.wg-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  background: var(--paper);
+  color: var(--ink);
+  border-radius: 6px;
+  padding: 1.2rem;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.4);
+}
+
+.wg-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.8rem; }
+
+.wg-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #5a4a34;
+}
+
+.wg-opt { text-transform: none; color: #8a6f4d; }
+
+.wg-form input,
+.wg-form textarea {
+  font-family: var(--serif);
+  font-size: 1rem;
+  padding: 0.55rem 0.6rem;
+  border: 1px solid #b3a48f;
+  border-radius: 4px;
+  background: #fdf9ef;
+  color: var(--ink);
+  text-transform: none;
+  letter-spacing: normal;
+  resize: vertical;
+}
+
+.wg-errors {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  color: #b23b22;
+}
+
+/* ---------- stage + photo crossfade ---------- */
+
+.wg-explorer .wg-stage-wrap {
+  display: block;
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+}
+
+.wg-stage { position: absolute; inset: 0; }
+.wg-stage canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+
+.wg-stage-note {
+  position: absolute;
+  bottom: 4.5rem;
+  left: 50%;
+  transform: translateX(-50%);
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  color: var(--paper);
+  background: rgba(22, 17, 13, 0.75);
+  padding: 0.4rem 0.8rem;
+  border-radius: 999px;
+}
+
+/* the source photo — full until the world has rendered, then lifts away */
+.wg-explorer .wg-photo {
+  display: flex;
+  position: fixed;
+  inset: 0;
+  z-index: 2;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transform: scale(1.025);
+  pointer-events: none;
+  transition: opacity 0.9s ease, transform 0.9s ease;
+}
+
+.wg-explorer .wg-photo.is-shown {
+  opacity: 1;
+  transform: none;
+}
+
+.wg-explorer .wg-photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.wg-explorer .wg-photo .wg-btn {
+  position: absolute;
+  bottom: 2rem;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.wg-explorer .wg-photo .wg-btn,
+.wg-explorer .wg-photo.is-shown {
+  pointer-events: auto;
+}
+
+.wg-photo-note {
+  position: absolute;
+  bottom: 2rem;
+  left: 50%;
+  transform: translateX(-50%);
+  font-family: var(--mono);
+  font-size: 0.74rem;
+  color: var(--paper);
+  background: rgba(22, 17, 13, 0.7);
+  padding: 0.45rem 0.9rem;
+  border-radius: 999px;
+}
+
+/* ---------- in-world chrome ---------- */
+
+.wg-hint {
+  position: fixed;
+  top: 1rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 3;
+  font-family: var(--mono);
+  font-size: 0.74rem;
+  color: var(--paper);
+  background: rgba(22, 17, 13, 0.7);
+  padding: 0.45rem 0.9rem;
+  border-radius: 999px;
+  pointer-events: none;
+}
+
+.wg-chrome {
+  position: fixed;
+  top: 1rem;
+  right: 1rem;
+  z-index: 3;
+  display: flex;
+  gap: 0.5rem;
+}
+
+.wg-chrome button,
+.wg-move button {
+  font-family: var(--mono);
+  font-size: 0.74rem;
+  padding: 0.5rem 0.9rem;
+  border-radius: 999px;
+  border: 1.5px solid rgba(240, 230, 214, 0.4);
+  background: rgba(22, 17, 13, 0.7);
+  color: var(--paper);
+  cursor: pointer;
+}
+
+.wg-chrome button:hover,
+.wg-move button:hover { border-color: var(--rust-soft); }
+
+.wg-move {
+  position: absolute;
+  bottom: 1.25rem;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 0.5rem;
+}
+
+/* ---------- gift drawer ---------- */
+
+.wg-drawer {
+  position: fixed;
+  top: 3.75rem;
+  right: 1rem;
+  z-index: 4;
+  width: min(330px, calc(100vw - 2rem));
+  max-height: calc(100dvh - 5rem);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+  background: var(--ink-2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 1rem;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+}
+
+.wg-drawer-close {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.6rem;
+  background: none;
+  border: none;
+  color: var(--paper-dim);
+  font-size: 1.3rem;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.wg-status {
+  font-family: var(--mono);
+  font-size: 0.76rem;
+  line-height: 1.5;
+  color: var(--rust-soft);
+  border-left: 2px solid var(--rust);
+  padding-left: 0.75rem;
+}
+
+.wg-gull,
+.wg-memory {
+  background: var(--paper);
+  color: var(--ink);
+  border-radius: 6px;
+  padding: 0.8rem 0.9rem;
+}
+
+.wg-gull summary,
+.wg-memory summary,
+.wg summary {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+  color: var(--rust);
+}
+
+.wg-gull p,
+.wg-memory p {
+  font-family: var(--serif);
+  font-size: 0.98rem;
+  font-style: italic;
+  line-height: 1.45;
+  margin-top: 0.5rem;
+}
+
+.wg-picks {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.wg-picks button {
+  width: 100%;
+  text-align: left;
+  font-family: var(--sans);
+  font-size: 0.88rem;
+  color: var(--paper-dim);
+  background: none;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 0.55rem 0.7rem;
+  cursor: pointer;
+}
+
+.wg-picks button:hover { color: var(--paper); border-color: var(--line-strong); }
+
+.wg-picks button.is-selected {
+  color: var(--rust-soft);
+  border-color: var(--rust);
+}
+
+.wg-actions { display: flex; flex-wrap: wrap; gap: 0.6rem; align-items: center; }
+
+.wg-gift {
+  background: var(--paper);
+  color: var(--ink);
+  border-radius: 6px;
+  padding: 1rem 1.1rem;
+}
+
+.wg-gift:focus { outline: none; }
+
+.wg-note-kicker {
+  font-family: var(--mono);
+  font-size: 0.65rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--rust);
+  margin-bottom: 0.5rem;
+}
+
+.wg-gift blockquote p {
+  font-family: var(--serif);
+  font-size: 1.25rem;
+  font-style: italic;
+  line-height: 1.35;
+}
+
+.wg-gift cite {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  font-style: normal;
+  color: var(--rust);
+}
+
+.wg-gift .wg-skip { color: #5a4a34; margin-top: 0.7rem; }
+
+@media (max-width: 860px) {
+  .wg-row { grid-template-columns: 1fr; }
+  .wg-drawer { right: 0.5rem; width: min(330px, calc(100vw - 1rem)); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wg-btn, .wg-picks button { transition: none; }
+  .wg-explorer .wg-photo { transition: none; transform: none; }
+}

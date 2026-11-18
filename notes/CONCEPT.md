@@ -1,5 +1,7 @@
 # EnigmaGift v2 — the hunt
 
+**Roadmap (not shipped):** [World-first memory hunt and proposed gift tiers](DIGITAL-HUNT.md). The flow below describes the existing £19 physical hunt.
+
 > **Hide something real. Let the photographs lead them to it.**
 
 A gift isn't a thing you send. It's a place you leave something, and a trail of

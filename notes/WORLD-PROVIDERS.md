@@ -1,0 +1,36 @@
+# World providers and redundancy — proposed
+
+Marble first; evaluate one independently backed single-photo alternative before launch. Atlas is a quality/control comparison, not a World Labs outage fallback. Published gifts must not depend on a live generation API. Research is documentation-only; no provider has passed the EnigmaGift playability or outage tests.
+
+## Candidates
+
+| Candidate | Documented capability | Proposed role |
+|---|---|---|
+| [World Labs Marble](https://docs.worldlabs.ai/api/world-generation-examples) | Single photo, overlapping photos, panorama or video; [SPZ variants and optional collider](https://docs.worldlabs.ai/api/reference/worlds/get). | First implementation. Test whether crucial objects and spatial relationships survive generation. |
+| [World Labs Atlas](https://docs.atlas.worldlabs.ai/build-a-scene) | Camera/depth control, generated views and [SPZ reconstruction](https://docs.atlas.worldlabs.ai/posed-images-to-splats) from at least two posed views; a single image first needs additional views. | Quality comparison; same vendor as Marble. |
+| [Mint Worlds](https://docs.mint.gg/developers/worlds) | One image or 2–8 reference images, reviewable preview, then a streamed RAD world and matching collider manifest. [Advisory credit estimate](https://docs.mint.gg/developers/api-overview); verify actual spend and artifact portability. | First alternate API to benchmark. Mint [uses third-party services](https://docs.mint.gg/privacy); confirm the world generation and delivery path does not depend on World Labs before calling it redundant. |
+| [Scenario / Tencent HY World](https://docs.scenario.com/get-started/generation/3d-model-generation/3d-model-generation-tencent/) | Hosted single-photo and multi-view reconstruction paths with SPZ and original PLY; verify exact model version, rate and export terms. | Conditional second candidate. Obtain written UK commercial and downstream output rights before use. The public [HY-World 2.0 weights license](https://github.com/Tencent-Hunyuan/HY-World-2.0/blob/main/License.txt) excludes the UK, EU and South Korea; do not infer that a hosted API grants or is restricted by that exact license. Do not self-host those weights for this pilot on the public license. |
+| [Varjo Teleport](https://teleport.varjo.com/docs/) / [Polycam](https://poly.cam/reconstruction-api) | Capture-set reconstruction to splats; Varjo accepts image datasets/video on a developer plan, Polycam’s API is limited-availability Enterprise. | Capture-rich fallback when overlapping photos or video exist, not a substitute for the one archived photo journey. Confirm access, minimum inputs, pricing and export rights. |
+
+The existing TRELLIS keepsake is not an immersive fallback. A panorama or numbered photo can preserve navigation and clue access in an approved lightweight mode, but should not be sold as equivalent 3D.
+
+## Integration and failover
+
+- Normalize provider jobs and assets: persist attempt and operation IDs, status, artifact format, scene coordinate transform, optional collider, and approved scene revision. Keep authored viewpoints, object hit areas, NPC/prop assets and clues outside the provider. Start with Three.js + [Spark](https://sparkjs.dev/docs/spark-2.0-quick-start/), guided viewpoints, and giver-confirmed 3D hit targets; label meaningful objects yourself. Keep reward URLs server-side, out of provider jobs and telemetry.
+- Treat uncertain submissions as pending: reconcile the original remote job before retrying. Avoid parallel paid generation for every gift. Permit one alternate-provider attempt within a cost cap only on terminal/transient-outage conditions and only for a provider cleared for the input and consent; never bypass policy refusals or invalid input with failover. Drive circuits from provider health/failure rates, and track attempted versus approved costs.
+- Fallback worlds are new revisions, not interchangeable geometry. Recheck landmarks, transforms, hit zones and clue fairness; require giver approval before publishing. Do not silently swap a published gift to a regenerated world.
+- Where terms allow, persist the approved runtime artifacts (including dependent stream chunks and colliders), manifest, and lightweight fallback in private app-controlled storage; deliver with scoped access. Verify replay with provider endpoints unavailable. If assets cannot legally and technically be delivered this way, mark the provider unsuitable for delivery redundancy. Test end-to-end deletion and revocation on both paths. Release only after world/preview approval and server-verified Stripe payment.
+
+## Cost and privacy
+
+[Marble pricing](https://docs.worldlabs.ai/api/pricing): standard $1.26 (rounded) for one non-pano photo or $1.28 for multiple photos; [quickstart](https://docs.worldlabs.ai/api) says about five minutes. HQ GLB export is an optional $2.80, not needed for the initial splat path. [Atlas splat step](https://docs.atlas.worldlabs.ai/posed-images-to-splats): $0.50 draft, $5 refined, excluding upstream tasks; refined processing is roughly 15–21 minutes for 2–32 inputs. At £4.99 including 20% VAT, 27p card fees and an assumed £0.80/$, one $1.28 build leaves about £2.86 before retries, other delivery costs and acquisition. Atlas refined alone is more than that order has left after VAT and fees. Track the cost per approved world and per paid send including drafts and retries. Do not assume alternate-provider margins before measuring.
+
+Before real photos: confirm eligible commercial/API use, regional and downstream rights, model/infrastructure independence, acceptable hosting/export terms, retention/deletion and training treatment. Use project-private uploads and a documented opt-out where available. Atlas documents [private signed asset URLs](https://docs.atlas.worldlabs.ai/assets) and a [prospective training opt-out on eligible paid access](https://docs.atlas.worldlabs.ai/terms-of-service); do not apply those terms by analogy to another product.
+
+## First spike
+
+Use consented sample photos of one ordinary room: compare Marble single and overlapping views, Atlas draft from the overlapping views, and Mint as the alternate if its dependency and rights checks pass. Use the same hiding spot, meaningful landmarks and one prepared animal witness. Compare recognition, landmark fidelity, occlusion/hit testing and the recipient’s ability to explain the solution on physical iPhone Safari and Android Chrome. Record capture requirements, generation and decode time, size, cost and retry spend; exercise a generation failure followed by alternate approval and open an already-published gift with the provider unavailable. Use a prebuilt public demo, not paid generation for every visitor.
+
+## Local playtest slice
+
+`/studio/marble` in the dev server (`npm run dev`) is a local-only rehearsal of this plan: load a local `.spz` file, save two viewpoints, mark objects at the crosshair, designate the hiding place, write a witness clue and gift note, then preview the recipient beat (two wrong guesses before guided reveal; direct open always available). No upload, no provider SDK or API, no payment — the file never leaves the tab. It exercises the Marble-style artifact path without paid generation; the provider evaluations above are unchanged.

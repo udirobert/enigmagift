@@ -1,0 +1,36 @@
+# Someone saved you a seat
+
+[Open the public recipient gift](https://saved-you-a-seat--enigmagift.netlify.app/). This dog-and-dining-room gift is the reference for iterating EnigmaGift. The shelf and Marble studio remain experiments, not substitutes for this recipient journey.
+
+## Two published builds
+
+The [original gift](https://saved-you-a-seat--enigmagift.netlify.app/) is the baseline: original photograph, generated room, a dog clue in the controls, four targets on the photograph and a sample dinner invitation. The world beyond the camera is an interpretation, not a scan. Neither demo is a checkout.
+
+The [silent preview](https://for-you-room--enigmagift.netlify.app/) is the comparison for the next experiment. An unmarked photo opens into the room. Taps on the dog, chairs, table, plant, coats, TV, shelves and door use hand-authored picking regions. Confirmed taps give local feedback; two consecutive misses before finding the dog prompt one nudge. Exploring does not cost guesses. The note currently opens via a panel, not a piece of paper on the table. A motion-free text route and direct open are available.
+
+## Interaction research and decisions
+
+**Make the room easy to touch; leave the gift interesting to deduce.** A recipient needs to know that the room understood *chair*, not whether the chair solves the puzzle. When two objects overlap and the target is uncertain, a neutral ripple is preferable to the wrong character answering.
+
+| Precedent | What to borrow |
+| --- | --- |
+| [Gone Home: Fullbright on examining and putting back objects](https://fullbright.company/2012/09/28/a-non-violent-immersive-sim/) | Ordinary pencils and meaningful keepsakes share an interaction. A coat can tell a joke and the dog can give evidence without markers distinguishing them in advance. |
+| [The Room: Fireproof on designing for fingers](https://www.pocketgamer.com/the-room/behind-the-touchscreen-the-room/) | Make one action tactile: find a folded note on the tabletop, then unfold its corner there. Provide an equivalent button. |
+| [Outer Wilds: curiosity-driven exploration, GDC slides](https://ubm-twvideo01.s3.amazonaws.com/o1/vault/GDC+2021/beachum_gdc_2021%281%29.pdf) | Offer a question whose answer is visible from somewhere else. Let the player choose the dog's viewpoint rather than pulling the camera there. |
+| [Unpacking: Witch Beam on object and surface sounds](https://witchbeam.com.au/2022/07/28/taking-a-deep-dive-into-unpackings-sound-design/) | A collar tag, coat or paper crease can acknowledge an action without another caption. Work silently first; sound is optional. |
+
+### Where a tap landed versus what was touched
+
+- **Now:** keep calibrated, forgiving targets tied to the generated world revision; test when chairs overlap the table and from a second viewpoint. A [simplified collider](https://docs.worldlabs.ai/marble/export/mesh) is useful for walking and occlusion, but does not label a paw as part of the dog.
+- **Authoring experiment:** render a short camera sweep of the generated room. Let the giver select an object; try [SAM 2](https://ai.meta.com/research/sam2/) to track its mask and let them correct it from another angle. Store the approved object ID, response and camera pose, borrowing [SuperSplat's annotation workflow](https://developer.playcanvas.com/user-manual/supersplat/studio/annotations/) without showing recipient pins. Image/video masks can support guided views; they are not 3D hit regions for arbitrary free walking. No model call per recipient tap.
+- **Research only:** [Gaussian Grouping](https://github.com/lkeab/gaussian-grouping) and [SAGA](https://jumpat.github.io/SAGA/) investigate object identity within Gaussian scenes, with scene-specific preparation. Neither is established as a drop-in solution for the streamed world. Do not make them a prerequisite for the pilot.
+
+## Sound and prices (experiments)
+
+Start silent and make sound opt-in; the gift must work completely with captions alone. Try a single collar jingle from the dog’s position before testing a score. Use one approved, pre-generated fictional character voice with replay and captions. Quiet room tone, ducked under speech; reserve a short musical phrase for the note opening. No autoplay speech, overlapping lines or fabricated family voices. If using ElevenLabs, generate server-side once per approved gift, cache licensed assets, keep the key out of clients, and never send the room photo to generate a line of audio. Budget revisions and confirm commercial usage before charging.
+
+Test £4.99 for the complete silent hunt, £9.99 for a richer Story with a voiced witness and optional soundtrack, £19 for the already-proposed set of three Story gifts. Never charge the recipient. Do not gate hints, direct interaction, captions or the reveal on a premium tier. Test willingness to pay and cost per fulfilled gift before making audio entitlements promises.
+
+## What to test first
+
+Keep the silent preview as the comparison. Change only three things: accent the part of the chair that was touched; offer the dog's viewpoint so the paper edge can be seen; let the recipient unfold the note on the tabletop. Keep the text alternative, direct open and post-reveal exploration. No new world or audio generation is needed. With uncoached recipients, compare intended versus registered taps, ask what evidence led them to the table, and watch whether they explore after the invitation. These are proposed tests, not observed outcomes.

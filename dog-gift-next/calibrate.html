@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>calibrate (dev only)</title>
+    <style>
+      body { margin: 0; background: #111; color: #eee; font: 13px monospace; }
+      #row { display: flex; gap: 8px; align-items: flex-start; padding: 8px; }
+      #stage { width: 900px; height: 640px; position: relative; border: 1px solid #444; }
+      #stage canvas { width: 100%; height: 100%; }
+      #photo { width: 450px; }
+      #photo img { width: 100%; display: block; }
+      #out { width: 100%; min-height: 140px; background: #000; color: #8f8; }
+      button { font: inherit; }
+    </style>
+  </head>
+  <body>
+    <div id="row">
+      <div id="stage"></div>
+      <div id="photo">
+        <img src="./room.jpg" alt="reference" />
+        <div>
+          yaw <input id="yaw" type="number" step="0.05" value="0" style="width:5em" />
+          pitch <input id="pitch" type="number" step="0.05" value="0" style="width:5em" />
+          <button id="apply">apply</button>
+          <p>click the rendered room → collider XYZ + NDC below</p>
+        </div>
+      </div>
+    </div>
+    <textarea id="out"></textarea>
+    <script type="module" src="./calibrate.ts"></script>
+  </body>
+</html>

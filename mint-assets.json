@@ -1,0 +1,72 @@
+{
+  "registryVersion": 1,
+  "mintProject": {
+    "projectId": "zd76ca69j1f7v55agcg01x2jhd8jedeh",
+    "name": "EnigmaGift"
+  },
+  "assetRoot": "public/assets/mint",
+  "assets": {
+    "dog-dining-room": {
+      "source": {
+        "manifestVersion": 1,
+        "kind": "asset",
+        "assetType": "world",
+        "assetId": "j9714s6ea58xcsrek700kczsyd8jf2mm"
+      },
+      "transform": {
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "mode": "remote_stream",
+      "runtime": {
+        "artifactId": "world_runtime_rad",
+        "role": "environment",
+        "format": "rad",
+        "runtimeUrl": "https://cdn.mint.gg/owned-artifacts/fcc6e0986d0ff7237ca9d69529605e10998429ea2276cd5d10ddbb540e4afabc",
+        "renderer": "@sparkjsdev/spark",
+        "loaderHint": {
+          "renderer": "SparkRenderer",
+          "mesh": "SplatMesh",
+          "paged": true,
+          "lod": false
+        },
+        "collider": {
+          "artifactId": "world_collider",
+          "role": "physics_collider",
+          "format": "glb",
+          "runtimeUrl": "https://cdn.mint.gg/owned-artifacts/076e9795da41947da4adce94534e2d7720cc2528d13de326d4975d049f4df6d7",
+          "loaderHint": "gltf",
+          "visible": false,
+          "requiredForPhysics": true
+        },
+        "byteSize": 44124720
+      },
+      "artifacts": {
+        "preview_image": {
+          "artifactId": "preview_image",
+          "role": "preview_image",
+          "format": "webp",
+          "contentType": "image/webp",
+          "filename": "golden-dog-dining-room-yd8jf2mm-preview.webp",
+          "localPath": "public/assets/mint/dog-dining-room/preview_image.webp",
+          "loaderHint": "image",
+          "byteSize": 37984
+        }
+      },
+      "thumbnailUrl": "public/assets/mint/dog-dining-room/preview_image.webp"
+    }
+  }
+}

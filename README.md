@@ -1,5 +1,9 @@
 # EnigmaGift
 
+**Canonical recipient example:** [Someone saved you a seat](https://saved-you-a-seat--enigmagift.netlify.app/) — [live baseline and next design iteration](notes/CANONICAL-GIFT.md).
+
+**Roadmap (not shipped):** [World-first memory hunt and proposed gift tiers](notes/DIGITAL-HUNT.md). The flow below describes the existing £19 physical hunt. Local prototypes: `/studio/room` (2D memory map), `/studio/world` (stereo shelf explorer) and `/studio/marble` (world authoring tool) in `npm run dev`.
+
 > **Hide something real. Let the photographs lead them to it.**
 
 A gift only one person can find. The buyer photographs a place that matters,
