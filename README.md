@@ -23,7 +23,10 @@ Live: **https://enigmagift.pages.dev**
    trail token + unlock code.
 6. **Recipient** — `?t=<token>` opens three deduction rounds (detail →
    connection → throughline reveal), then the physical find + code unlocks
-   the keepsake (throughline, place guess, letter).
+   the keepsake (throughline, place guess, letter). The reveal also shows the
+   **3D world of the place** — built from one of the buyer's photos
+   (SandBase Run API + TRELLIS.2, `server/world.js`) at seal time — which the
+   recipient can orbit and keep (`download` a `.glb`).
 
 Scene order in code: WatchIt → Door → Reading → Editor → Hide → Seal →
 R1 → R2 → R3 → Reveal (state machine in `src/App.tsx`, no router).
@@ -38,6 +41,9 @@ R1 → R2 → R3 → Reveal (state machine in `src/App.tsx`, no router).
   (OpenAI-compatible vision, primary) with Google Gemini as fallback.
   Per-image observation + cross-image synthesis, failing over across all
   working key×model pairs.
+- **World** — `server/world.js`: SandBase Run API + TRELLIS.2 turns one of
+  the buyer's photos into an orbitable 3D world (GLB) at seal time, saved to
+  the gift's volume. The recipient orbits it in the reveal and keeps a copy.
 - **Payments** — Stripe Payment Link (live, GBP £19 one-time) on the
   "EnigmaGift" Stripe account. `VITE_STRIPE_LINK` is baked at build time.
 
@@ -76,9 +82,11 @@ Frontend env:
 | `POST /api/gifts/:id/hide` | record the physical hide |
 | `POST /api/gifts/:id/seal` | → `{trailToken, trailUrl, unlockCode}` |
 | `POST /api/gifts/:id/mark-paid` | called on Stripe return (`?paid=1`) |
-| `GET /api/trail/:token` | recipient trail (rounds, photo URLs) |
+| `GET /api/trail/:token` | recipient trail (rounds, photo URLs, world status) |
 | `POST /api/trail/:token/answer` | `{round, choice}` |
 | `POST /api/trail/:token/unlock` | `{code}` → keepsake |
+| `GET /api/trail/:token/world-status` | `{worldStatus}` — the 3D world build state |
+| `GET /api/trail/:token/world` | streams the place's GLB (202 until ready) |
 | `GET /api/photo/:giftId/:i` | original photo by sorted index |
 
 ## Deploy

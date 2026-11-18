@@ -1,9 +1,14 @@
-import { useEffect, useRef, useState } from 'react';
+import { Suspense, useEffect, useRef, useState, lazy } from 'react';
 import { gsap } from 'gsap';
 import { mockGallery } from '../data';
 import { prefersReducedMotion, seeded } from '../lib/motion';
 import { Polaroid } from '../components/Photo';
-import { unlockTrail, type Trail } from '../lib/api';
+import { unlockTrail, worldStatus, type Trail, type WorldStatus } from '../lib/api';
+
+// three.js is only for the world — keep it out of the main chunk
+const World = lazy(() =>
+  import('../components/World').then((m) => ({ default: m.World })),
+);
 
 interface RevealProps {
   demo: boolean;
@@ -26,9 +31,42 @@ export function Reveal({ demo, trail, direction }: RevealProps) {
   const [checking, setChecking] = useState(false);
   const [wrong, setWrong] = useState(false);
 
+  // the 3D world of the place — built after sealing; the reveal is where it
+  // finally shows up ("the world around that place is being built as you
+  // read this"). Real trails only; the demo keeps the original letter.
+  const [worldState, setWorldState] = useState<WorldStatus>(
+    real ? (trail!.worldStatus ?? 'worlding') : 'pending',
+  );
+  const worldUrl = real ? trail!.worldUrl : undefined;
+
   const gallery = real
     ? (trail!.photoUrls ?? []).slice(0, 6)
     : mockGallery().slice(0, 6);
+
+  // poll the world build until it's ready (or failed). Cheap, stops on done.
+  useEffect(() => {
+    if (!real || !trail) return;
+    if (worldState === 'ready' || worldState === 'failed') return;
+    let dead = false;
+    const tick = async () => {
+      if (dead) return;
+      try {
+        const r = await worldStatus(trail.token);
+        const s = r.worldStatus || 'worlding';
+        if (!dead) setWorldState((cur) => (cur === s ? cur : s));
+      } catch {
+        /* api blip — keep polling */
+      }
+    };
+    tick();
+    const t = window.setInterval(tick, 5000);
+    const stop = window.setTimeout(() => window.clearInterval(t), 5 * 60 * 1000);
+    return () => {
+      dead = true;
+      window.clearInterval(t);
+      window.clearTimeout(stop);
+    };
+  }, [real, trail, worldState]);
 
   useEffect(() => {
     const ctx = gsap.context(() => {
@@ -125,20 +163,52 @@ export function Reveal({ demo, trail, direction }: RevealProps) {
               <p className="letter-sign">— the one who left it there</p>
             </article>
 
-            <div className="build-status reveal-anim">
-              <span className="build-spinner" aria-hidden />
-              <div className="build-text">
-                <p className="build-title">your gift is being built</p>
-                <p className="build-sub mono">
-                  composing the world around the place<span className="dots" />
-                </p>
+            {worldState === 'ready' && worldUrl ? (
+              <div className="reveal-world reveal-anim">
+                <div className="reveal-world-stage">
+                  <Suspense fallback={null}>
+                    <World
+                      src={worldUrl}
+                      interactive
+                      className="reveal-world-canvas"
+                    />
+                  </Suspense>
+                </div>
+                <div className="reveal-world-actions">
+                  <a
+                    className="btn btn-primary"
+                    href={worldUrl}
+                    download="your-world.glb"
+                  >
+                    keep this world
+                  </a>
+                  <span className="reveal-world-hint mono">
+                    drag to look around · a 3D world of the place, yours to keep
+                  </span>
+                </div>
               </div>
-            </div>
-
-            <p className="foot-note reveal-anim">
-              this takes a few minutes — the link stays warm. nothing here was
-              generated; it’s all really yours.
-            </p>
+            ) : worldState === 'failed' ? (
+              <div className="build-status reveal-anim">
+                <span className="build-spinner is-done" aria-hidden />
+                <div className="build-text">
+                  <p className="build-title">the world won’t load right now</p>
+                  <p className="build-sub mono">
+                    the photographs are still yours — the world will follow
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className="build-status reveal-anim">
+                <span className="build-spinner" aria-hidden />
+                <div className="build-text">
+                  <p className="build-title">building the world of your place</p>
+                  <p className="build-sub mono">
+                    turning a photograph into something you can stand in
+                    <span className="dots" />
+                  </p>
+                </div>
+              </div>
+            )}
           </>
         ) : (
           <>

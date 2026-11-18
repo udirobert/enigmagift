@@ -8,6 +8,7 @@ import { mkdirSync, existsSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { db, UPLOADS_DIR } from './db.js';
 import { runPipeline } from './pipeline.js';
+import { buildWorld } from './world.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const DIST = join(HERE, '..', 'dist');
@@ -45,6 +46,14 @@ function getGift(id) {
   return db.prepare('SELECT * FROM gifts WHERE id = ?').get(id);
 }
 
+// Fire-and-forget: build the 3D world for a gift. Safe to call repeatedly —
+// buildWorld is idempotent and skips if one is already in flight or done.
+function startWorldBuild(giftId) {
+  buildWorld(giftId).catch((e) => {
+    console.error(`[world ${giftId}] trigger error:`, e);
+  });
+}
+
 function giftPayload(g) {
   if (!g) return null;
   const clues = db.prepare('SELECT id, position, text, meta FROM clues WHERE gift_id=? ORDER BY position').all(g.id)
@@ -65,6 +74,7 @@ function giftPayload(g) {
     placeGuess: g.place_guess ?? undefined,
     hide: safeParse(g.hides),
     paid: !!g.paid,
+    worldStatus: g.world_status ?? 'pending',
     createdAt: g.created_at,
   };
 }
@@ -94,6 +104,10 @@ function trailPayload(t, gift) {
     throughline: gift?.throughline ?? null,
     placeGuess: gift?.place_guess ?? null,
     unlocked: !!t.unlocked,
+    // the 3D world of the place — built after sealing; the recipient can
+    // orbit it in the reveal and keep a copy
+    worldStatus: gift?.world_status ?? 'pending',
+    worldUrl: gift?.world_status === 'ready' ? `/api/trail/${t.token}/world` : null,
   };
 }
 
@@ -175,6 +189,8 @@ app.post('/api/gifts/:id/seal', (req, res) => {
   // idempotent: return existing trail if already sealed
   const existing = db.prepare('SELECT token, unlock_code FROM trails WHERE gift_id=?').get(g.id);
   if (existing) {
+    // sealing is idempotent, but the world build may not have started yet
+    startWorldBuild(g.id);
     return res.json({
       trailToken: existing.token,
       trailUrl: `/t/${existing.token}`,
@@ -194,6 +210,9 @@ app.post('/api/gifts/:id/seal', (req, res) => {
   if (g.status !== 'paid') {
     db.prepare("UPDATE gifts SET status='sealed' WHERE id=?").run(g.id);
   }
+  // the recipient's payoff: build the 3D world of their place now, while they
+  // follow the trail. Non-blocking — the reveal polls for it.
+  startWorldBuild(g.id);
   res.json({
     trailToken: token,
     trailUrl: `/t/${token}`,
@@ -268,6 +287,42 @@ app.get('/api/photo/:giftId/:i', (req, res) => {
   const files = photoFiles(g.id);
   if (i >= files.length) return res.status(404).json({ error: 'no photo' });
   res.sendFile(join(UPLOADS_DIR, g.id, files[i]));
+});
+
+// ---------- the 3D world of the place ----------
+// Keyed by trail token — the recipient only holds the token, not the gift id.
+// world-status is a cheap poll; /world streams the GLB once the build is done.
+
+app.get('/api/trail/:token/world-status', (req, res) => {
+  const t = getTrail(req.params.token);
+  if (!t) return res.status(404).json({ error: 'not found' });
+  const g = getGift(t.gift_id);
+  res.json({ worldStatus: g?.world_status ?? 'pending' });
+});
+
+app.get('/api/trail/:token/world', (req, res) => {
+  const t = getTrail(req.params.token);
+  if (!t) return res.status(404).json({ error: 'not found' });
+  const g = getGift(t.gift_id);
+  // self-heal a stale 'worlding' (the machine that was building it is gone)
+  if (g && g.world_status === 'worlding' && !g.world_file) {
+    const started = g.world_started_at ? Date.parse(g.world_started_at) : NaN;
+    if (Number.isNaN(started) || Date.now() - started > 10 * 60 * 1000) {
+      startWorldBuild(g.id);
+    }
+  }
+  if (!g || g.world_status !== 'ready' || !g.world_file) {
+    // still building — the client keeps polling world-status
+    return res.status(202).json({ worldStatus: g?.world_status ?? 'building' });
+  }
+  if (!existsSync(g.world_file)) {
+    // status says ready but the file is gone (volume reset) — rebuild
+    startWorldBuild(g.id);
+    return res.status(202).json({ worldStatus: 'rebuilding' });
+  }
+  res.sendFile(g.world_file, {
+    headers: { 'Content-Type': 'model/gltf-binary', 'Cache-Control': 'private, max-age=86400' },
+  });
 });
 
 // ---------- static (prod: server hosts the build) ----------

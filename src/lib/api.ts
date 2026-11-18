@@ -11,10 +11,11 @@ import type {
   GiftDirection,
   SealResult,
   Trail,
+  WorldStatus,
 } from './types';
 
 // Re-export the view types scenes import from here.
-export type { ApiClue, Clue, Gift, HideSpot, SealResult, Trail, TrailRound, ApiObservation, ObsItem } from './types';
+export type { ApiClue, Clue, Gift, HideSpot, SealResult, Trail, TrailRound, ApiObservation, ObsItem, WorldStatus } from './types';
 
 // Same-origin by default: in dev Vite proxies /api → the server (see
 // vite.config.ts); in prod the server hosts this build, so relative works.
@@ -184,4 +185,11 @@ export async function unlockTrail(
     method: 'POST',
     body: JSON.stringify({ code }),
   });
+}
+
+/** GET /api/trail/:token/world-status — the 3D world's build status */
+export async function worldStatus(
+  token: string,
+): Promise<{ worldStatus: WorldStatus }> {
+  return request(`/api/trail/${encodeURIComponent(token)}/world-status`);
 }

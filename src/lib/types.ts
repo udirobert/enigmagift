@@ -52,6 +52,8 @@ export interface HideSpot {
   confidence?: number;
 }
 
+export type WorldStatus = 'pending' | 'worlding' | 'ready' | 'failed' | string;
+
 export interface Gift {
   id: string;
   status: GiftStatus;
@@ -63,6 +65,7 @@ export interface Gift {
   throughline?: string | null;
   placeGuess?: string | null;
   paid?: boolean;
+  worldStatus?: WorldStatus;
   createdAt?: string;
 }
 
@@ -94,6 +97,10 @@ export interface Trail {
   unlocked: boolean;
   /** /api/photo/:giftId/:i urls in upload order, when the server provides them */
   photoUrls?: string[];
+  /** the 3D world of the place — 'worlding' while it's being generated */
+  worldStatus?: WorldStatus;
+  /** /api/trail/:token/world — streams the GLB once the world is ready */
+  worldUrl?: string | null;
 }
 
 export interface SealResult {

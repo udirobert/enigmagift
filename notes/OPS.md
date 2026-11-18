@@ -23,7 +23,7 @@ Frontend and backend are **not** on the same host. Pages is static-only (+ the
 | Secret | Primary home | Backup / local |
 |---|---|---|
 | `SANDBASE_API_KEY` | Fly app secret (`fly -a enigmagift-api secrets set …`) | `server/sandbase.env` (gitignored) |
-| `VITE_STRIPE_LINK` | Netlify **production** context env var | inlined at build time |
+| `VITE_STRIPE_LINK` | inlined at build time (`VITE_STRIPE_LINK=… npm run build`) | the `enigmagift` Payment Link URL |
 | Gemini key (fallback) | any `Dev/*/.env*` the server scans | — |
 
 The key file `server/sandbase.env` is gitignored (`.gitignore` has `*.env` and
@@ -57,6 +57,27 @@ Gotchas:
   `fly deploy` picks up the latest commit.
 - The app was **suspended** at one point — `fly deploy` resumes it. Check
   `fly apps list` for `suspended`.
+
+### The world (per-gift 3D model)
+
+Sealing a gift triggers `buildWorld` (`server/world.js`): SandBase **Run API**
++ TRELLIS.2 turns the gift's first readable photo (sent as base64 — no public
+URL needed) into a ~2MB GLB, saved to the volume at
+`<UPLOADS_DIR>/<giftId>/world.glb`.
+
+- **State** lives on the gift row: `world_status`
+  (`pending → worlding → ready|failed`) + `world_file` + `world_started_at`.
+- **Build takes ~45–90s** (one TRELLIS.2 run ≈ $0.30 of SandBase credit).
+  The reveal scene polls `GET /api/trail/:token/world-status` every 5s and
+  shows the world once `ready`; the GLB streams from
+  `GET /api/trail/:token/world` (`202` until ready).
+- **Failure modes are graceful:** no key / no usable photo / run failed →
+  `world_status=failed` and the reveal shows a static note (the letter, code
+  and trail are unaffected). A machine restart mid-build leaves `worlding`
+  stuck; `world_started_at` marks it stale after 10 min, and the world route
+  + `buildWorld` self-heal it on the next trigger.
+- **Volume growth:** one ~2MB GLB per sealed gift. Watch it with the rest of
+  the volume (`fly volumes info` / `fly machine list` for disk).
 - Big build-context warning (node_modules ~81MB) is harmless; `.dockerignore`
   already excludes node_modules/uploads/db.
 

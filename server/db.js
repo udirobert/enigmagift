@@ -24,6 +24,9 @@ CREATE TABLE IF NOT EXISTS gifts (
   rounds TEXT,
   hides TEXT,
   paid INTEGER NOT NULL DEFAULT 0,
+  world_status TEXT NOT NULL DEFAULT 'pending',
+  world_file TEXT,
+  world_started_at TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
@@ -59,3 +62,16 @@ CREATE TABLE IF NOT EXISTS trails (
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 `);
+
+// Lightweight migration — add the world columns if an older DB is missing
+// them (CREATE TABLE IF NOT EXISTS does not alter existing tables).
+function addColumnIfMissing(table, col, def) {
+  try {
+    db.exec(`ALTER TABLE ${table} ADD COLUMN ${col} ${def}`);
+  } catch {
+    // "duplicate column name" — already there; ignore
+  }
+}
+addColumnIfMissing('gifts', 'world_status', "TEXT NOT NULL DEFAULT 'pending'");
+addColumnIfMissing('gifts', 'world_file', 'TEXT');
+addColumnIfMissing('gifts', 'world_started_at', 'TEXT');

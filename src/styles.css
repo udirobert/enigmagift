@@ -1214,6 +1214,7 @@ img { display: block; max-width: 100%; }
   border-top-color: var(--rust);
   animation: spin 1.4s linear infinite;
 }
+.build-spinner.is-done { animation: none; border-top-color: var(--paper-faint); }
 @keyframes spin { to { transform: rotate(360deg); } }
 
 .build-title {
@@ -1236,6 +1237,52 @@ img { display: block; max-width: 100%; }
   25% { content: '.'; }
   50% { content: '..'; }
   75% { content: '...'; }
+}
+
+/* the world of the place — the recipient's payoff, live in the reveal */
+.reveal-world {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  max-width: 34rem;
+}
+.reveal-world-stage {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  border-radius: 18px;
+  overflow: hidden;
+  border: 1px solid var(--line-strong);
+  background: var(--ink-2);
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.5);
+}
+.reveal-world-stage .reveal-world-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.reveal-world-stage canvas {
+  position: absolute;
+  inset: 0;
+  width: 100% !important;
+  height: 100% !important;
+  cursor: grab;
+  touch-action: none;
+}
+.reveal-world-stage canvas:active { cursor: grabbing; }
+.reveal-world-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.7rem;
+}
+.reveal-world-hint {
+  font-size: 0.66rem;
+  letter-spacing: 0.12em;
+  color: var(--paper-faint);
+  text-align: center;
 }
 
 .throughline-sub {
