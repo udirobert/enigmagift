@@ -1,6 +1,6 @@
 # EnigmaGift — ops runbook
 
-Last verified live: 2026-11-17. This is the "how to operate it" doc: deploys,
+Last verified live: 2026-11-18. This is the "how to operate it" doc: deploys,
 secrets, the gotchas that actually bit us, and how to verify the live flow.
 
 ---
@@ -61,12 +61,17 @@ Gotchas:
 ### The world (per-gift 3D model)
 
 Sealing a gift triggers `buildWorld` (`server/world.js`): SandBase **Run API**
-+ TRELLIS.2 turns the gift's first readable photo (sent as base64 — no public
-URL needed) into a ~2MB GLB, saved to the volume at
-`<UPLOADS_DIR>/<giftId>/world.glb`.
++ TRELLIS.2 turns the gift's **most iconic photo** — the one the throughline
+points at, scored by the pipeline (`pickWorldSource` in `pipeline.js`, stored
+as `gifts.world_source`) — into a ~2MB GLB (sent as base64; no public URL
+needed), saved to the volume at `<UPLOADS_DIR>/<giftId>/world.glb`. Falls back
+to the first readable photo if no source is recorded.
 
 - **State** lives on the gift row: `world_status`
-  (`pending → worlding → ready|failed`) + `world_file` + `world_started_at`.
+  (`pending → worlding → ready|failed`) + `world_file` + `world_started_at`
+  + `world_ready_at`. Timing: `gifts.read_ready_at` stamps when the read
+  finishes, and both the pipeline and world log their duration
+  (`ready in <N>s`, `… (source photo N)`).
 - **Build takes ~45–90s** (one TRELLIS.2 run ≈ $0.30 of SandBase credit).
   The reveal scene polls `GET /api/trail/:token/world-status` every 5s and
   shows the world once `ready`; the GLB streams from

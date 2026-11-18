@@ -15,7 +15,10 @@ Live: **https://enigmagift.pages.dev**
 0. **Watch it** — an auto-playing showcase of a real gift's recipient side
    (the sales pitch before the ask).
 1. **Door** — drop 5–12 photos of a place (or "for me" / demo mode).
-2. **Reading** — vision pass (SandBase → Gemini fallback) returns located observations per photo.
+2. **Reading** — vision pass (SandBase → Gemini fallback) returns located
+   observations per photo. Each photo's read lands in the DB as it finishes, so
+   the buyer watches the discoveries stream in live (`photosObserved` ticks
+   0→N, partial observations included) instead of waiting on a spinner.
 3. **Editor** — buyer approves/cuts the proposed clues (hallucination gate).
 4. **Hide** — agent-proposed hide spots; buyer physically hides a note/object
    and writes the unlock code into it.
@@ -41,9 +44,11 @@ R1 → R2 → R3 → Reveal (state machine in `src/App.tsx`, no router).
   (OpenAI-compatible vision, primary) with Google Gemini as fallback.
   Per-image observation + cross-image synthesis, failing over across all
   working key×model pairs.
-- **World** — `server/world.js`: SandBase Run API + TRELLIS.2 turns one of
-  the buyer's photos into an orbitable 3D world (GLB) at seal time, saved to
-  the gift's volume. The recipient orbits it in the reveal and keeps a copy.
+- **World** — `server/world.js`: SandBase Run API + TRELLIS.2 turns the
+  buyer's most iconic photo (the one the throughline points at, picked by
+  `pickWorldSource` in the pipeline) into an orbitable 3D world (GLB) at seal
+  time, saved to the gift's volume. The recipient orbits it in the reveal —
+  it assembles out of the flat photo — and keeps a copy.
 - **Payments** — Stripe Payment Link (live, GBP £19 one-time) on the
   "EnigmaGift" Stripe account. `VITE_STRIPE_LINK` is baked at build time.
 
