@@ -87,7 +87,7 @@ opens it in a new tab with `client_reference_id=<giftId>`. For the buyer to retu
 and auto-seal, the Payment Link's **success URL** must be:
 
 ```
-https://enigmagift.pages.dev/?paid=1
+https://enigmagift.pages.dev/?paid=1&sid={CHECKOUT_SESSION_ID}
 ```
 
 The app detects `?paid=1` on return (or on window focus), calls
