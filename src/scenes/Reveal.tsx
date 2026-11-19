@@ -3,6 +3,7 @@ import { gsap } from 'gsap';
 import { mockGallery } from '../data';
 import { prefersReducedMotion, seeded } from '../lib/motion';
 import { Polaroid } from '../components/Photo';
+import { Miniature } from '../components/Miniature';
 import { unlockTrail, worldStatus, type Trail, type WorldStatus } from '../lib/api';
 
 // three.js is only for the world — keep it out of the main chunk
@@ -39,6 +40,12 @@ export function Reveal({ demo, trail, direction }: RevealProps) {
     real ? (trail!.worldStatus ?? 'worlding') : 'ready',
   );
   const worldUrl = real ? trail!.worldUrl : '/world.glb';
+  // the keepsake portrait — painted from the place photo at seal time.
+  // Real trails get it once the build reports ready; the demo shows the
+  // canonical one so the reveal is complete in preview too.
+  const portraitUrl = real
+    ? trail!.portraitUrl
+    : '/assets/recraft/keepsake-portrait-room.webp';
   // did the world finish before they unlocked, or did they watch it build?
   const [worldNote, setWorldNote] = useState<'instant' | 'built' | null>(null);
   const [worldLoaded, setWorldLoaded] = useState(false);
@@ -142,6 +149,8 @@ export function Reveal({ demo, trail, direction }: RevealProps) {
 
         {codeDone ? (
           <>
+            {!real && <Miniature />}
+
             <div className="keepsake-photos">
               {gallery.map((src, i) => (
                 <Polaroid
@@ -233,6 +242,31 @@ export function Reveal({ demo, trail, direction }: RevealProps) {
                   </p>
                 </div>
               </div>
+            )}
+
+            {portraitUrl && (
+              <figure className="keepsake-portrait reveal-anim">
+                <img
+                  src={portraitUrl}
+                  alt="a portrait of the place, drawn from your photographs"
+                />
+                <figcaption className="reveal-world-note">
+                  a portrait of the place
+                </figcaption>
+                <div className="reveal-world-actions">
+                  <a
+                    className="btn btn-primary"
+                    href={portraitUrl}
+                    download="portrait-of-the-place"
+                  >
+                    keep this portrait
+                  </a>
+                  <span className="reveal-world-hint mono">
+                    drawn from the photograph that became the world — print it,
+                    frame it
+                  </span>
+                </div>
+              </figure>
             )}
           </>
         ) : (

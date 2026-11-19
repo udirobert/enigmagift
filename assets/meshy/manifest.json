@@ -1,0 +1,9 @@
+{
+  "account": "papaandthejimjams",
+  "purpose": "Z-Axis Awards (Meshy) — keepsake world rebuilt with Meshy (submission candidate; award eligibility not verified)",
+  "files": {
+    "world-meshy.glb": "Dining-room diorama — Meshy 7.1+7 image-to-3d from dog-gift-tabletop/public/room.jpg (task 01a1f1b7, 30cr), optimized 55MB→2.1MB. Served at /world-meshy.glb; drives the Miniature unfold in the demo Reveal and is downloadable as 'keep the miniature'.",
+    "miniature-source.jpg": "public/assets/recraft/miniature-source.jpg — canonical source photograph, copied from the tracked local file dog-gift-tabletop/public/room.jpg. The two hinged halves of the Miniature stage are registered halves of this image; it was also the Meshy input for world-meshy.glb."
+  },
+  "source": "meshy_output/20261119_025113_image-to-3d_01a1f1b7/"
+}

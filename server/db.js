@@ -83,3 +83,6 @@ addColumnIfMissing('gifts', 'photos_observed', 'INTEGER NOT NULL DEFAULT 0');
 addColumnIfMissing('gifts', 'read_ready_at', 'TEXT');
 addColumnIfMissing('gifts', 'world_source', 'INTEGER');
 addColumnIfMissing('gifts', 'world_ready_at', 'TEXT');
+addColumnIfMissing('gifts', 'portrait_status', "TEXT NOT NULL DEFAULT 'pending'");
+addColumnIfMissing('gifts', 'portrait_file', 'TEXT');
+addColumnIfMissing('gifts', 'portrait_started_at', 'TEXT');

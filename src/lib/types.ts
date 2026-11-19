@@ -103,6 +103,10 @@ export interface Trail {
   worldStatus?: WorldStatus;
   /** /api/trail/:token/world — streams the GLB once the world is ready */
   worldUrl?: string | null;
+  /** the keepsake portrait — 'painting' while it's being drawn */
+  portraitStatus?: string;
+  /** /api/trail/:token/portrait — streams the painted portrait once ready */
+  portraitUrl?: string | null;
 }
 
 export interface SealResult {

@@ -645,6 +645,26 @@ img { display: block; max-width: 100%; }
 }
 .wt-letter em { color: var(--paper); font-style: italic; }
 .wt-letter strong { color: var(--paper); font-weight: 500; }
+.wt-mini-link {
+  display: inline-block;
+  margin-top: 0.9rem;
+  font-size: 0.68rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--gold);
+  border-bottom: 1px dashed var(--gold);
+  text-decoration: none;
+}
+.wt-mini-link:hover { color: var(--paper); border-color: var(--paper); }
+.wt-portrait {
+  width: 62%;
+  display: block;
+  align-self: center;
+  border: 8px solid var(--paper);
+  border-radius: 4px;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
+  transform: rotate(-1.4deg);
+}
 
 .wt-build {
   display: flex;
@@ -1360,6 +1380,24 @@ img { display: block; max-width: 100%; }
   letter-spacing: 0.12em;
   color: var(--paper-faint);
   text-align: center;
+}
+
+/* the keepsake portrait — the place, drawn as a treasured memory */
+.keepsake-portrait {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.8rem;
+  max-width: 30rem;
+  margin: 0;
+}
+.keepsake-portrait img {
+  width: 100%;
+  display: block;
+  border-radius: 4px;
+  border: 12px solid var(--paper);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55);
+  transform: rotate(-1.1deg);
 }
 
 .throughline-sub {

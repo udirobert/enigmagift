@@ -39,7 +39,7 @@ function getSandbaseKey() {
  *  the throughline line up. Falls back to the first readable photo. Photos are
  *  the gift's originals; we send the bytes as a base64 data URL. Skips HEIC
  *  (no texture pipeline for it). */
-function worldPhotoDataUrl(giftId, preferredIndex = null) {
+export function worldPhotoDataUrl(giftId, preferredIndex = null) {
   let files = [];
   try { files = readdirSync(join(UPLOADS_DIR, giftId)).sort(); } catch {}
   const usable = files.filter((f) => {

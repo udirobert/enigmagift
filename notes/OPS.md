@@ -23,8 +23,14 @@ Frontend and backend are **not** on the same host. Pages is static-only (+ the
 | Secret | Primary home | Backup / local |
 |---|---|---|
 | `SANDBASE_API_KEY` | Fly app secret (`fly -a enigmagift-api secrets set …`) | `server/sandbase.env` (gitignored) |
+| `RECRAFT_API_KEY` | Fly app secret, same `secrets set` flow | env or a `server/*.env` file (gitignored); optional — portrait skipped without it |
 | `VITE_STRIPE_LINK` | inlined at build time (`VITE_STRIPE_LINK=… npm run build`) | the `enigmagift` Payment Link URL |
 | Gemini key (fallback) | any `Dev/*/.env*` the server scans | — |
+
+Note: `RECRAFT_API_KEY` spends **API units**, which are billed separately
+from the Recraft Studio subscription credits (those only flow through MCP
+and Studio). The keepsake portrait is best-effort: no key → `skipped`,
+the reveal simply omits it.
 
 The key file `server/sandbase.env` is gitignored (`.gitignore` has `*.env` and
 `server/*.env`). It is **never** committed. The key is `sk-…` (the `enigmagift`
@@ -85,6 +91,30 @@ to the first readable photo if no source is recorded.
   the volume (`fly volumes info` / `fly machine list` for disk).
 - Big build-context warning (node_modules ~81MB) is harmless; `.dockerignore`
   already excludes node_modules/uploads/db.
+
+### The keepsake portrait (Recraft, optional)
+
+`startPortraitBuild` fires alongside `buildWorld` at seal time. `server/portrait.js`
+reuses `worldPhotoDataUrl` (same source photo the world uses), calls Recraft
+`imageToImage` (`external.api.recraft.ai/v1`) with the keepsake style, and saves
+to `<UPLOADS_DIR>/<giftId>/derived/`. It is idempotent and self-heals a stale
+`painting` row after 10 min.
+
+- **Billing:** `RECRAFT_API_KEY` spends API units, not Studio subscription
+  credits. No key → `portrait_status=skipped` and the reveal omits the card.
+- **State/API:** `portrait_status` + `portrait_file` + `portrait_started_at`;
+  trail payload carries `portraitStatus`/`portraitUrl`; stream route is
+  `GET /api/trail/:token/portrait`.
+- **Overridables:** `RECRAFT_STYLE_ID`, `RECRAFT_MODEL`,
+  `RECRAFT_STRENGTH` (see `server/portrait.js`).
+
+### The authored miniature (demo only)
+
+`public/world-meshy.glb` is a prebuilt Meshy diorama generated from the tracked
+canonical photo `dog-gift-tabletop/public/room.jpg` (provenance in
+`assets/meshy/manifest.json`). It powers only the demo "room in the fold"
+sample (`/?miniature=1` or the Reveal in demo mode) — real gifts still get the
+per-gift TRELLIS world from `server/world.js`.
 
 ### Frontend (Cloudflare Pages)
 

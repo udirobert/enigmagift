@@ -48,7 +48,12 @@ export type SceneId =
 export type Direction = GiftDirection;
 
 export default function App() {
-  const [scene, setScene] = useState<SceneId>('door');
+  // ?miniature=1 is a direct demo link to the authored sample — only when no
+  // real gift token and no Stripe paid return is in play.
+  const [scene, setScene] = useState<SceneId>(() => {
+    const params = new URLSearchParams(window.location.search);
+    return !tokenFromUrl() && !params.has('paid') && params.get('miniature') === '1' ? 'reveal' : 'door';
+  });
   const [photos, setPhotos] = useState<string[]>([]);
   const [demo, setDemo] = useState(false);
   const [direction, setDirection] = useState<Direction>('someone');

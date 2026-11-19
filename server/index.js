@@ -9,6 +9,7 @@ import { fileURLToPath } from 'node:url';
 import { db, UPLOADS_DIR } from './db.js';
 import { runPipeline } from './pipeline.js';
 import { buildWorld } from './world.js';
+import { buildPortrait, portraitMime } from './portrait.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const DIST = join(HERE, '..', 'dist');
@@ -51,6 +52,14 @@ function getGift(id) {
 function startWorldBuild(giftId) {
   buildWorld(giftId).catch((e) => {
     console.error(`[world ${giftId}] trigger error:`, e);
+  });
+}
+
+// Same fire-and-forget pattern for the keepsake portrait — skipped quietly
+// when no Recraft key is configured.
+function startPortraitBuild(giftId) {
+  buildPortrait(giftId).catch((e) => {
+    console.error(`[portrait ${giftId}] trigger error:`, e);
   });
 }
 
@@ -115,6 +124,9 @@ function trailPayload(t, gift) {
     // orbit it in the reveal and keep a copy
     worldStatus: gift?.world_status ?? 'pending',
     worldUrl: gift?.world_status === 'ready' ? `/api/trail/${t.token}/world` : null,
+    // the keepsake portrait — painted from the same photo at seal time
+    portraitStatus: gift?.portrait_status ?? 'pending',
+    portraitUrl: gift?.portrait_status === 'ready' ? `/api/trail/${t.token}/portrait` : null,
   };
 }
 
@@ -198,6 +210,7 @@ app.post('/api/gifts/:id/seal', (req, res) => {
   if (existing) {
     // sealing is idempotent, but the world build may not have started yet
     startWorldBuild(g.id);
+    startPortraitBuild(g.id);
     return res.json({
       trailToken: existing.token,
       trailUrl: `/t/${existing.token}`,
@@ -218,8 +231,10 @@ app.post('/api/gifts/:id/seal', (req, res) => {
     db.prepare("UPDATE gifts SET status='sealed' WHERE id=?").run(g.id);
   }
   // the recipient's payoff: build the 3D world of their place now, while they
-  // follow the trail. Non-blocking — the reveal polls for it.
+  // follow the trail. Non-blocking — the reveal polls for it. Same for the
+  // keepsake portrait (best-effort — needs RECRAFT_API_KEY, API units).
   startWorldBuild(g.id);
+  startPortraitBuild(g.id);
   res.json({
     trailToken: token,
     trailUrl: `/t/${token}`,
@@ -329,6 +344,31 @@ app.get('/api/trail/:token/world', (req, res) => {
   }
   res.sendFile(g.world_file, {
     headers: { 'Content-Type': 'model/gltf-binary', 'Cache-Control': 'private, max-age=86400' },
+  });
+});
+
+// the keepsake portrait — streams the painted "portrait of the place" once
+// the seal-time build has finished. Best-effort: 202 while it's painting.
+app.get('/api/trail/:token/portrait', (req, res) => {
+  const t = getTrail(req.params.token);
+  if (!t) return res.status(404).json({ error: 'not found' });
+  const g = getGift(t.gift_id);
+  // self-heal a stale 'painting' (the machine that was painting it is gone)
+  if (g && g.portrait_status === 'painting' && !g.portrait_file) {
+    const started = g.portrait_started_at ? Date.parse(g.portrait_started_at) : NaN;
+    if (Number.isNaN(started) || Date.now() - started > 10 * 60 * 1000) {
+      startPortraitBuild(g.id);
+    }
+  }
+  if (!g || g.portrait_status !== 'ready' || !g.portrait_file) {
+    return res.status(202).json({ portraitStatus: g?.portrait_status ?? 'pending' });
+  }
+  if (!existsSync(g.portrait_file)) {
+    startPortraitBuild(g.id);
+    return res.status(202).json({ portraitStatus: 'rebuilding' });
+  }
+  res.sendFile(g.portrait_file, {
+    headers: { 'Content-Type': portraitMime(g.portrait_file), 'Cache-Control': 'private, max-age=86400' },
   });
 });
 

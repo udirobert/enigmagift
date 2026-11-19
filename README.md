@@ -2,7 +2,7 @@
 
 **Canonical recipient example:** [Someone saved you a seat](https://saved-you-a-seat--enigmagift.netlify.app/) — [live baseline and next design iteration](notes/CANONICAL-GIFT.md).
 
-**Roadmap (not shipped):** [World-first memory hunt and proposed gift tiers](notes/DIGITAL-HUNT.md). The flow below describes the existing £19 physical hunt. Local prototypes: `/studio/room` (2D memory map), `/studio/world` (stereo shelf explorer) and `/studio/marble` (world authoring tool) in `npm run dev`.
+**Roadmap (not shipped):** [World-first memory hunt and proposed gift tiers](notes/DIGITAL-HUNT.md). The flow below describes the existing £19 physical hunt. Local prototypes: `/studio/room` (2D memory map), `/studio/world` (stereo shelf explorer) and `/studio/marble` (world authoring tool) in `npm run dev`. `/?miniature=1` opens **the room in the fold**, an authored sample reveal: a photograph unfolds while the Meshy-built miniature (`public/world-meshy.glb`) rises out of it, with scrub, replay and orbit.
 
 > **Hide something real. Let the photographs lead them to it.**
 
@@ -71,6 +71,10 @@ Env (backend, `server/.env` or Fly secrets):
 
 - `SANDBASE_API_KEY` — primary vision provider (local copy in
   `server/sandbase.env`, gitignored; set on Fly via `fly secrets set`).
+- `RECRAFT_API_KEY` — optional; paints the seal-time keepsake "portrait of
+  the place" (`server/portrait.js`, Recraft `imageToImage` — bills API
+  units, not subscription credits). Without it the portrait is skipped.
+  `RECRAFT_STYLE_ID` / `RECRAFT_MODEL` override the keepsake style/model.
 - `GEMINI_API_KEY` — fallback provider; `GOOGLE_API_KEY` /
   `GOOGLE_GENERATIVE_AI_API_KEY` are also picked up as extra quota pools.
 - `DB_PATH`, `UPLOADS_DIR` — default to `./data` locally, `/data/*` on Fly.
@@ -96,6 +100,7 @@ Frontend env:
 | `POST /api/trail/:token/unlock` | `{code}` → keepsake |
 | `GET /api/trail/:token/world-status` | `{worldStatus}` — the 3D world build state |
 | `GET /api/trail/:token/world` | streams the place's GLB (202 until ready) |
+| `GET /api/trail/:token/portrait` | streams the painted keepsake portrait (202 until ready/skipped) |
 | `GET /api/photo/:giftId/:i` | original photo by sorted index |
 
 ## Deploy

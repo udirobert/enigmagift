@@ -1,0 +1,16 @@
+{
+  "source": "Recraft MCP (mcp.recraft.ai), Papa Jams account",
+  "generated": "2026-11-18",
+  "custom_style_id": "6ca2fe6d-6b81-4e27-9d6d-a528a6ba8da8",
+  "style_name": "keepsake (ink-and-wash on cream paper, rust-amber accent)",
+  "assets": {
+    "style-refs/": "The 2 reference images used to create the keepsake style",
+    "raster/keepsake-portrait-room.webp": "'Portrait of the place' — canonical dining room rendered as an ink-and-wash keepsake (image_to_image from dog-gift-tabletop/public/room.jpg)",
+    "raster/how-it-works-box.webp": "Keepsake box hero: photo -> clue cards -> hidden gift narrative illustration",
+    "vector/wax-seal-emblem.svg": "Wax seal emblem with 'E' monogram in laurel",
+    "vector/folded-note.svg": "Folded cream note icon",
+    "vector/envelope-sealed.svg": "Sealed envelope with twine + wax seal",
+    "vector/you-found-it-card.svg": "Print-ready 'YOU FOUND IT' keepsake card"
+  },
+  "notes": "Decorative/keepsake surfaces only — do not run stylization over clue evidence photos."
+}

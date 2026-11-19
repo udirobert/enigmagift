@@ -228,6 +228,11 @@ export function WatchIt({ onBack, onBuild }: WatchItProps) {
                 <span className="wt-code-label">the code, written inside the hidden thing</span>
                 <span className="wt-code-value mono">{SHOWCASE_CODE}</span>
               </div>
+              <img
+                className="wt-portrait"
+                src="/assets/recraft/keepsake-portrait-box.webp"
+                alt="the place, drawn as a keepsake"
+              />
               <p className="wt-letter">
                 dear you,
                 <br />
@@ -235,6 +240,9 @@ export function WatchIt({ onBack, onBuild }: WatchItProps) {
                 trail, then it gave itself up. you stood where{' '}
                 <strong>{SHOWCASE.placeGuess.toLowerCase()}</strong> stands, and you found it.
               </p>
+              <a className="wt-mini-link mono" href="/?miniature=1">
+                see the room in the fold — an authored sample
+              </a>
             </div>
           </div>
         )}

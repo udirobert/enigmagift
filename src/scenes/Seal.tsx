@@ -223,6 +223,14 @@ export function Seal({ demo, giftId, kept, onSend }: SealProps) {
                 {copiedCode ? 'copied' : 'copy'}
               </button>
             </div>
+            <a
+              className="demo-link"
+              href="/assets/recraft/you-found-it-card.svg"
+              target="_blank"
+              rel="noopener"
+            >
+              or print the card it goes in →
+            </a>
           </div>
         )}
 
