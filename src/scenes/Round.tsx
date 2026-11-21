@@ -85,6 +85,13 @@ export function Round({ demo, trail, round, onDone }: RoundProps) {
   const doneRef = useRef(false);
 
   const real = !demo && !!trail;
+  // remember when the hunt started (for the reveal's recap stats)
+  useEffect(() => {
+    if (!real) return;
+    try {
+      if (!sessionStorage.getItem('eg_started')) sessionStorage.setItem('eg_started', String(Date.now()));
+    } catch { /* private mode */ }
+  }, [real]);
   const apiRound = real ? trail!.rounds[round - 1] : undefined;
   // a trail with fewer rounds than expected degrades to the scripted round
   const live = real && !!apiRound;
@@ -177,6 +184,13 @@ export function Round({ demo, trail, round, onDone }: RoundProps) {
       answerRound(trail!.token, round - 1, i)
         .then((res) => {
           logTrailEvent(trail!.token, `round_${round}_picked`, { choice: i, correct: res.correct, attempts: attempts + 1 });
+          // keep the picks client-side for the reveal recap (the server never
+          // sends the answer key, so the recap reads these local records)
+          try {
+            const picks = JSON.parse(sessionStorage.getItem('eg_picks') || '[]');
+            picks.push({ round, choice: i, correct: res.correct, at: Date.now() });
+            sessionStorage.setItem('eg_picks', JSON.stringify(picks));
+          } catch { /* private mode */ }
           if (res.correct) {
             setRightIdx(i);
             setSolved(true);

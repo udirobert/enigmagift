@@ -5,6 +5,7 @@ import { prefersReducedMotion } from '../lib/motion';
 import { WaxSeal } from '../components/WaxSeal';
 import { deleteGift, markPaid, revokeTrail, sealGift, type GiftMode, type SealResult, type Tier } from '../lib/api';
 import { TrustRow } from '../components/TrustRow';
+import { QRCode } from '../components/QRCode';
 
 interface SealProps {
   demo: boolean;
@@ -309,13 +310,37 @@ export function Seal({ demo, giftId, kept, tier, mode, onSend }: SealProps) {
             no code, nothing to hide — the link opens the keepsake directly
           </p>
         )}
+        {!demo && sealed && mode === 'physical' && !code && (
+          <p className="foot-note seal-anim">
+            the code was shown when you first sealed — write it into the hidden
+            thing now. lost it? delete the gift and remake it.
+          </p>
+        )}
 
-        <div className="seal-qr seal-anim" aria-label="qr code placeholder">
-          <svg viewBox="0 0 21 21" className="qr-glyph" aria-hidden>
-            <QRPattern />
-          </svg>
+        <div className="seal-qr seal-anim" aria-label={sealed && token && !demo ? 'qr code — scans to the gift' : 'qr code placeholder'}>
+          {sealed && token && !demo && !revoked && !deleted ? (
+            <QRCode value={displayLink} />
+          ) : (
+            <svg viewBox="0 0 21 21" className="qr-glyph" aria-hidden>
+              <QRPattern />
+            </svg>
+          )}
           <span className="qr-label">scan to open</span>
         </div>
+
+        {/* the card for the hidden thing (Hide tier) — real QR + code, printable */}
+        {sealed && mode === 'physical' && code && !demo && !revoked && !deleted && (
+          <div className="seal-card seal-anim" id="seal-card">
+            <p className="seal-card-title">the card for inside the hidden thing</p>
+            <QRCode value={displayLink} />
+            <p className="seal-card-link mono">{displayLink.replace(/^https?:\/\//, '')}</p>
+            <p className="seal-card-code-label">or type the code</p>
+            <p className="seal-card-code">{code}</p>
+            <button className="demo-link seal-card-print" onClick={() => window.print()}>
+              print this card →
+            </button>
+          </div>
+        )}
 
         {/* the till — live gifts pay first, demo just presses the wax */}
         {live && !sealed && !deleted && (

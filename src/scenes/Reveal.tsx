@@ -1,10 +1,10 @@
-import { Suspense, useCallback, useEffect, useRef, useState, lazy } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState, lazy } from 'react';
 import { gsap } from 'gsap';
 import { mockGallery } from '../data';
 import { prefersReducedMotion, seeded } from '../lib/motion';
 import { Polaroid } from '../components/Photo';
 import { Miniature } from '../components/Miniature';
-import { unlockTrail, worldStatus, type Trail, type WorldStatus } from '../lib/api';
+import { logTrailEvent, unlockTrail, worldStatus, type Trail, type WorldStatus } from '../lib/api';
 
 // three.js is only for the world — keep it out of the main chunk
 const World = lazy(() =>
@@ -54,6 +54,45 @@ export function Reveal({ demo, trail, direction }: RevealProps) {
     : '/assets/recraft/keepsake-portrait-room.webp';
   // did the world finish before they unlocked, or did they watch it build?
   const [worldNote, setWorldNote] = useState<'instant' | 'built' | null>(null);
+  const [copiedBack, setCopiedBack] = useState(false);
+
+  // the recipient's own picks, kept client-side by Round (the server never
+  // sends the answer key) — drives the recap and the note back to the giver
+  const recap = useMemo(() => {
+    if (!real || !trail) return null;
+    try {
+      const picks: { round: number; choice: number; correct: boolean; at: number }[] = JSON.parse(
+        sessionStorage.getItem('eg_picks') || '[]',
+      );
+      const started = Number(sessionStorage.getItem('eg_started') || Date.now());
+      const mins = Math.max(1, Math.round((Date.now() - started) / 60000));
+      const perRound = trail.rounds.map((r, idx) => {
+        const p = picks.filter((x) => x.round === idx + 1);
+        const first = p[0];
+        return {
+          round: idx + 1,
+          picked: first ? r.options[first.choice] : null,
+          right: first?.correct ?? false,
+          looks: p.length,
+          photo: trail.photoUrls?.[r.cropPhotoIndex ?? 0] ?? null,
+        };
+      });
+      return { perRound, looks: picks.length, mins, rounds: trail.rounds.length };
+    } catch {
+      return null;
+    }
+  }, [real, trail]);
+
+  const copyFoundIt = async () => {
+    if (!trail) return;
+    const msg = `i followed the trail and found it 💛 — ${recap?.rounds ?? 3} rounds, ${recap?.looks ?? 0} looks, ${recap?.mins ?? 0} min`;
+    try {
+      await navigator.clipboard.writeText(msg);
+      setCopiedBack(true);
+      window.setTimeout(() => setCopiedBack(false), 1600);
+    } catch { /* clipboard blocked — the text is short enough to type */ }
+    logTrailEvent(trail.token, 'shared_back', { looks: recap?.looks, mins: recap?.mins });
+  };
   const [worldLoaded, setWorldLoaded] = useState(false);
   const onWorldReady = useCallback(() => setWorldLoaded(true), []);
   useEffect(() => {
@@ -204,6 +243,33 @@ export function Reveal({ demo, trail, direction }: RevealProps) {
               </p>
               <p className="letter-sign">— the one who left it there</p>
             </article>
+
+            {/* recap of their own hunt + a note they can send back to the giver */}
+            {recap && recap.perRound.length > 0 && (
+              <div className="reveal-recap reveal-anim">
+                <p className="kicker">your trail</p>
+                <div className="recap-polaroids">
+                  {recap.perRound.map((r) => (
+                    <figure key={r.round} className="recap-polaroid">
+                      {r.photo && <img src={r.photo} alt="" draggable={false} />}
+                      <figcaption>
+                        <span className="recap-round mono">round {r.round}</span>
+                        {r.picked ? `“${r.picked}”` : '—'}
+                        <span className="recap-verdict">
+                          {r.right ? ' · right first look' : r.looks > 0 ? ` · ${r.looks} looks` : ''}
+                        </span>
+                      </figcaption>
+                    </figure>
+                  ))}
+                </div>
+                <p className="recap-stats mono">
+                  {recap.rounds} rounds · {recap.looks} looks · {recap.mins} min
+                </p>
+                <button className="demo-link" onClick={() => void copyFoundIt()}>
+                  {copiedBack ? 'copied — send it to them 💛' : 'copy a note to send back →'}
+                </button>
+              </div>
+            )}
 
             {worldState === 'ready' && worldUrl ? (
               <div className="reveal-world reveal-anim">

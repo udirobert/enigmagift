@@ -332,6 +332,15 @@ were derived from them at migration.
   button on the Seal, and a manage row (revoke / delete / what's stored) once
   sealed; a one-line privacy note on the recipient's round 1. Keep copy in the
   lowercase brand voice; never pre-tick anything.
+- **Giftability UI**: the Seal shows a REAL scannable QR (`QRCode`,
+  qrcode-generator) of the /t/ link, and for The Hide a printable card
+  (QR + code + link, `@media print` isolates it) for inside the hidden thing.
+  The Reveal ends with a recap of the recipient's own picks (polaroids + stats,
+  kept client-side in sessionStorage — the answer key never leaves the server)
+  and a "copy a note to send back" button (logs a `shared_back` event).
+  Gotcha: the unlock code plaintext is returned ONLY by the first seal
+  (stored as a scrypt hash afterwards) — re-sealing returns `unlockCode: null`,
+  and the UI says so.
 - **Secrets**: pre-commit hook blocks `whsec_…`/`sk-…`/etc. (see Secrets
   hygiene). Multer bumped to 2.x.
 

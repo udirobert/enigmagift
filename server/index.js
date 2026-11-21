@@ -472,13 +472,15 @@ app.post('/api/gifts/:id/seal', (req, res) => {
   // idempotent: return existing trail if already sealed
   const existing = db.prepare('SELECT token, unlock_code FROM trails WHERE gift_id=?').get(g.id);
   if (existing) {
-    // sealing is idempotent, but the world build may not have started yet
+    // sealing is idempotent, but the world build may not have started yet.
+    // NB: unlock_code is stored hashed ('' post-migration) — the plaintext is
+    // only ever returned by the FIRST seal, so return null here, not ''.
     startWorldBuild(g.id);
     startPortraitBuild(g.id);
     return res.json({
       trailToken: existing.token,
       trailUrl: `/t/${existing.token}`,
-      unlockCode: existing.unlock_code,
+      unlockCode: existing.unlock_code || null,
     });
   }
   const token = crypto.randomBytes(12).toString('base64url');
