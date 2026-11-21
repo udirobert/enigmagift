@@ -121,13 +121,16 @@ Run from the repo root (it reuses the root's vite + node_modules):
 
 The tabletop Vite dev server proxies `/api` to `127.0.0.1:8787`, so the
 backend (`server/index.js`, Node >= 22.15) must be running for saved-link
-features. The standalone Netlify build ships `_redirects` proxying `/api/*`
-to `enigmagift-api.fly.dev` and `_headers` with `X-Frame-Options:
-SAMEORIGIN` — deploy the API (`server/` fly deploy) before publishing a new
-tabletop bundle, and the server origin allowlist only covers the
-`tabletop-letter` default unless `ALLOWED_ORIGINS` is set explicitly for
-another host. Local verification used a temporary data directory, not
-permanent production storage.
+features. The published form is a Cloudflare Worker (`enigmagift-room`,
+`wrangler.jsonc`): static assets from `dist/` plus a same-origin `/api/*`
+proxy (`worker.ts`) that forwards only `/api/health` and `/api/room-gifts*`
+to `enigmagift-api.fly.dev` — other API paths get a 404, cross-origin
+requests a 403, and the browser Origin/Host/cookies are stripped before
+forwarding. `_headers` keeps `X-Frame-Options: SAMEORIGIN` (the preview
+iframe needs it) and `/api/*` no-store. Deploy the API (`server/` fly
+deploy) first, then `npm run deploy:room` builds `dist/` and publishes the
+Worker. Local verification used a temporary data directory, not permanent
+production storage.
 
 ```sh
 # local dev server

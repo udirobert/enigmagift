@@ -16,3 +16,7 @@ server/uploads/
 
 # Local Netlify folder
 .netlify
+
+# Cloudflare Worker (dog-gift-tabletop)
+dog-gift-tabletop/worker-configuration.d.ts
+.wrangler/

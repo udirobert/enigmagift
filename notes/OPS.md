@@ -11,6 +11,7 @@ secrets, the gotchas that actually bit us, and how to verify the live flow.
 |---|---|---|
 | Frontend | Cloudflare Pages — `enigmagift.pages.dev` (project `enigmagift`) | `npm run build` → `wrangler pages deploy dist --project-name=enigmagift --branch=main`. `/api/*` proxied to Fly by `functions/api/[[path]].js`; `/*` → `index.html` via `_redirects`. Netlify (`enigmagift.netlify.app`) still live as legacy mirror. |
 | Backend | Fly.io — `enigmagift-api.fly.dev`, app `enigmagift-api`, region `iad` | `fly deploy` from `server/`. 512MB shared-cpu-1x, `/data` volume for SQLite + uploads. |
+| Tabletop room pilot | Cloudflare Worker `enigmagift-room` (workers.dev; URL pending publish) | `npm run deploy:room` — builds `dog-gift-tabletop/dist` and deploys `dog-gift-tabletop/wrangler.jsonc`. Static assets + `worker.ts` proxying only `/api/health` and `/api/room-gifts*` to Fly. Deploy the Fly API first. |
 | Vision | SandBase `api.sandbase.ai/v1` (primary) + Google Gemini (fallback) | Key held as a Fly secret + local `server/sandbase.env`. |
 
 Frontend and backend are **not** on the same host. Pages is static-only (+ the
@@ -92,6 +93,18 @@ Gotchas:
   `fly deploy` picks up the latest commit.
 - The app was **suspended** at one point — `fly deploy` resumes it. Check
   `fly apps list` for `suspended`.
+
+### Tabletop room Worker (pilot)
+
+```bash
+npm run deploy:room   # from the repo root, after `fly deploy` for the API
+```
+
+Builds `dog-gift-tabletop/dist`, regenerates Worker types and publishes
+Worker `enigmagift-room`. The workers.dev URL is recorded here after first
+publish. Generation keys stay out of the Docker image via
+`server/.dockerignore` (`*.env`). Rollback: redeploy the previous Fly image
+plus the prior Worker deployment ID (recorded here after publish).
 
 ### The world (per-gift 3D model)
 
