@@ -1,4 +1,6 @@
 # SPA fallback for client-side routes. /api/* is handled by the Pages
 # Function in functions/api/[[path]].js, which proxies to the Fly backend
 # (Pages _redirects cannot proxy external domains).
+# NOTE: /privacy and /terms need NO rules here — Pages automatically serves
+# public/privacy.html at /privacy (and 308s /privacy.html → /privacy).
 /* /index.html 200

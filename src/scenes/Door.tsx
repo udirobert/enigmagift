@@ -57,6 +57,8 @@ export function Door({
   const [dockPulse, setDockPulse] = useState(false);
   // an active Set pack (from a previous £19 purchase) — this hunt comes out of it
   const [packCredits, setPackCredits] = useState<number | null>(null);
+  const [consent, setConsent] = useState(false);
+  const [consentNudge, setConsentNudge] = useState(false);
 
   useEffect(() => {
     const id = unstashPack();
@@ -78,11 +80,19 @@ export function Door({
         window.setTimeout(() => setCount(0), 1800);
         return;
       }
+      // privacy gate: no upload until the buyer confirms they may share these
+      // photos (they often contain the recipient and other people)
+      if (!consent) {
+        setConsentNudge(true);
+        window.setTimeout(() => setConsentNudge(false), 3200);
+        window.setTimeout(() => setCount(0), 1800);
+        return;
+      }
       backdropRef.current?.scatter(images.slice(0, 5).map((f) => URL.createObjectURL(f)));
       const delay = prefersReducedMotion() ? 250 : 900;
       window.setTimeout(() => onPhotos(images), delay);
     },
-    [onPhotos],
+    [onPhotos, consent],
   );
 
   /* drop anywhere over the page */
@@ -217,6 +227,23 @@ export function Door({
               or click to browse · 5–12 shots · one is a start, more makes the
               truer
             </span>
+            <label className={`dock-consent${consentNudge ? ' is-nudge' : ''}`}>
+              <input
+                type="checkbox"
+                checked={consent}
+                onChange={(e) => {
+                  setConsent(e.target.checked);
+                  setConsentNudge(false);
+                }}
+              />
+              <span>
+                {consentNudge
+                  ? 'tick the box first — '
+                  : ''}
+                i have the right to share these photos and everyone in them
+                knows · <a href="/privacy" target="_blank" rel="noreferrer">privacy</a>
+              </span>
+            </label>
             <input
               ref={inputRef}
               type="file"

@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="noindex" />
+    <title>privacy — enigmagift</title>
+    <style>
+      :root { --bg: #14100c; --paper: #f3ead9; --paper-faint: rgba(243, 234, 217, 0.62); --gold: #d9a441; --line: rgba(243, 234, 217, 0.14); }
+      * { box-sizing: border-box; }
+      body { margin: 0; background: var(--bg); color: var(--paper); font-family: Georgia, 'Times New Roman', serif; line-height: 1.65; }
+      main { max-width: 44rem; margin: 0 auto; padding: clamp(2rem, 6vw, 4.5rem) 1.4rem 5rem; }
+      h1 { font-size: 1.9rem; font-weight: 500; letter-spacing: 0.01em; margin: 0 0 0.4rem; }
+      h2 { font-size: 1.05rem; font-weight: 500; color: var(--gold); margin: 2.2rem 0 0.5rem; letter-spacing: 0.04em; }
+      p, li { color: var(--paper-faint); font-size: 0.95rem; }
+      a { color: var(--gold); }
+      .kicker { font-family: ui-monospace, monospace; font-size: 0.65rem; letter-spacing: 0.28em; text-transform: uppercase; color: var(--gold); }
+      .updated { font-family: ui-monospace, monospace; font-size: 0.65rem; color: var(--paper-faint); opacity: 0.7; }
+      ul { padding-left: 1.2rem; }
+      .back { display: inline-block; margin-top: 3rem; font-family: ui-monospace, monospace; font-size: 0.7rem; letter-spacing: 0.2em; text-transform: uppercase; text-decoration: none; }
+      table { border-collapse: collapse; width: 100%; font-size: 0.85rem; }
+      td, th { border: 1px solid var(--line); padding: 0.45rem 0.6rem; text-align: left; color: var(--paper-faint); vertical-align: top; }
+      th { color: var(--gold); font-weight: 500; }
+      .note { border: 1px solid var(--line); padding: 0.8rem 1rem; font-size: 0.8rem; color: var(--paper-faint); }
+    </style>
+  </head>
+  <body>
+    <main>
+      <p class="kicker">enigmagift</p>
+      <h1>privacy</h1>
+      <p class="updated">last updated: 21 november 2026 · plain-language, no dark patterns</p>
+
+      <p>
+        enigmagift turns your photographs into a treasure hunt only one person can
+        solve. photographs are personal — often of the recipient and other people —
+        so this page tells you exactly what we collect, who else sees it, how long
+        we keep it, and how to delete it. <strong>if you upload photos, you confirm
+        you have the right to share them and that the people in them know.</strong>
+      </p>
+
+      <h2>what we collect</h2>
+      <ul>
+        <li><strong>the photos you upload</strong> (5–12 per gift) and the choices you make while building the gift (clues, hiding spot, tier).</li>
+        <li><strong>the recipient link</strong> you share (a random token in the URL, e.g. <code>/t/…</code>) and the unlock code (stored only as a one-way scrypt hash).</li>
+        <li><strong>first-party usage events</strong> (page views, round picks, “sealed”, “paid”) on our own server, to understand where gifts get stuck. <strong>we run no third-party analytics, ads, or trackers.</strong></li>
+        <li><strong>payment</strong> is handled entirely by Stripe (payment links). card numbers never reach our servers.</li>
+        <li>we use no cookies. your in-progress gift id lives in your browser’s localStorage/sessionStorage only, on your device.</li>
+      </ul>
+
+      <h2>why, and who else processes it</h2>
+      <p>your photos are sent to the AI providers below <strong>solely to generate your gift</strong> (reading the photos into clues, building the 3D world and the keepsake portrait). we do not sell your data, and we do not use it for advertising.</p>
+      <table>
+        <tr><th>processor</th><th>what they get</th><th>purpose</th></tr>
+        <tr><td>SandBase (api.sandbase.ai)</td><td>your photos (image data)</td><td>vision “read” of the photos; 3D world generation (TRELLIS.2)</td></tr>
+        <tr><td>Google Gemini (generativelanguage.googleapis.com)</td><td>your photos (image data)</td><td>fallback vision read if SandBase is unavailable</td></tr>
+        <tr><td>Recraft (external.api.recraft.ai)</td><td>one chosen photo</td><td>keepsake portrait (optional, best-effort)</td></tr>
+        <tr><td>Stripe (buy.stripe.com)</td><td>payment details, gift id as reference</td><td>taking payment; confirming it via webhook</td></tr>
+        <tr><td>Fly.io (enigmagift-api.fly.dev, US)</td><td>everything above, at rest</td><td>hosting the API, database and uploads</td></tr>
+        <tr><td>Cloudflare (enigmagift.pages.dev)</td><td>page requests</td><td>hosting the website and proxying /api</td></tr>
+      </table>
+      <p class="note">note for review before launch: whether each AI provider retains or trains on uploaded images is governed by <em>their</em> terms — we link their policies here once verified, and we will not claim “never used for training” unless their terms say so.</p>
+
+      <h2>what we do to protect it</h2>
+      <ul>
+        <li><strong>EXIF metadata (including GPS location) is stripped</strong> from uploaded JPEG/PNG files on our server before anything reads them; the app also re-encodes photos in your browser before upload.</li>
+        <li>the recipient only ever holds a random link token: photos, the 3D world and the portrait are served through token-scoped URLs; the answer key to the rounds never leaves the server.</li>
+        <li>unlock codes are stored as scrypt hashes; the Stripe webhook signature is verified before any payment is recorded; payment confirmation from your browser alone is <em>not</em> trusted.</li>
+        <li>TLS everywhere, a strict Content-Security-Policy, <code>Referrer-Policy: no-referrer</code> (so the link token can’t leak to other sites), rate limiting on uploads, answers and code attempts, and CORS restricted to our own domains.</li>
+        <li>secrets (API keys, webhook secret) live only in encrypted server secrets, never in the app or the repo.</li>
+      </ul>
+
+      <h2>how long we keep it</h2>
+      <ul>
+        <li><strong>unsealed drafts</strong> (gifts never sent) are deleted automatically after <strong>7 days</strong>, photos included.</li>
+        <li><strong>sealed gifts</strong> (photos, world, portrait, link) are kept until the buyer deletes the gift or revokes the link — there is currently no automatic expiry for sealed gifts; we’ll email a reminder and add auto-expiry if that changes.</li>
+        <li>payment records are kept as long as tax law requires (Stripe holds the card data; we see only amounts and statuses).</li>
+      </ul>
+
+      <h2>your rights</h2>
+      <ul>
+        <li><strong>delete</strong>: the buyer can delete a gift at any time (removes photos, world, link) and <strong>revoke the recipient link</strong> so it stops opening. deleting the gift is the fastest erasure we can offer.</li>
+        <li><strong>access / export</strong>: everything we hold about a gift is visible to the buyer in the editor; email us for a full JSON export.</li>
+        <li><strong>rectification / complaint</strong>: email us and, if you’re in the UK/EU, you also have the right to complain to the ICO.</li>
+      </ul>
+
+      <h2>children</h2>
+      <p>you must be 16+ (UK/EU) to buy. if photos include children, the buyer confirms they have parental responsibility / the right to share those images.</p>
+
+      <h2>contact</h2>
+      <p>privacy questions or requests: <a href="mailto:privacy@enigmagift.com">privacy@enigmagift.com</a> (placeholder — swap in the real address before launch).</p>
+
+      <a class="back" href="/">← back to enigmagift</a>
+    </main>
+  </body>
+</html>

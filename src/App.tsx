@@ -130,13 +130,23 @@ export default function App() {
   }, []);
 
 
-  // Stripe return lands in a fresh tab at ?paid=1 — the gift context was
+  // Stripe return lands in a fresh tab at ?paid=1&sid=… — the gift context was
   // stashed in localStorage when the gift was created. Resume at the Seal,
-  // which sees paid=1 and finalizes (mark-paid + seal) on its own.
+  // which sees paid=1 and finalizes (mark-paid + seal) on its own. The sid is
+  // moved to sessionStorage and the query is stripped immediately so it never
+  // lingers in browser history or leaks via Referer.
   useEffect(() => {
     if (tokenFromUrl()) return; // recipient link wins
     const params = new URLSearchParams(window.location.search);
     if (params.get('paid') !== '1') return;
+    try {
+      const sid = params.get('sid');
+      if (sid) sessionStorage.setItem('eg_sid', sid);
+      sessionStorage.setItem('eg_paid', '1');
+      const clean = new URL(window.location.href);
+      clean.search = '';
+      window.history.replaceState(null, '', clean.pathname + clean.hash);
+    } catch { /* private mode — Seal falls back to reading the URL */ }
     const stashed = unstashGift();
     if (!stashed) return;
     let dead = false;

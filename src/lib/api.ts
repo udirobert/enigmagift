@@ -270,18 +270,30 @@ export async function sealGift(id: string): Promise<SealResult> {
 /** Read ?t=<token> from the URL — the recipient's entry point. */
 export function tokenFromUrl(): string | null {
   try {
-    return new URL(window.location.href).searchParams.get('t');
+    const u = new URL(window.location.href);
+    // canonical form is the path /t/<token> (keeps the token out of query
+    // strings, which leak via Referer/history); ?t=<token> still works
+    const m = u.pathname.match(/^\/t\/([A-Za-z0-9_-]+)\/?$/);
+    if (m) return m[1];
+    return u.searchParams.get('t');
   } catch {
     return null;
   }
 }
 
-/** POST /api/gifts/:id/mark-paid — called on the Stripe return */
-export async function markPaid(id: string, sessionId?: string | null): Promise<void> {
-  await request<{ ok: boolean }>(`/api/gifts/${encodeURIComponent(id)}/mark-paid`, {
+/** POST /api/gifts/:id/mark-paid — called on the Stripe return. The server only
+ * sets `paid` when it can verify the session itself; otherwise the signed
+ * Stripe webhook is the source of truth. */
+export async function markPaid(id: string, sessionId?: string | null): Promise<{ ok: boolean; paid: boolean; pending?: boolean }> {
+  return request(`/api/gifts/${encodeURIComponent(id)}/mark-paid`, {
     method: 'POST',
     body: JSON.stringify({ sessionId: sessionId ?? null }),
   });
+}
+
+/** POST /api/gifts/:id/revoke — kill the recipient trail link (buyer-side) */
+export async function revokeTrail(id: string): Promise<{ ok: boolean; revoked: boolean }> {
+  return request(`/api/gifts/${encodeURIComponent(id)}/revoke`, { method: 'POST' });
 }
 
 /* ------------------------------- trail ------------------------------ */

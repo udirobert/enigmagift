@@ -3,12 +3,13 @@ import express from 'express';
 import multer from 'multer';
 import crypto from 'node:crypto';
 import { join, dirname } from 'node:path';
-import { mkdirSync, existsSync, readdirSync, rmSync } from 'node:fs';
+import { mkdirSync, existsSync, readdirSync, rmSync, readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { db, UPLOADS_DIR, hashCode, verifyCode } from './db.js';
 import { runPipeline, reclue } from './pipeline.js';
 import { buildWorld } from './world.js';
 import { buildPortrait, portraitMime } from './portrait.js';
+import { stripExif } from './exif.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const DIST = join(HERE, '..', 'dist');
@@ -49,15 +50,53 @@ app.use((req, res, next) => {
   next();
 });
 
+// Security headers on every response (the API also serves the SPA in prod).
+// CSP mirrors what the Pages `_headers` file sets; picsum is demo-only imagery,
+// Google Fonts is the typeface, and the API origin is allowed for direct
+// VITE_API_URL deploys (the normal Pages path is same-origin /api).
+app.use((req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('Referrer-Policy', 'no-referrer');
+  res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+  res.setHeader(
+    'Content-Security-Policy',
+    [
+      "default-src 'none'",
+      "script-src 'self'",
+      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+      "font-src 'self' data: https://fonts.gstatic.com",
+      "img-src 'self' data: blob: https://picsum.photos",
+      "media-src 'self' blob:",
+      'connect-src \'self\' blob: https://enigmagift-api.fly.dev',
+      "worker-src 'self' blob:",
+      "frame-ancestors 'none'",
+      "base-uri 'none'",
+      "form-action 'self'",
+    ].join('; '),
+  );
+  next();
+});
+
 // Stripe webhook needs the raw body for signature verification — mount raw
 // parsing for that path BEFORE the JSON parser.
 app.use('/api/stripe/webhook', express.raw({ type: '*/*', limit: '1mb' }));
 app.use(express.json({ limit: '1mb' }));
 
-// Tiny in-memory rate limiter (per key, sliding window).
+// Tiny in-memory rate limiter (per key, sliding window), with a hard bound on
+// the number of tracked keys so a flood of distinct IPs can't grow it forever.
 const rlBuckets = new Map();
+const RL_MAX_KEYS = 20000;
 function rateLimit(key, max, windowMs) {
   const now = Date.now();
+  if (rlBuckets.size >= RL_MAX_KEYS) {
+    const drop = Math.floor(RL_MAX_KEYS / 4);
+    let i = 0;
+    for (const k of rlBuckets.keys()) {
+      if (i++ >= drop) break;
+      rlBuckets.delete(k);
+    }
+  }
   const arr = (rlBuckets.get(key) || []).filter((t) => now - t < windowMs);
   if (arr.length >= max) return false;
   arr.push(now);
@@ -65,8 +104,17 @@ function rateLimit(key, max, windowMs) {
   return true;
 }
 
+/** Rate-limit helper for route handlers — returns true (and sends 429) when limited. */
+function limitOr429(res, key, max, windowMs) {
+  if (rateLimit(key, max, windowMs)) return false;
+  res.status(429).json({ error: 'too many requests — slow down' });
+  return true;
+}
+
 // Tier → expected Stripe amount (in pence) for webhook verification.
 const TIER_PRICE_PENCE = { trail: 499, hide: 999, set: 1900 };
+
+// EXIF stripping lives in exif.js (imported below) so it can be unit-tested.
 
 function verifyStripeSignature(payload, header, secret) {
   try {
@@ -196,7 +244,12 @@ function trailPayload(t, gift) {
   const files = gift ? photoFiles(gift.id) : [];
   return {
     token: t.token,
-    rounds: safeParse(t.rounds),
+    // the answer key never leaves the server — /answer checks it
+    rounds: safeParse(t.rounds).map((r) => {
+      if (!r || typeof r !== 'object') return r;
+      const { correct, ...rest } = r;
+      return rest;
+    }),
     // token-scoped photo URLs — the recipient only ever holds the token
     photoUrls: files.map((_, i) => `/api/trail/${t.token}/photo/${i}`),
     throughline: gift?.throughline ?? null,
@@ -228,6 +281,15 @@ function handleGiftCreate(req, res, packIdParam = null) {
     const files = req.files || [];
     if (files.length < 5) return res.status(400).json({ error: 'Need 5-12 photos' });
     if (files.length > 12) return res.status(400).json({ error: 'Max 12 photos' });
+    // strip EXIF (GPS etc.) from stored copies before anything reads them
+    for (const f of files) {
+      try {
+        const p = join(UPLOADS_DIR, req.giftId, f.filename);
+        const orig = readFileSync(p);
+        const stripped = stripExif(orig);
+        if (!stripped.equals(orig)) writeFileSync(p, stripped);
+      } catch { /* best-effort */ }
+    }
     const direction = req.body?.direction === 'me' ? 'me' : 'someone';
     // digital-first: The Trail (digital) is the default; The Hide is physical.
     const mode = req.body?.mode === 'physical' ? 'physical' : 'digital';
@@ -312,6 +374,7 @@ app.post('/api/gifts/:id/reclue', (req, res) => {
 });
 
 app.post('/api/gifts/:id/world-source', (req, res) => {
+  if (limitOr429(res, `worldsource:${req.params.id}`, 10, 60 * 60 * 1000)) return;
   const g = getGift(req.params.id);
   if (!g) return res.status(404).json({ error: 'not found' });
   const idx = parseInt(req.body?.index, 10);
@@ -330,13 +393,16 @@ app.post('/api/gifts/:id/world-source', (req, res) => {
 });
 
 app.post('/api/gifts/:id/event', (req, res) => {
+  if (limitOr429(res, `event:${req.ip}`, 240, 60 * 60 * 1000)) return;
   const g = getGift(req.params.id);
   if (!g) return res.status(404).json({ error: 'not found' });
-  logEvent(g.id, null, req.body?.name, req.body?.data);
+  const name = typeof req.body?.name === 'string' ? req.body.name.slice(0, 64) : 'event';
+  logEvent(g.id, null, name, req.body?.data);
   res.json({ ok: true });
 });
 
 app.delete('/api/gifts/:id', (req, res) => {
+  if (limitOr429(res, `delete:${req.ip}`, 10, 60 * 60 * 1000)) return;
   const g = getGift(req.params.id);
   if (!g) return res.status(404).json({ error: 'not found' });
   // delete the gift, its trail(s), derived rows and uploaded files
@@ -371,6 +437,7 @@ app.post('/api/packs/:id/gifts', (req, res) => {
 });
 
 app.post('/api/gifts/:id/hide', (req, res) => {
+  if (limitOr429(res, `hide:${req.params.id}`, 30, 60 * 60 * 1000)) return;
   const g = getGift(req.params.id);
   if (!g) return res.status(404).json({ error: 'not found' });
   const { hideSpotId, hideNote, hiddenAt } = req.body || {};
@@ -388,6 +455,7 @@ app.post('/api/gifts/:id/hide', (req, res) => {
 });
 
 app.post('/api/gifts/:id/seal', (req, res) => {
+  if (limitOr429(res, `seal:${req.params.id}`, 20, 60 * 60 * 1000)) return;
   const g = getGift(req.params.id);
   if (!g) return res.status(404).json({ error: 'not found' });
   if (g.status === 'reading') return res.status(409).json({ error: 'still reading' });
@@ -411,10 +479,15 @@ app.post('/api/gifts/:id/seal', (req, res) => {
     return s;
   })();
   const rounds = safeParse(g.rounds);
+  // optional link expiry (days) chosen by the buyer — 0/absent = never expires
+  const expireDays = parseInt(req.body?.expireDays, 10);
+  const expiresAt = Number.isInteger(expireDays) && expireDays > 0
+    ? new Date(Date.now() + expireDays * 86400000).toISOString()
+    : null;
   // the code is stored as a scrypt hash only — the plaintext exists solely in
   // the response so the buyer can write it into the hidden thing (Hide tier)
-  db.prepare('INSERT INTO trails (token, gift_id, rounds, unlock_code, unlock_hash) VALUES (?,?,?,?,?)')
-    .run(token, g.id, JSON.stringify(rounds), '', hashCode(unlockCode));
+  db.prepare('INSERT INTO trails (token, gift_id, rounds, unlock_code, unlock_hash, expires_at) VALUES (?,?,?,?,?,?)')
+    .run(token, g.id, JSON.stringify(rounds), '', hashCode(unlockCode), expiresAt);
   if (g.status !== 'paid') {
     db.prepare("UPDATE gifts SET status='sealed' WHERE id=?").run(g.id);
   }
@@ -428,18 +501,31 @@ app.post('/api/gifts/:id/seal', (req, res) => {
     trailToken: token,
     trailUrl: `/t/${token}`,
     unlockCode, // the buyer writes this into the hidden thing
+    expiresAt,
   });
 });
 
+// Revoke the recipient link (buyer-side, gift-id scoped) — the trail token
+// stops resolving immediately. Photos stay with the buyer's editor.
+app.post('/api/gifts/:id/revoke', (req, res) => {
+  if (limitOr429(res, `revoke:${req.params.id}`, 10, 60 * 60 * 1000)) return;
+  const g = getGift(req.params.id);
+  if (!g) return res.status(404).json({ error: 'not found' });
+  const t = db.prepare('SELECT token FROM trails WHERE gift_id=?').get(g.id);
+  db.prepare('DELETE FROM trails WHERE gift_id=?').run(g.id);
+  logEvent(g.id, t?.token ?? null, 'revoked', null);
+  res.json({ ok: true, revoked: !!t });
+});
+
 app.post('/api/gifts/:id/mark-paid', async (req, res) => {
+  if (limitOr429(res, `markpaid:${req.params.id}`, 20, 60 * 60 * 1000)) return;
   const g = getGift(req.params.id);
   if (!g) return res.status(404).json({ error: 'not found' });
   // Called on the Stripe Payment Link return (client_reference_id = gift id).
-  // The webhook is the source of truth; this fallback verifies the checkout
-  // session server-side when STRIPE_API_KEY is set, otherwise trusts the
-  // return URL (legacy behaviour).
+  // The webhook is the source of truth for `paid`; this endpoint only sets it
+  // when the checkout session can be verified server-side (STRIPE_API_KEY).
+  // Without the key it FAILS CLOSED — a client-side claim is never enough.
   const sessionId = req.body?.sessionId || null;
-  let verified = false;
   if (sessionId && process.env.STRIPE_API_KEY) {
     try {
       const r = await fetch(`https://api.stripe.com/v1/checkout/sessions/${encodeURIComponent(sessionId)}`, {
@@ -447,21 +533,21 @@ app.post('/api/gifts/:id/mark-paid', async (req, res) => {
       });
       if (r.ok) {
         const s = await r.json();
-        verified = s.payment_status === 'paid' && s.client_reference_id === g.id;
+        if (s.payment_status === 'paid' && s.client_reference_id === g.id) {
+          db.prepare('UPDATE gifts SET paid=1, status=CASE WHEN status=\'sealed\' THEN \'paid\' ELSE status END WHERE id=?').run(g.id);
+          logEvent(g.id, null, 'paid', { tier: g.tier, verified: true });
+          return res.json({ ok: true, paid: true, verified: true });
+        }
+        return res.status(402).json({ ok: false, paid: false, error: 'session not paid' });
       }
     } catch (e) {
       console.error(`[mark-paid ${g.id}] stripe verify failed:`, e.message);
     }
-  } else if (sessionId) {
-    verified = true; // legacy: no secret key configured
-    console.warn(`[mark-paid ${g.id}] no STRIPE_API_KEY — trusting client return`);
   }
-  if (sessionId && !verified) {
-    return res.status(402).json({ ok: false, paid: false, error: 'session not paid' });
-  }
-  db.prepare('UPDATE gifts SET paid=1, status=CASE WHEN status=\'sealed\' THEN \'paid\' ELSE status END WHERE id=?').run(g.id);
-  logEvent(g.id, null, 'paid', { tier: g.tier, verified: !!(sessionId && process.env.STRIPE_API_KEY) });
-  res.json({ ok: true, paid: true });
+  // No key (or verification failed): report pending — only the signed webhook
+  // can mark the gift paid.
+  logEvent(g.id, null, 'markpaid_pending', { hasSession: !!sessionId });
+  res.json({ ok: true, paid: !!g.paid, pending: !g.paid });
 });
 
 // ---------- Stripe webhook — the source of truth for `paid` ----------
@@ -511,7 +597,10 @@ app.post('/api/stripe/webhook', (req, res) => {
 // ---------- trail ----------
 
 function getTrail(token) {
-  return db.prepare('SELECT * FROM trails WHERE token=?').get(token);
+  const t = db.prepare('SELECT * FROM trails WHERE token=?').get(token);
+  // an expired link is as good as revoked
+  if (t && t.expires_at && new Date(t.expires_at).getTime() < Date.now()) return null;
+  return t;
 }
 
 app.get('/api/trail/:token', (req, res) => {
@@ -523,6 +612,7 @@ app.get('/api/trail/:token', (req, res) => {
 });
 
 app.post('/api/trail/:token/answer', (req, res) => {
+  if (limitOr429(res, `answer:${req.params.token}`, 120, 60 * 60 * 1000)) return;
   const t = getTrail(req.params.token);
   if (!t) return res.status(404).json({ error: 'not found' });
   const { round, choice } = req.body || {};
@@ -539,6 +629,8 @@ app.post('/api/trail/:token/answer', (req, res) => {
 });
 
 app.post('/api/trail/:token/unlock', (req, res) => {
+  // per-token attempt cap — the 6-char code must not be brute-forceable online
+  if (limitOr429(res, `unlock:${req.params.token}`, 10, 60 * 60 * 1000)) return;
   const t = getTrail(req.params.token);
   if (!t) return res.status(404).json({ error: 'not found' });
   const { code } = req.body || {};
@@ -561,9 +653,11 @@ app.post('/api/trail/:token/unlock', (req, res) => {
 });
 
 app.post('/api/trail/:token/event', (req, res) => {
+  if (limitOr429(res, `event:${req.ip}`, 240, 60 * 60 * 1000)) return;
   const t = getTrail(req.params.token);
   if (!t) return res.status(404).json({ error: 'not found' });
-  logEvent(t.gift_id, t.token, req.body?.name, req.body?.data);
+  const name = typeof req.body?.name === 'string' ? req.body.name.slice(0, 64) : 'event';
+  logEvent(t.gift_id, t.token, name, req.body?.data);
   res.json({ ok: true });
 });
 

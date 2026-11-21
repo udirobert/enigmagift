@@ -27,7 +27,8 @@ interface RoundCfg {
   kicker: string;
   question: string;
   options: string[];
-  answer: number;
+  /** demo scripted rounds only — live rounds never receive the answer key */
+  answer?: number;
   cropPhotoIndex?: number;
   crop?: [number, number, number, number];
   cropPhotoIndex2?: number;
@@ -79,6 +80,7 @@ export function Round({ demo, trail, round, onDone }: RoundProps) {
   const rootRef = useRef<HTMLElement>(null);
   const [attempts, setAttempts] = useState(0);
   const [solved, setSolved] = useState(false);
+  const [rightIdx, setRightIdx] = useState<number | null>(null);
   const [nudge, setNudge] = useState<string | null>(null);
   const doneRef = useRef(false);
 
@@ -170,11 +172,27 @@ export function Round({ demo, trail, round, onDone }: RoundProps) {
 
   const pick = (i: number) => {
     if (solved) return;
-    if (live) logTrailEvent(trail!.token, `round_${round}_picked`, { choice: i, correct: i === cfg.answer, attempts: attempts + 1 });
+    if (live) {
+      // the answer key never leaves the server — ask it, then react
+      answerRound(trail!.token, round - 1, i)
+        .then((res) => {
+          logTrailEvent(trail!.token, `round_${round}_picked`, { choice: i, correct: res.correct, attempts: attempts + 1 });
+          if (res.correct) {
+            setRightIdx(i);
+            setSolved(true);
+            setNudge(null);
+            window.setTimeout(finish, 1100);
+            return;
+          }
+          const next = attempts + 1;
+          setAttempts(next);
+          setNudge(NUDGES[Math.min(next - 1, NUDGES.length - 1)]);
+          if (next >= 3) window.setTimeout(finish, 1600); // the lock is theatre — it opens anyway
+        })
+        .catch(() => {});
+      return;
+    }
     if (i === cfg.answer) {
-      if (live) {
-        answerRound(trail!.token, round - 1, i).catch(() => {});
-      }
       setSolved(true);
       setNudge(null);
       window.setTimeout(finish, 1100);
@@ -249,19 +267,19 @@ export function Round({ demo, trail, round, onDone }: RoundProps) {
                   <RealCrop
                     className="round-photo round-anim"
                     url={photoUrl(cfg.cropPhotoIndex ?? 0) ?? ''}
-                    bbox={cfg.crop!}
+                    bbox={cfg.crop ?? [0, 0, 1, 1]}
                   />
                 ) : (
                   <>
                     <RealCrop
                       className="round-photo round-anim"
                       url={photoUrl(cfg.cropPhotoIndex ?? 0) ?? ''}
-                      bbox={cfg.crop!}
+                      bbox={cfg.crop ?? [0, 0, 1, 1]}
                     />
                     <RealCrop
                       className="round-photo round-anim"
                       url={photoUrl(cfg.cropPhotoIndex2 ?? 1) ?? ''}
-                      bbox={(cfg.crop2 ?? cfg.crop)!}
+                      bbox={cfg.crop2 ?? cfg.crop ?? [0, 0, 1, 1]}
                     />
                   </>
                 )
@@ -301,7 +319,7 @@ export function Round({ demo, trail, round, onDone }: RoundProps) {
               {cfg.options.map((opt, i) => (
                 <button
                   key={opt}
-                  className={`attempt ${solved && i === cfg.answer ? 'is-right' : ''}`}
+                  className={`attempt ${solved && i === (live ? rightIdx : cfg.answer) ? 'is-right' : ''}`}
                   onClick={() => pick(i)}
                   disabled={solved}
                 >

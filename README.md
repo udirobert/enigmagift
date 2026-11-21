@@ -134,14 +134,15 @@ Frontend env (build-time):
 | `POST /api/gifts/:id/reclue` | `{notes}` — re-run the cross-image pass with buyer notes; regenerates clues/rounds (bounded to 2 pre-payment) |
 | `POST /api/gifts/:id/world-source` | `{index}` — pick which photo becomes the 3D world; rebuilds if already built |
 | `POST /api/gifts/:id/hide` | record the physical hide (Hide tier) |
-| `POST /api/gifts/:id/seal` | → `{trailToken, trailUrl, unlockCode?}` (code only for Hide) |
-| `POST /api/gifts/:id/mark-paid` | fallback paid-marker; verifies the Stripe session server-side when `STRIPE_API_KEY` is set |
+| `POST /api/gifts/:id/seal` | → `{trailToken, trailUrl, unlockCode?, expiresAt?}`; optional `{expireDays}` sets link expiry (code only for Hide) |
+| `POST /api/gifts/:id/mark-paid` | fallback paid-marker; verifies the Stripe session server-side when `STRIPE_API_KEY` is set — **fails closed otherwise** (never trusts the client; only the webhook sets `paid`) |
+| `POST /api/gifts/:id/revoke` | buyer revokes the recipient trail link (token stops resolving immediately) |
 | `POST /api/stripe/webhook` | signed Stripe webhook — the source of truth for `paid`; creates a pack on a Set payment |
-| `DELETE /api/gifts/:id` | giver deletes a draft (pre-seal) or a whole gift incl. its recipient link |
+| `DELETE /api/gifts/:id` | giver deletes a draft (pre-seal) or a whole gift incl. its recipient link, photos and pack |
 | `POST /api/gifts/:id/event` | funnel event `{name}` |
 | `GET /api/packs/:id` | pack status (`creditsLeft`) |
 | `POST /api/packs/:id/gifts` | create another hunt from a Set pack (consumes a credit; same multipart body as `POST /api/gifts`) |
-| `GET /api/trail/:token` | recipient trail (rounds, token-scoped photo URLs, world status, `requiresCode`) |
+| `GET /api/trail/:token` | recipient trail (rounds **without the answer key**, token-scoped photo URLs, world status, `requiresCode`); 404 when revoked or expired |
 | `POST /api/trail/:token/answer` | `{round, choice}` |
 | `POST /api/trail/:token/unlock` | `{code}` → keepsake (Hide tier; codes stored as scrypt hashes) |
 | `POST /api/trail/:token/event` | recipient funnel event |
@@ -170,20 +171,46 @@ Full runbook: `notes/OPS.md` (topology, secrets, redeploy, gotchas).
   events: `checkout.session.completed`) must be configured in the dashboard with
   `STRIPE_WEBHOOK_SECRET`.
 
-## Data handling
+## Data handling & security
 
-- Unlock codes are stored as **scrypt hashes** (`trails.unlock_hash`), never plaintext.
-- Recipient photo URLs are **token-scoped** (`/api/trail/:token/photo/:i`); the
-  gift-id-scoped route is for the buyer only.
-- CORS is restricted to `ALLOWED_ORIGINS`.
-- `POST /api/gifts` is rate-limited per IP; unsealed drafts older than 7 days
-  are purged (files included) on a timer.
-- The giver can `DELETE /api/gifts/:id` (draft or whole gift + link).
+Public pages: `/privacy` and `/terms` (`public/privacy.html`, `public/terms.html`).
+
+- Unlock codes are stored as **scrypt hashes** (`trails.unlock_hash`), never plaintext;
+  unlock attempts are rate-limited per token (10/h).
+- The **answer key never leaves the server** — `GET /api/trail/:token` strips
+  `correct` from rounds; `POST /api/trail/:token/answer` checks it server-side.
+- Recipient assets are **token-scoped** (`/api/trail/:token/photo|world|portrait`);
+  the gift-id-scoped photo route is for the buyer only. Trail links can be
+  **revoked** (`POST /api/gifts/:id/revoke`) or set to **expire** (`expireDays`
+  on seal); the recipient URL is the path form `/t/<token>` (kept out of query
+  strings, which leak via Referer/history).
+- `POST /api/gifts/:id/mark-paid` **fails closed** without `STRIPE_API_KEY` —
+  only the signed Stripe webhook sets `paid` (HMAC + per-tier amount check).
+- **EXIF metadata (incl. GPS) is stripped** from uploaded JPEG/PNG on the server
+  (`server/exif.js`); the browser also re-encodes uploads before they leave the
+  device. Upload consent is required in the UI before any photo is sent.
+- Photos are processed by the AI providers listed in `/privacy` (SandBase,
+  Google Gemini fallback, Recraft) solely to generate the gift. No third-party
+  trackers; funnel events are first-party only. No cookies — the in-progress
+  gift id lives in localStorage on the buyer's device.
+- Security headers everywhere: CSP, `X-Content-Type-Options: nosniff`,
+  `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`, HSTS — set both by
+  `public/_headers` (Pages) and in `server/index.js` (API/SPA origin).
+- CORS is restricted to `ALLOWED_ORIGINS`; all SQL is parameterised.
+- `POST /api/gifts` and all state-changing routes are rate-limited; unsealed
+  drafts older than 7 days are purged (files included) on a timer.
+- The giver can `DELETE /api/gifts/:id` (draft or whole gift + link + photos)
+  and revoke the recipient link at any time.
+- Security regression tests: `cd server && node test/security.test.mjs`
+  (webhook signature, fail-closed mark-paid, answer-key stripping, unlock
+  rate limit, revoke/expiry, EXIF strip, headers).
 
 ## Known gaps (pre-launch hardening)
 
-- Multer is on 1.x (npm audit warning) — upgrade to 2.x.
-- HEIC upload accepted by extension but untested end-to-end.
+- HEIC upload accepted by extension but untested end-to-end (EXIF stripping
+  covers JPEG/PNG only — WebP/GIF/HEIC pass through with metadata intact).
+- `mark-paid` server-side verification still needs a restricted Stripe API key
+  (`STRIPE_API_KEY`) — until then the webhook alone sets `paid` (fail closed).
 - Fly `min_machines_running = 0` — cold starts ~5s on first hit.
 - No automated tests around the new tier/mode branching yet — verify with the
   run card in `notes/CANONICAL-GIFT.md` (one person, own phone, no coaching)

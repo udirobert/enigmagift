@@ -131,6 +131,7 @@ addColumnIfMissing('gifts', 'tier', 'TEXT');
 addColumnIfMissing('gifts', 'pack_id', 'TEXT');
 addColumnIfMissing('gifts', 'reclue_count', 'INTEGER NOT NULL DEFAULT 0');
 addColumnIfMissing('trails', 'unlock_hash', 'TEXT');
+addColumnIfMissing('trails', 'expires_at', 'TEXT');
 
 // One-time migration: hash any legacy plaintext unlock codes, then clear the
 // plaintext. The codes still verify (the hash is derived from them).

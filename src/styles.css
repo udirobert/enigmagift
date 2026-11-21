@@ -461,6 +461,21 @@ img { display: block; max-width: 100%; }
 .dock-glyph { font-size: 1.25rem; line-height: 1; color: var(--gold); }
 .dock-label { font-family: var(--serif); font-size: 0.98rem; color: var(--paper); }
 .dock-sub { font-size: 0.62rem; line-height: 1.5; letter-spacing: 0.02em; color: var(--paper-faint); }
+.dock-consent {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.4rem;
+  max-width: 30ch;
+  font-size: 0.6rem;
+  line-height: 1.45;
+  color: var(--paper-faint);
+  cursor: pointer;
+  text-align: left;
+}
+.dock-consent input { accent-color: var(--gold); margin-top: 0.1rem; flex: none; }
+.dock-consent a { color: var(--gold); text-decoration: none; border-bottom: 1px dotted var(--gold); }
+.dock-consent.is-nudge { color: var(--paper); animation: dock-nudge 0.5s ease 6; }
+@keyframes dock-nudge { 50% { transform: translateX(3px); } }
 .dock-seg { justify-content: center; }
 
 /* the promise — bottom centre, live with the backdrop's photo ⇄ world loop */
@@ -1086,6 +1101,7 @@ img { display: block; max-width: 100%; }
   transition: background 0.25s;
 }
 .seal-copy:hover { background: rgba(192, 95, 46, 0.12); }
+.seal-revoke { color: var(--paper-faint); white-space: nowrap; }
 
 .seal-qr {
   display: flex;

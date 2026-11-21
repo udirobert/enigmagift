@@ -26,7 +26,7 @@ Frontend and backend are **not** on the same host. Pages is static-only (+ the
 | `RECRAFT_API_KEY` | Fly app secret, same `secrets set` flow | env or a `server/*.env` file (gitignored); optional — portrait skipped without it |
 | `VITE_STRIPE_LINK_TRAIL` / `_HIDE` / `_SET` | inlined at build time (legacy single `VITE_STRIPE_LINK` maps to the Hide link) | the three `buy.stripe.com` Payment Link URLs (£4.99 / £9.99 / £19) |
 | `STRIPE_WEBHOOK_SECRET` | Fly app secret | Stripe dashboard → Webhooks → the `whsec_…` for the `/api/stripe/webhook` endpoint |
-| `STRIPE_API_KEY` (optional) | Fly app secret | lets `mark-paid` verify the checkout session server-side instead of trusting the client |
+| `STRIPE_API_KEY` (optional) | Fly app secret | lets `mark-paid` verify the checkout session server-side. **Without it mark-paid fails closed** — only the signed webhook sets `paid` |
 | `ALLOWED_ORIGINS` (optional) | Fly app secret | comma-separated CORS allowlist; defaults to the deployed Pages/Netlify domains + localhost |
 | Gemini key (fallback) | any `Dev/*/.env*` the server scans | — |
 
@@ -202,9 +202,10 @@ a 6-digit authenticator code to reveal/roll it).
 `checkout.session.completed` the server verifies the HMAC signature, checks
 `amount_total` against the tier's expected price (`TIER_PRICE_PENCE` =
 499/999/1900), sets `paid=1`, and for a **Set** payment creates a 3-credit
-`packs` row linked to the gift. `mark-paid` remains as a fallback and, when
-`STRIPE_API_KEY` is set, verifies the session via the Stripe API instead of
-trusting the client (no API key yet — see below).
+`packs` row linked to the gift. `mark-paid` is only a client hint: it **fails
+closed** when `STRIPE_API_KEY` is unset (no key yet — see below) and never sets
+`paid` from a client claim; with the key it verifies the session via the Stripe
+API. The webhook is the only source of truth for `paid`.
 
 Verified live 2026-11-21 (signed test events against the production endpoint
 with the real `whsec_…`): valid signature → `{"received":true}` + `paid:true`;
@@ -274,6 +275,13 @@ curl -s -X POST https://enigmagift-api.fly.dev/api/gifts/<id>/world-source \
 curl -s -X POST https://enigmagift-api.fly.dev/api/gifts/<id>/event \
   -H 'content-type: application/json' -d '{"name":"editor_done"}'
 
+# revoke the recipient link (buyer-side; the /t/<token> link stops resolving)
+curl -s -X POST https://enigmagift-api.fly.dev/api/gifts/<id>/revoke
+
+# security regression tests (local, throwaway DB): webhook sig, fail-closed
+# mark-paid, answer-key stripping, unlock rate limit, revoke/expiry, EXIF strip
+cd server && node test/security.test.mjs
+
 # webhook smoke test (sign a fake checkout.session.completed with the real secret)
 SECRET=$(fly -a enigmagift-api secrets list >/dev/null 2>&1 && echo "<whsec from fly secret>")
 PAYLOAD='{"type":"checkout.session.completed","data":{"object":{"id":"cs_test_1","client_reference_id":"<id>","amount_total":499}}}'
@@ -292,6 +300,32 @@ codes listed below are historical — they still verify because their hashes
 were derived from them at migration.
 
 ---
+
+## Hardening (2026-11-21)
+
+- **Fail-closed payments**: `mark-paid` never sets `paid` from a client claim;
+  only the signed webhook does (or `mark-paid` with `STRIPE_API_KEY` set).
+- **Answer key stays server-side**: `GET /api/trail/:token` strips `correct`
+  from rounds; `/answer` checks it. Unlock attempts capped at 10/h/token.
+- **Bearer credentials**: gift id = buyer, trail token = recipient. Tokens can
+  be revoked (`POST /api/gifts/:id/revoke`) or expire (`expireDays` on seal;
+  `trails.expires_at`, checked in `getTrail`). Recipient links are displayed in
+  path form `/t/<token>` (`?t=` still accepted) so they don't leak via
+  Referer/history; the Stripe return's `?paid=1&sid=…` is moved to
+  sessionStorage and stripped from the URL on load.
+- **Headers**: CSP + nosniff + DENY + `Referrer-Policy: no-referrer` + HSTS on
+  both origins (`public/_headers` for Pages, middleware in `server/index.js`).
+- **EXIF/GPS stripped** from uploaded JPEG/PNG (`server/exif.js`; WebP/GIF/HEIC
+  pass through — documented gap). The browser also re-encodes uploads.
+- **Rate limits** on create/reclue/unlock/answer/mark-paid/seal/hide/
+  world-source/revoke/delete/events; the in-memory limiter is key-bounded.
+- **Legal pages**: `/privacy`, `/terms` (static, `public/*.html`, clean URLs
+  via `_redirects`); upload requires a consent checkbox linking to `/privacy`.
+  Placeholder contact addresses and governing law — **get legal review before
+  launch**, and verify each AI subprocessor's retention/training terms before
+  claiming anything about training in the policy.
+- **Secrets**: pre-commit hook blocks `whsec_…`/`sk-…`/etc. (see Secrets
+  hygiene). Multer bumped to 2.x.
 
 ## Gotchas (actually hit)
 

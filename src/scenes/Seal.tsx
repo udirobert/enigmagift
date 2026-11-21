@@ -3,7 +3,7 @@ import { gsap } from 'gsap';
 import { SEAL_LINK } from '../data';
 import { prefersReducedMotion } from '../lib/motion';
 import { WaxSeal } from '../components/WaxSeal';
-import { markPaid, sealGift, type GiftMode, type SealResult, type Tier } from '../lib/api';
+import { markPaid, revokeTrail, sealGift, type GiftMode, type SealResult, type Tier } from '../lib/api';
 
 interface SealProps {
   demo: boolean;
@@ -44,6 +44,7 @@ export function Seal({ demo, giftId, kept, tier, mode, onSend }: SealProps) {
     demo || !giftId ? 'sealed' : 'idle',
   );
   const [error, setError] = useState<string | null>(null);
+  const [revoked, setRevoked] = useState(false);
   const workingRef = useRef(false);
 
   const live = !demo && !!giftId;
@@ -60,7 +61,9 @@ export function Seal({ demo, giftId, kept, tier, mode, onSend }: SealProps) {
   useEffect(() => {
     if (phase !== 'awaiting') return;
     const onFocus = () => {
-      const paid = new URLSearchParams(window.location.search).get('paid') === '1';
+      const paid =
+        new URLSearchParams(window.location.search).get('paid') === '1' ||
+        sessionStorage.getItem('eg_paid') === '1';
       if (paid) void finalize(true);
     };
     window.addEventListener('focus', onFocus);
@@ -77,7 +80,13 @@ export function Seal({ demo, giftId, kept, tier, mode, onSend }: SealProps) {
     try {
       if (paid) {
         try {
-          const sid = new URLSearchParams(window.location.search).get('sid');
+          // App stashes the Stripe session id in sessionStorage and strips it
+          // from the URL; fall back to the URL in case that didn't run
+          const sid =
+            new URLSearchParams(window.location.search).get('sid') ??
+            sessionStorage.getItem('eg_sid');
+          // server verifies the session when STRIPE_API_KEY is set; otherwise
+          // it reports pending and only the signed webhook sets paid
           await markPaid(giftId, sid);
         } catch {
           /* payment marking is best-effort — the seal still matters */
@@ -92,6 +101,17 @@ export function Seal({ demo, giftId, kept, tier, mode, onSend }: SealProps) {
       setPhase('error');
     } finally {
       workingRef.current = false;
+    }
+  };
+
+  const revoke = async () => {
+    if (!giftId || revoked) return;
+    if (!window.confirm('revoke the recipient link? anyone holding it will no longer be able to open the gift.')) return;
+    try {
+      await revokeTrail(giftId);
+      setRevoked(true);
+    } catch {
+      setError('couldn’t revoke — try again');
     }
   };
 
@@ -141,7 +161,7 @@ export function Seal({ demo, giftId, kept, tier, mode, onSend }: SealProps) {
   const displayLink = demo
     ? SEAL_LINK
     : token
-      ? `${window.location.origin}/?t=${token}`
+      ? `${window.location.origin}/t/${token}`
       : live
         ? 'the link appears once it’s sealed'
         : SEAL_LINK;
@@ -212,11 +232,16 @@ export function Seal({ demo, giftId, kept, tier, mode, onSend }: SealProps) {
 
         <div className={`seal-link seal-anim ${waiting && !sealed ? 'is-waiting' : ''}`}>
           <span className="seal-link-url">
-            {waiting && !sealed ? 'wax is setting…' : displayLink}
+            {revoked ? 'link revoked — this trail no longer opens' : waiting && !sealed ? 'wax is setting…' : displayLink}
           </span>
-          {sealed && (
+          {sealed && !revoked && (
             <button className="seal-copy" onClick={copy}>
               {copied ? 'copied' : 'copy'}
+            </button>
+          )}
+          {sealed && !demo && !revoked && (
+            <button className="seal-copy seal-revoke" onClick={() => void revoke()}>
+              revoke link
             </button>
           )}
         </div>

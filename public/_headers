@@ -1,0 +1,10 @@
+# Security headers for every Pages response. The CSP mirrors what the API sets
+# on its own origin (server/index.js): self-only scripts, Google Fonts for
+# type, picsum only for demo imagery, API calls to self (proxied) or the Fly
+# backend if VITE_API_URL points there directly.
+/*
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: DENY
+  Referrer-Policy: no-referrer
+  Strict-Transport-Security: max-age=31536000; includeSubDomains
+  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https://picsum.photos; media-src 'self' blob:; connect-src 'self' https://enigmagift-api.fly.dev; worker-src 'self' blob:; frame-ancestors 'none'; base-uri 'none'; form-action 'self'

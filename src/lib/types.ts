@@ -94,8 +94,10 @@ export interface TrailRound {
   kicker: string;
   question: string;
   options: string[];
-  /** index into options — the server-side answer key */
-  correct: number;
+  /** index into options — the answer key. Stripped from the client payload;
+   * the server checks answers in POST /api/trail/:token/answer, so this is
+   * only ever present on the scripted demo rounds. */
+  correct?: number;
   cropPhotoIndex?: number;
   crop?: [number, number, number, number];
   cropPhotoIndex2?: number;
