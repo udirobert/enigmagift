@@ -83,6 +83,16 @@ CREATE TABLE IF NOT EXISTS events (
   data TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+
+CREATE TABLE IF NOT EXISTS room_gifts (
+  token TEXT PRIMARY KEY,
+  manage_hash TEXT NOT NULL UNIQUE,
+  room_id TEXT NOT NULL,
+  room_revision TEXT NOT NULL,
+  edition_json TEXT,
+  created_at TEXT NOT NULL,
+  revoked_at TEXT
+);
 `);
 
 /* Unlock codes: stored as scrypt hashes, never plaintext. The legacy

@@ -54,16 +54,22 @@ const env = {
   STRIPE_API_KEY: '', // mark-paid must fail closed; also blocks stripe fetch
 };
 
-const srv = spawn(process.execPath, ['--import', pathToFileURL(PRELOAD).href, SERVER], {
-  cwd: tmp,
-  env,
-  stdio: ['ignore', 'pipe', 'pipe'],
-});
 let serverLog = '';
-srv.stdout.on('data', (d) => { serverLog += d; });
-srv.stderr.on('data', (d) => { serverLog += d; });
 let spawnError = null;
-srv.on('error', (error) => { spawnError = error; });
+const launchServer = () => {
+  serverLog = '';
+  spawnError = null;
+  const child = spawn(process.execPath, ['--import', pathToFileURL(PRELOAD).href, SERVER], {
+    cwd: tmp,
+    env,
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  child.stdout.on('data', (d) => { serverLog += d; });
+  child.stderr.on('data', (d) => { serverLog += d; });
+  child.on('error', (error) => { spawnError = error; });
+  return child;
+};
+let srv = launchServer();
 
 const results = [];
 async function t(name, fn) {
@@ -87,10 +93,11 @@ async function waitUp() {
 }
 
 // stop our own child before removing its temp dir; subscribe to 'exit'
-// BEFORE signalling so a fast exit can't slip past the await
-async function stopServer() {
+// BEFORE signalling so a fast exit can't slip past the await. Pass
+// removeData=false to keep the DB/uploads for a same-dir restart test.
+async function stopServer(removeData = true) {
   if (spawnError || srv.exitCode !== null || srv.signalCode !== null) {
-    rmSync(tmp, { recursive: true, force: true });
+    if (removeData) rmSync(tmp, { recursive: true, force: true });
     return;
   }
   const exited = new Promise((r) => srv.once('exit', r));
@@ -99,7 +106,7 @@ async function stopServer() {
     srv.kill('SIGKILL');
   }
   await exited;
-  rmSync(tmp, { recursive: true, force: true });
+  if (removeData) rmSync(tmp, { recursive: true, force: true });
 }
 
 function sign(payload) {
@@ -629,6 +636,205 @@ async function main() {
     // destination overview records the referral token
     const dstOv = await (await fetch(`${BASE}/api/gifts/${newId}/overview`)).json();
     assert.equal(dstOv.gift.referredBy, refToken);
+  });
+
+  // ---------- room-gift recipient links (tabletop pilot) ----------
+  const RG = '/api/room-gifts';
+  const rgKey = () => crypto.randomBytes(32).toString('hex');
+  const rgSha = (key) => crypto.createHash('sha256').update(key).digest('hex');
+  const rgEdition = (over = {}) => ({
+    roomId: 'dog-dining-room', revision: '44124720',
+    to: 'Sam', from: 'Alex',
+    dog: 'Low paper edge under the table.',
+    chair: 'A seat saved for you.',
+    postcard: 'Look for the watcher on the floor.',
+    memory: 'A keepsake for stopping by.',
+    invitation: 'Meet me where the table waits.',
+    ...over,
+  });
+  const rgPost = (body, key) => fetch(`${BASE}${RG}`, {
+    method: 'POST', headers: {
+      'content-type': 'application/json',
+      ...(key ? { authorization: `Bearer ${key}` } : {}),
+    }, body: JSON.stringify(body),
+  });
+  const rgGet = (path, key) => fetch(`${BASE}${RG}${path}`,
+    key ? { headers: { authorization: `Bearer ${key}` } } : {});
+  const rgDel = (key) => fetch(`${BASE}${RG}/manage`, {
+    method: 'DELETE', headers: { authorization: `Bearer ${key}` } });
+  const rgCount = () => dbGet('SELECT COUNT(*) c FROM room_gifts').c;
+
+  await t('POST creates a link; server stores only the key hash', async () => {
+    const key = rgKey();
+    const r = await rgPost({ edition: rgEdition() }, key);
+    assert.equal(r.status, 201);
+    const body = await r.json();
+    assert.match(body.recipientToken, /^[A-Za-z0-9_-]{43}$/);
+    assert.equal(r.headers.get('cache-control'), 'no-store');
+    const row = dbGet('SELECT * FROM room_gifts WHERE token=?', body.recipientToken);
+    assert.equal(row.manage_hash, rgSha(key));
+    assert.notEqual(row.manage_hash, key);
+    assert.ok(!JSON.stringify(body).includes(key), 'key leaked in response');
+    assert.ok(!row.edition_json.includes(key), 'key leaked in edition_json');
+  });
+
+  await t('POST validation: auth + edition shape → 401/400, no rows written', async () => {
+    const before = rgCount();
+    assert.equal((await rgPost({ edition: rgEdition() })).status, 401, 'no key');
+    const bad = [
+      rgEdition({ to: '' }),
+      rgEdition({ invitation: '   ' }),
+      rgEdition({ dog: 42 }),
+      rgEdition({ to: 'x'.repeat(41) }),
+      rgEdition({ dog: 'x'.repeat(161) }),
+      rgEdition({ invitation: 'x'.repeat(201) }),
+      rgEdition({ roomId: 'other-room' }),
+      rgEdition({ revision: '00000000' }),
+      rgEdition({ roomId: undefined, revision: undefined }),
+      rgEdition({ roomId: 'other-room', revision: undefined }),
+    ];
+    for (const [i, edition] of bad.entries()) {
+      assert.equal((await rgPost({ edition }, rgKey())).status, 400, `case ${i}`);
+    }
+    // no edition / null / array bodies fail the same way — never reach the DB
+    for (const body of [{}, { edition: null }, { edition: [] }]) {
+      assert.equal((await rgPost(body, rgKey())).status, 400, JSON.stringify(body));
+    }
+    assert.equal(rgCount(), before);
+  });
+
+  await t('edition whitelist: extras dropped, HTML stays literal text', async () => {
+    const key = rgKey();
+    const edition = rgEdition({ invitation: '<b>hi</b>', hacker: 'x' });
+    const r = await rgPost({ edition }, key);
+    assert.equal(r.status, 201);
+    const token = (await r.json()).recipientToken;
+    const row = dbGet('SELECT edition_json FROM room_gifts WHERE token=?', token);
+    const stored = JSON.parse(row.edition_json);
+    assert.deepEqual(Object.keys(stored).sort(),
+      ['chair', 'dog', 'from', 'invitation', 'memory', 'postcard', 'revision', 'roomId', 'to'].sort());
+    const pub = await rgGet(`/${token}`);
+    assert.equal((await pub.json()).edition.invitation, '<b>hi</b>');
+  });
+
+  await t('GET recipient returns the exact trimmed edition, no owner data, no-store', async () => {
+    const key = rgKey();
+    const edition = rgEdition({ to: '  Sam  ' });
+    const token = (await (await rgPost({ edition }, key)).json()).recipientToken;
+    const r = await rgGet(`/${token}`);
+    assert.equal(r.status, 200);
+    assert.equal(r.headers.get('cache-control'), 'no-store');
+    const body = await r.json();
+    assert.equal(body.edition.to, 'Sam');
+    assert.deepEqual(validateShape(body), undefined);
+    function validateShape(b) {
+      const s = JSON.stringify(b);
+      return s.includes(key) || s.includes(rgSha(key)) || 'manage_hash' in b ? 'leak' : undefined;
+    }
+    // a second, different gift does not disturb the first snapshot
+    const k2 = rgKey();
+    const t2 = (await (await rgPost({ edition: rgEdition({ invitation: 'Different message.' }) }, k2)).json()).recipientToken;
+    assert.notEqual(t2, token);
+    assert.equal((await (await rgGet(`/${token}`)).json()).edition.invitation, 'Meet me where the table waits.');
+  });
+
+  await t('idempotent retry: same key+edition → same token; changed edition → 409', async () => {
+    const key = rgKey();
+    const edition = rgEdition({ to: '  Sam ' });
+    const first = await rgPost({ edition }, key);
+    const t1 = (await first.json()).recipientToken;
+    // equivalent content after normalization retries clean
+    const again = await rgPost({ edition: rgEdition({ to: 'Sam' }) }, key);
+    assert.equal(again.status, 200);
+    assert.equal((await again.json()).recipientToken, t1);
+    assert.equal(dbGet('SELECT COUNT(*) c FROM room_gifts WHERE manage_hash=?', rgSha(key)).c, 1);
+    const changed = await rgPost({ edition: rgEdition({ invitation: 'New wording.' }) }, key);
+    assert.equal(changed.status, 409);
+    // the rejected body must not have mutated the stored edition
+    const row = dbGet('SELECT edition_json FROM room_gifts WHERE token=?', t1);
+    assert.equal(JSON.parse(row.edition_json).invitation, 'Meet me where the table waits.');
+  });
+
+  await t('management key is required and must be exact', async () => {
+    const key = rgKey();
+    const token = (await (await rgPost({ edition: rgEdition() }, key)).json()).recipientToken;
+    assert.equal((await rgGet('/manage')).status, 401, 'no key');
+    assert.equal((await rgGet('/manage', rgKey())).status, 404, 'wrong key');
+    // the public recipient token is not a management capability
+    assert.equal((await rgGet('/manage', token)).status, 401, 'token as key');
+    const ok = await rgGet('/manage', key);
+    assert.equal(ok.status, 200);
+    const view = await ok.json();
+    assert.equal(view.recipientToken, token);
+    assert.equal(view.revoked, false);
+    assert.equal(view.edition.invitation, 'Meet me where the table waits.');
+    assert.ok(!JSON.stringify(view).includes(key), 'key leaked in manage view');
+    // deleting without the key changes nothing public
+    const unauth = await fetch(`${BASE}${RG}/manage`, { method: 'DELETE' });
+    assert.equal(unauth.status, 401);
+    assert.equal((await rgGet(`/${token}`)).status, 200);
+  });
+
+  await t('restart with same DB keeps recipient + management live', async () => {
+    const key = rgKey();
+    const token = (await (await rgPost({ edition: rgEdition() }, key)).json()).recipientToken;
+    await stopServer(false);
+    srv = launchServer();
+    await waitUp();
+    assert.equal((await rgGet(`/${token}`)).status, 200, 'recipient after restart');
+    const mg = await rgGet('/manage', key);
+    assert.equal(mg.status, 200, 'manage after restart');
+    assert.equal((await mg.json()).recipientToken, token);
+  });
+
+  await t('create is rate-limited at 10/IP/hour; idempotent retry still 200', async () => {
+    // limiter is in-memory: since the last restart only non-counted posts ran,
+    // so the window starts empty here
+    const firstKey = rgKey();
+    const firstEdition = rgEdition({ invitation: 'Message 0.' });
+    assert.equal((await rgPost({ edition: firstEdition }, firstKey)).status, 201);
+    for (let i = 1; i < 10; i++) {
+      const r = await rgPost({ edition: rgEdition({ invitation: `Message ${i}.` }) }, rgKey());
+      assert.equal(r.status, 201, `creation ${i}`);
+    }
+    assert.equal((await rgPost({ edition: rgEdition() }, rgKey())).status, 429);
+    // retrying an already-created edition bypasses the limiter — idempotent
+    const retry = await rgPost({ edition: firstEdition }, firstKey);
+    assert.equal(retry.status, 200, 'same-token retry must not consume quota');
+  });
+
+
+  await t('DELETE revokes: public 404, owner sees closed, no resurrection', async () => {
+    const key = rgKey();
+    const token = crypto.randomBytes(32).toString('base64url');
+    // seeded fixture — the create route's IP quota is exhausted by the rate test
+    const db0 = new DatabaseSync(join(tmp, 'test.db'));
+    db0.prepare("INSERT INTO room_gifts(token,manage_hash,room_id,room_revision,edition_json,created_at) VALUES (?,?,?,?,?,?)")
+      .run(token, rgSha(key), 'dog-dining-room', '44124720', JSON.stringify(rgEdition()), new Date().toISOString());
+    db0.close();
+    assert.equal((await rgDel(key)).status, 200);
+    assert.equal((await rgGet(`/${token}`)).status, 404);
+    const mg = await rgGet('/manage', key);
+    const view = await mg.json();
+    assert.equal(view.revoked, true);
+    assert.equal(view.edition, null);
+    assert.equal(dbGet('SELECT edition_json FROM room_gifts WHERE token=?', token).edition_json, null);
+    assert.equal((await rgDel(key)).status, 200, 'repeat delete is safe');
+    // a revoked key can never recreate or return to the old token
+    assert.equal((await rgPost({ edition: rgEdition() }, key)).status, 410);
+  });
+
+  await t('unknown/bad-shaped tokens 404; server allowlist is authoritative', async () => {
+    assert.equal((await rgGet('/nope')).status, 404);
+    assert.equal((await rgGet(`/${'A'.repeat(43)}`)).status, 404);
+    // a seeded row on a revision the allowlist does not approve must not serve
+    const db = new DatabaseSync(join(tmp, 'test.db'));
+    db.prepare("INSERT INTO room_gifts(token,manage_hash,room_id,room_revision,edition_json,created_at) VALUES (?,?,?,?,?,?)")
+      .run(crypto.randomBytes(32).toString('base64url'), rgSha(rgKey()), 'dog-dining-room', 'deadbeef',
+        JSON.stringify(rgEdition()), new Date().toISOString());
+    const badTok = db.prepare('SELECT token FROM room_gifts WHERE room_revision=?').get('deadbeef').token;
+    db.close();
+    assert.equal((await rgGet(`/${badTok}`)).status, 404);
   });
 
   await stopServer();

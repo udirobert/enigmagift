@@ -10,6 +10,7 @@ import { runPipeline, reclue } from './pipeline.js';
 import { buildWorld } from './world.js';
 import { buildPortrait, portraitMime } from './portrait.js';
 import { stripExif } from './exif.js';
+import { mountRoomGiftRoutes } from './room-gifts.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const DIST = join(HERE, '..', 'dist');
@@ -23,6 +24,7 @@ const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || [
   'https://enigmagift.netlify.app',
   'https://saved-you-a-seat--enigmagift.netlify.app',
   'https://for-you-room--enigmagift.netlify.app',
+  'https://tabletop-letter--enigmagift.netlify.app',
   'http://localhost:5173',
   'http://localhost:4183',
 ].join(','))
@@ -45,7 +47,7 @@ app.use((req, res, next) => {
   res.setHeader('Access-Control-Allow-Origin', origin);
   res.setHeader('Vary', 'Origin');
   res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PATCH,DELETE,OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   if (req.method === 'OPTIONS') return res.sendStatus(204);
   next();
 });
@@ -318,6 +320,9 @@ function trailPayload(t, gift) {
 // ---------- routes ----------
 
 app.get('/api/health', (_req, res) => res.json({ ok: true }));
+
+// Tabletop room-gift pilot links: private recipient links + owner management.
+mountRoomGiftRoutes(app, { db, limitOr429 });
 
 function handleGiftCreate(req, res, packIdParam = null) {
   req.giftId = crypto.randomUUID();
