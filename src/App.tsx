@@ -11,6 +11,7 @@ import { Hide } from './scenes/Hide';
 import { Seal } from './scenes/Seal';
 import { Round } from './scenes/Round';
 import { Reveal } from './scenes/Reveal';
+import { Dash } from './scenes/Dash';
 
 /* Stripe return: checkout opens in a new tab, so the gift context lives in
    localStorage (shared across tabs on this origin) — ?paid=1 resumes at Seal. */
@@ -52,7 +53,8 @@ export type SceneId =
   | 'r1'
   | 'r2'
   | 'r3'
-  | 'reveal';
+  | 'reveal'
+  | 'dash';
 
 export type Direction = GiftDirection;
 
@@ -61,6 +63,7 @@ export default function App() {
   // real gift token and no Stripe paid return is in play.
   const [scene, setScene] = useState<SceneId>(() => {
     const params = new URLSearchParams(window.location.search);
+    if (params.get('g') && !tokenFromUrl()) return 'dash';
     return !tokenFromUrl() && !params.has('paid') && params.get('miniature') === '1' ? 'reveal' : 'door';
   });
   const [photos, setPhotos] = useState<string[]>([]);
@@ -79,6 +82,8 @@ export default function App() {
   const [trail, setTrail] = useState<Trail | null>(null);
   // true when this session is a recipient who opened a sealed link (?t=)
   const [recipient, setRecipient] = useState(false);
+  // giver dashboard — /?g=<giftId> opens the owner view for one gift
+  const [dashId, setDashId] = useState<string | null>(null);
 
   const go = useCallback((s: SceneId) => {
     window.scrollTo(0, 0);
@@ -123,6 +128,59 @@ export default function App() {
         // unknown/expired token — stay on the Door, no crash
         if (!dead) go('door');
       });
+    return () => {
+      dead = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Giver dashboard entry: /?g=<giftId> → owner view. The id is a bearer
+  // capability, so strip it out of the URL immediately (history / Referer).
+  useEffect(() => {
+    if (tokenFromUrl()) return; // recipient link wins
+    const params = new URLSearchParams(window.location.search);
+    const g = params.get('g');
+    if (!g || !/^[A-Za-z0-9_-]+$/.test(g)) return;
+    try {
+      const clean = new URL(window.location.href);
+      clean.search = '';
+      window.history.replaceState(null, '', clean.pathname + clean.hash);
+    } catch { /* private mode */ }
+    setDashId(g);
+    go('dash');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Builder resume: /?resume=1 → pick the stashed gift back up where it left
+  // off (used by the dashboard's "continue building"). Also stripped.
+  useEffect(() => {
+    if (tokenFromUrl()) return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('resume') !== '1') return;
+    try {
+      const clean = new URL(window.location.href);
+      clean.search = '';
+      window.history.replaceState(null, '', clean.pathname + clean.hash);
+    } catch { /* private mode */ }
+    const stashed = unstashGift();
+    if (!stashed) return;
+    let dead = false;
+    getGift(stashed.id)
+      .then((g) => {
+        if (dead || !g) return;
+        setDirection(g.direction ?? stashed.direction);
+        setMode(g.mode === 'physical' ? 'physical' : stashed.mode);
+        setTier((g.tier as Tier) || stashed.tier || 'trail');
+        setGiftId(g.id);
+        setGift(g);
+        setLive(true);
+        setDemo(false);
+        if (g.packId) stashPack(g.packId);
+        // sealed/paid gifts resume at the seal (link + manage); a ready
+        // draft resumes at the editor; a still-reading one at the reading
+        go(g.status === 'reading' ? 'reading' : g.status === 'ready' ? 'editor' : 'seal');
+      })
+      .catch(() => {});
     return () => {
       dead = true;
     };
@@ -357,6 +415,9 @@ export default function App() {
       )}
       {scene === 'reveal' && (
         <Reveal demo={trailDemo} trail={trail} direction={direction} />
+      )}
+      {scene === 'dash' && dashId && (
+        <Dash giftId={dashId} onHome={() => go('door')} />
       )}
     </>
   );

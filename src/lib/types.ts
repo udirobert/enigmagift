@@ -87,6 +87,43 @@ export interface CreateGiftResult {
   status: 'reading';
 }
 
+/* ------------------------- giver dashboard ------------------------- */
+
+/** GET /api/gifts/:id/overview — status, recipient link, derived stats, events.
+ *  Never carries clues/rounds/answers/unlock hashes. */
+export interface GiftOverview {
+  gift: {
+    id: string;
+    status: GiftStatus;
+    direction?: GiftDirection;
+    tier: Tier | null;
+    mode: GiftMode;
+    paid: boolean;
+    photoCount: number;
+    worldStatus: WorldStatus;
+    portraitStatus: string;
+    packId: string | null;
+    createdAt?: string;
+  };
+  trail: {
+    token: string;
+    url: string;
+    unlocked: boolean;
+    expiresAt: string | null;
+    createdAt?: string;
+  } | null;
+  pack: { id: string; creditsLeft: number } | null;
+  stats: {
+    opened: number;
+    picks: { round: number; correct: boolean; attempts: number }[];
+    sharedBack: boolean;
+    looks: number | null;
+    mins: number | null;
+    unlocked: boolean;
+  };
+  events: { name: string; data: Record<string, unknown>; at?: string }[];
+}
+
 /* ------------------------------ trail ------------------------------ */
 
 /** One round of the recipient trail — shape from pipeline.buildRounds. */

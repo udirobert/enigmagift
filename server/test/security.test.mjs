@@ -306,6 +306,40 @@ async function main() {
     assert.equal(r.status, 409);
   });
 
+  // --- giver dashboard overview ---
+  await t('overview derives stats from events and never leaks the answer key', async () => {
+    // recipient-side events on the sealed gift (gift-scoped route — the
+    // trail token was revoked earlier in this suite, so trail-scoped events
+    // would not link back to the gift)
+    await fetch(`${BASE}/api/gifts/${giftId}/event`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ name: 'opened' }) });
+    await fetch(`${BASE}/api/gifts/${giftId}/event`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ name: 'round_1_picked', data: { choice: 1, correct: true, attempts: 1 } }) });
+    await fetch(`${BASE}/api/gifts/${giftId}/event`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ name: 'shared_back', data: { looks: 2, mins: 4 } }) });
+    const r = await fetch(`${BASE}/api/gifts/${giftId}/overview`);
+    assert.equal(r.status, 200);
+    assert.equal(r.headers.get('cache-control'), 'no-store');
+    const o = await r.json();
+    // the trail row may have been re-issued after the revoke test re-sealed —
+    // assert structure, not a specific token
+    assert.ok(o.trail.token, 'trail token present');
+    assert.equal(o.trail.url, `/t/${o.trail.token}`);
+    // earlier trail GETs in this suite also logged 'opened', so >= not ===
+    assert.ok(o.stats.opened >= 1, 'opened count derived');
+    assert.ok(o.stats.picks.length >= 1 && o.stats.picks.some((p) => p.correct), 'picks derived');
+    assert.equal(o.stats.sharedBack, true);
+    assert.equal(o.stats.mins, 4);
+    assert.ok(Array.isArray(o.events) && o.events.length > 0);
+    // no answer key / unlock material in the payload
+    const raw = JSON.stringify(o);
+    assert.ok(!raw.includes('unlock_hash'), 'unlock hash leaked');
+    assert.ok(!raw.includes('"answers"'), 'trail answers leaked');
+    assert.ok(!raw.includes('scrypt$'), 'scrypt hash leaked');
+  });
+
+  await t('overview of unknown gift → 404', async () => {
+    const r = await fetch(`${BASE}/api/gifts/nope/overview`);
+    assert.equal(r.status, 404);
+  });
+
   await t('API JSON responses are no-store; static hashed assets are immutable', async () => {
     const h = await fetch(`${BASE}/api/health`);
     assert.equal(h.headers.get('cache-control'), 'no-store');

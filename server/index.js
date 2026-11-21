@@ -354,6 +354,81 @@ app.get('/api/gifts/:id', (req, res) => {
   res.json(giftPayload(g));
 });
 
+// Giver dashboard overview — the gift id is the bearer capability (same trust
+// model as GET /api/gifts/:id). Deliberately excludes clues/rounds/answers/
+// unlock hashes: this payload is for status, link management and the event
+// feed, never for the answer key.
+app.get('/api/gifts/:id/overview', (req, res) => {
+  if (limitOr429(res, `overview:${req.params.id}`, 30, 60 * 60 * 1000)) return;
+  const g = getGift(req.params.id);
+  if (!g) return res.status(404).json({ error: 'not found' });
+  const trail = db
+    .prepare('SELECT token, unlocked, expires_at, created_at FROM trails WHERE gift_id=?')
+    .get(g.id);
+  const pack = g.pack_id
+    ? db.prepare('SELECT id, credits_left FROM packs WHERE id=?').get(g.pack_id)
+    : db.prepare('SELECT id, credits_left FROM packs WHERE purchase_gift_id=?').get(g.id);
+  const events = db
+    .prepare('SELECT name, data, created_at FROM events WHERE gift_id=? ORDER BY id DESC LIMIT 100')
+    .all(g.id)
+    .map((e) => ({ name: e.name, data: safeParse(e.data), at: e.created_at }));
+  // recipient progress, derived from the funnel events
+  const picks = [];
+  let shared = null;
+  let opened = 0;
+  let unlockedEvent = false;
+  for (const e of events) {
+    const m = e.name.match(/^round_(\d+)_picked$/);
+    if (m && e.data) {
+      picks.push({
+        round: Number(m[1]),
+        correct: !!e.data.correct,
+        attempts: Number(e.data.attempts ?? 1),
+      });
+    } else if (e.name === 'shared_back') {
+      shared = e.data || {};
+    } else if (e.name === 'opened') {
+      opened += 1;
+    } else if (e.name === 'unlocked') {
+      unlockedEvent = true;
+    }
+  }
+  res.json({
+    gift: {
+      id: g.id,
+      status: g.status,
+      direction: g.direction,
+      tier: g.tier ?? null,
+      mode: g.mode ?? 'physical',
+      paid: !!g.paid,
+      photoCount: g.photo_count,
+      worldStatus: g.world_status ?? 'pending',
+      portraitStatus: g.portrait_status ?? 'pending',
+      packId: g.pack_id ?? null,
+      createdAt: g.created_at,
+    },
+    trail: trail
+      ? {
+          token: trail.token,
+          url: `/t/${trail.token}`,
+          unlocked: !!trail.unlocked,
+          expiresAt: trail.expires_at ?? null,
+          createdAt: trail.created_at,
+        }
+      : null,
+    pack: pack ? { id: pack.id, creditsLeft: pack.credits_left } : null,
+    stats: {
+      opened,
+      picks: picks.reverse(), // chronological
+      sharedBack: !!shared,
+      looks: shared?.looks ?? null,
+      mins: shared?.mins ?? null,
+      unlocked: !!trail?.unlocked || unlockedEvent,
+    },
+    events: events.reverse(), // chronological, latest at the end
+  });
+});
+
 app.patch('/api/gifts/:id/clues', (req, res) => {
   const g = getGift(req.params.id);
   if (!g) return res.status(404).json({ error: 'not found' });

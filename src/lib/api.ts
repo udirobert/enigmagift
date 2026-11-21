@@ -10,6 +10,7 @@ import type {
   Gift,
   GiftDirection,
   GiftMode,
+  GiftOverview,
   SealResult,
   Tier,
   Trail,
@@ -17,7 +18,7 @@ import type {
 } from './types';
 
 // Re-export the view types scenes import from here.
-export type { ApiClue, Clue, Gift, GiftDirection, GiftMode, HideSpot, SealResult, Tier, Trail, TrailRound, ApiObservation, ObsItem, WorldStatus } from './types';
+export type { ApiClue, Clue, Gift, GiftDirection, GiftMode, GiftOverview, HideSpot, SealResult, Tier, Trail, TrailRound, ApiObservation, ObsItem, WorldStatus } from './types';
 
 // Same-origin by default: in dev Vite proxies /api → the server (see
 // vite.config.ts); in prod the server hosts this build, so relative works.
@@ -226,6 +227,11 @@ export function logTrailEvent(token: string, name: string, data?: unknown): void
 /** GET /api/gifts/:id */
 export async function getGift(id: string): Promise<Gift> {
   return request<Gift>(`/api/gifts/${encodeURIComponent(id)}`);
+}
+
+/** GET /api/gifts/:id/overview — giver dashboard payload (no answer key) */
+export async function getGiftOverview(id: string): Promise<GiftOverview> {
+  return request<GiftOverview>(`/api/gifts/${encodeURIComponent(id)}/overview`);
 }
 
 /** PATCH /api/gifts/:id/clues — {keepIds, edits:{id:text}} */

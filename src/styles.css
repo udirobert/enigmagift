@@ -1239,6 +1239,33 @@ img { display: block; max-width: 100%; }
   height: 5.4rem;
   color: var(--paper);
 }
+.qr-glyph-lg { width: 7.5rem; height: 7.5rem; }
+
+/* ------------------------- giver dashboard (/ ?g=) ------------------------ */
+.dash-inner { max-width: 40rem; gap: 1.1rem; justify-content: flex-start; padding-top: 8vh; }
+.dash-lede { max-width: 34rem; }
+.dash-status {
+  font-family: var(--mono); font-size: 0.66rem; letter-spacing: 0.14em;
+  text-transform: uppercase; padding: 0.15rem 0.5rem; border-radius: 999px;
+  border: 1px solid var(--line-strong); color: var(--paper-faint);
+}
+.dash-status-paid, .dash-status-sealed { color: var(--gold); border-color: var(--gold); }
+.dash-card {
+  border: 1px solid var(--line); border-radius: 12px; padding: 1rem 1.2rem;
+  display: flex; flex-direction: column; gap: 0.55rem; align-items: flex-start;
+  background: rgba(243, 234, 217, 0.03);
+}
+.dash-card .kicker { color: var(--rust-soft); }
+.dash-link-row { display: flex; align-items: center; gap: 0.8rem; flex-wrap: wrap; }
+.dash-link { font-size: 0.78rem; color: var(--paper); word-break: break-all; }
+.dash-qr { display: flex; align-items: center; gap: 0.8rem; }
+.dash-qr-note, .dash-note { font-size: 0.64rem; color: var(--paper-faint); letter-spacing: 0.08em; }
+.dash-stats { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.3rem; font-size: 0.86rem; color: var(--paper); }
+.dash-events { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.3rem; max-height: 15rem; overflow-y: auto; width: 100%; }
+.dash-events li { display: flex; justify-content: space-between; gap: 1rem; font-size: 0.68rem; color: var(--paper-faint); }
+.dash-event-at { flex-shrink: 0; opacity: 0.7; }
+.dash-manage { max-width: none; align-items: flex-start; }
+.dash-cta { display: flex; justify-content: center; margin-top: 0.6rem; }
 .qr-label {
   font-family: var(--mono);
   font-size: 0.62rem;

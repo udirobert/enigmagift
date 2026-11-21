@@ -275,6 +275,11 @@ export function Seal({ demo, giftId, kept, tier, mode, onSend, onTier }: SealPro
                   revoke link
                 </button>
               )}
+              {giftId && (
+                <a className="demo-link" href={`/?g=${giftId}`}>
+                  giver dashboard →
+                </a>
+              )}
               <button className="demo-link seal-danger" onClick={() => void remove()}>
                 delete gift
               </button>

@@ -70,6 +70,16 @@ Scene order in code: WatchIt → Door → Reading → Editor → [Hide] → Seal
 R1 → R2 → R3 → Reveal (state machine in `src/App.tsx`, no router; the Hide
 scene is skipped for digital gifts).
 
+**Giver dashboard** — `/?g=<giftId>` (linked from the Seal's manage row) is
+the owner view: live recipient link + copy + QR, status pill, recipient
+progress derived from funnel events (opens, per-round picks, unlock,
+note-back), the humanized event feed, pack credits for The Set, and manage
+actions (revoke / delete / what's stored). The gift id is the bearer
+capability — the `?g=` query is stripped from the URL on load so it never
+lingers in history or leaks via Referer. Polls with backoff (6s→30s) so a
+giver watching live sees rounds land. Unsealed drafts get a
+"continue building" button that resumes the builder via `/?resume=1`.
+
 ## Stack
 
 - **Frontend** — Vite + React + TypeScript, GSAP + Lenis. Scene state
@@ -139,6 +149,7 @@ Frontend env (build-time):
 | `GET /api/health` | liveness |
 | `POST /api/gifts` | multipart `photos` (5–12, field name `photos`) + `direction` + `mode` (`digital`\|`physical`) + `tier` (`trail`\|`hide`\|`set`) + optional `packId` → `{giftId}`. Rate-limited per IP |
 | `GET /api/gifts/:id` | gift payload (clues, hideSpots, throughline, rounds, mode, tier) |
+| `GET /api/gifts/:id/overview` | giver-dashboard payload: status, trail link, pack, stats derived from events, recent events. **Never includes clues/rounds/answers/unlock hashes.** Rate-limited, `no-store` |
 | `PATCH /api/gifts/:id/clues` | `{keepIds, edits}` buyer approval |
 | `PATCH /api/gifts/:id/tier` | `{tier: trail\|hide, mode}` — mid-flow upsell pre-seal; `409` once sealed/paid, `400` for other tiers |
 | `POST /api/gifts/:id/reclue` | `{notes}` — re-run the cross-image pass with buyer notes; regenerates clues/rounds (bounded to 2 pre-payment) |
