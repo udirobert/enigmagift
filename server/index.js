@@ -344,6 +344,10 @@ app.delete('/api/gifts/:id', (req, res) => {
   db.prepare('DELETE FROM clues WHERE gift_id=?').run(g.id);
   db.prepare('DELETE FROM hide_spots WHERE gift_id=?').run(g.id);
   db.prepare('DELETE FROM trails WHERE gift_id=?').run(g.id);
+  // a Set purchase gift owns a pack row (FK) — remove it, and detach any
+  // child hunts that were spawned from that pack
+  db.prepare('UPDATE gifts SET pack_id=NULL WHERE pack_id IN (SELECT id FROM packs WHERE purchase_gift_id=?)').run(g.id);
+  db.prepare('DELETE FROM packs WHERE purchase_gift_id=?').run(g.id);
   db.prepare('DELETE FROM gifts WHERE id=?').run(g.id);
   try { rmSync(join(UPLOADS_DIR, g.id), { recursive: true, force: true }); } catch {}
   logEvent(g.id, null, 'deleted', { status: g.status });

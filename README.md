@@ -118,7 +118,9 @@ Frontend env (build-time):
 
 - `VITE_STRIPE_LINK_TRAIL` / `VITE_STRIPE_LINK_HIDE` / `VITE_STRIPE_LINK_SET` —
   the three Payment Link URLs (legacy single `VITE_STRIPE_LINK` still works and
-  maps to the Hide link). Set in Pages/Netlify env vars.
+  maps to the Hide link). Build-time only — pass them on the `npm run build`
+  command line (see `notes/OPS.md` for the live URLs); Pages/Netlify runtime
+  env vars do NOT reach a prebuilt Vite bundle.
 - `VITE_API_URL` — optional; defaults to same-origin `/api`.
 
 ## API

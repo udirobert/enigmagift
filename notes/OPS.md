@@ -1,6 +1,6 @@
 # EnigmaGift — ops runbook
 
-Last verified live: 2026-11-18. This is the "how to operate it" doc: deploys,
+Last verified live: 2026-11-21. This is the "how to operate it" doc: deploys,
 secrets, the gotchas that actually bit us, and how to verify the live flow.
 
 ---
@@ -142,12 +142,13 @@ If a link is missing, that tier's seal button shows a disabled
 
 ---
 
-## Stripe: three payment links + one webhook (last sales step)
+## Stripe: three payment links + one webhook (last sales step) — LIVE since 2026-11-21
 
-The seal page (`src/scenes/Seal.tsx`) maps the chosen tier to its Payment Link
+Live mode, account **EnigmaGift** (`acct_1Gl9hELt1uz9HoCm`). The seal page
+(`src/scenes/Seal.tsx`) maps the chosen tier to its Payment Link
 (`VITE_STRIPE_LINK_TRAIL` £4.99 / `_HIDE` £9.99 / `_SET` £19; legacy
 `VITE_STRIPE_LINK` maps to Hide) and opens it in a new tab with
-`client_reference_id=<giftId>`. Each link's **success URL** must be:
+`client_reference_id=<giftId>`. Each link's **success URL** is:
 
 ```
 https://enigmagift.pages.dev/?paid=1&sid={CHECKOUT_SESSION_ID}
@@ -156,22 +157,45 @@ https://enigmagift.pages.dev/?paid=1&sid={CHECKOUT_SESSION_ID}
 The app detects `?paid=1` on return (or on window focus), calls
 `POST /api/gifts/:id/mark-paid`, then `POST /api/gifts/:id/seal`.
 
-**The webhook is the source of truth for `paid`.** Configure in the Stripe
-dashboard → Webhooks:
+**Payment Links (live, GBP, one-off):**
 
-- Endpoint URL: `https://enigmagift-api.fly.dev/api/stripe/webhook`
-- Events: `checkout.session.completed`
-- Copy the signing secret into Fly as `STRIPE_WEBHOOK_SECRET`.
+| Tier | Price | Payment Link | Product |
+|---|---|---|---|
+| The Trail (digital) | £4.99 | `https://buy.stripe.com/cNi6oIgAj4mSa63acb8EM02` | EnigmaGift The Trail |
+| The Hide (physical + code) | £9.99 | `https://buy.stripe.com/6oU9AUesb1aGcebckj8EM03` | EnigmaGift The Hide |
+| The Set (3-hunt pack) | £19.00 | `https://buy.stripe.com/7sYfZiabV6v0emj0BB8EM04` | EnigmaGift The Set |
 
-On `checkout.session.completed` the server verifies the signature, checks the
-amount against the tier's expected price, sets `paid=1`, and for a **Set**
-payment creates a 3-credit `packs` row linked to the gift. `mark-paid` remains
-as a fallback and, when `STRIPE_API_KEY` is set, verifies the session via the
-Stripe API instead of trusting the client.
+**Webhook destination** (Workbench): `we_1UeCkTLt1uz9HoCmDJXgjDYr` ("enigmagift-paid"),
+URL `https://enigmagift-api.fly.dev/api/stripe/webhook`, listening to
+`checkout.session.completed`, Active. Signing secret is stored as the Fly
+secret `STRIPE_WEBHOOK_SECRET` (reveal it in the dashboard under the
+destination's "Signing secret" if it ever needs rotating — Stripe may ask for
+a 6-digit authenticator code to reveal/roll it).
+
+**The webhook is the source of truth for `paid`.** On
+`checkout.session.completed` the server verifies the HMAC signature, checks
+`amount_total` against the tier's expected price (`TIER_PRICE_PENCE` =
+499/999/1900), sets `paid=1`, and for a **Set** payment creates a 3-credit
+`packs` row linked to the gift. `mark-paid` remains as a fallback and, when
+`STRIPE_API_KEY` is set, verifies the session via the Stripe API instead of
+trusting the client (no API key yet — see below).
+
+Verified live 2026-11-21 (signed test events against the production endpoint
+with the real `whsec_…`): valid signature → `{"received":true}` + `paid:true`;
+bad signature → 400; wrong amount → 400; Set payment → `paid:true` +
+`packId` created. Frontend rebuilt with the three `VITE_STRIPE_LINK_*` URLs
+inlined and redeployed to Pages (confirmed in the live bundle).
+
+Known loose end: a junk product "undefined" £0.00 (`prod_VfXk2WAxA7qyET`)
+exists from link creation — harmless (no link points at it), archive it via
+`POST /v1/products/prod_VfXk2WAxA7qyET` with `active=false` once a restricted
+API key exists (dashboard archive is hidden; creating a key may trigger
+authenticator verification). Also optional: a restricted **API key**
+(Checkout sessions: read) as `STRIPE_API_KEY` so `mark-paid` verifies
+server-side.
 
 Fallback UX: if the success URL isn't set, the buyer gets an "I've paid" nudge
-button on the seal page that completes the flow manually. Confirm in the
-dashboard that all three links are active at the right GBP amounts.
+button on the seal page that completes the flow manually.
 
 ---
 
@@ -223,6 +247,13 @@ curl -s -X POST https://enigmagift-api.fly.dev/api/gifts/<id>/world-source \
 # funnel events
 curl -s -X POST https://enigmagift-api.fly.dev/api/gifts/<id>/event \
   -H 'content-type: application/json' -d '{"name":"editor_done"}'
+
+# webhook smoke test (sign a fake checkout.session.completed with the real secret)
+SECRET=$(fly -a enigmagift-api secrets list >/dev/null 2>&1 && echo "<whsec from fly secret>")
+PAYLOAD='{"type":"checkout.session.completed","data":{"object":{"id":"cs_test_1","client_reference_id":"<id>","amount_total":499}}}'
+SIG=$(node -e 'const c=require("crypto"),t=Math.floor(Date.now()/1000);console.log("t="+t+",v1="+c.createHmac("sha256",process.argv[1]).update(t+"."+process.argv[2]).digest("hex"))' "$SECRET" "$PAYLOAD")
+curl -s -X POST https://enigmagift-api.fly.dev/api/stripe/webhook \
+  -H 'content-type: application/json' -H "Stripe-Signature: $SIG" -d "$PAYLOAD"   # {"received":true}; bad sig / wrong amount → 400
 ```
 
 Then confirm the recipient journey in a real browser at
@@ -253,6 +284,9 @@ were derived from them at migration.
 - **`fly image list`** etc. need `-a enigmagift-api` when not in `server/`.
 - **Netlify `env:list`** is interactive (asks "Show values?") — don't pipe into it
   expecting non-interactive output.
+- **Deleting a Set purchase gift 500'd** — `packs.purchase_gift_id` has an FK to
+  `gifts` and node:sqlite enforces FKs by default. `DELETE /api/gifts/:id` now
+  detaches child hunts and removes the pack row first (fixed 2026-11-21).
 
 ---
 
