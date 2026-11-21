@@ -9,13 +9,15 @@ import type {
   CreateGiftResult,
   Gift,
   GiftDirection,
+  GiftMode,
   SealResult,
+  Tier,
   Trail,
   WorldStatus,
 } from './types';
 
 // Re-export the view types scenes import from here.
-export type { ApiClue, Clue, Gift, HideSpot, SealResult, Trail, TrailRound, ApiObservation, ObsItem, WorldStatus } from './types';
+export type { ApiClue, Clue, Gift, GiftDirection, GiftMode, HideSpot, SealResult, Tier, Trail, TrailRound, ApiObservation, ObsItem, WorldStatus } from './types';
 
 // Same-origin by default: in dev Vite proxies /api → the server (see
 // vite.config.ts); in prod the server hosts this build, so relative works.
@@ -85,15 +87,140 @@ export async function apiHealthy(): Promise<boolean> {
   }
 }
 
-/** POST /api/gifts — multipart photos[] + direction → {giftId, status:'reading'} */
+/**
+ * Downscale an upload to max ~1280px JPEG before it leaves the browser —
+ * the vision pass is priced per token, and drafts are read pre-payment.
+ * Falls back to the original file if anything goes wrong.
+ */
+async function downscaleForUpload(file: File): Promise<Blob> {
+  const MAX = 1280;
+  try {
+    const bmp = await createImageBitmap(file);
+    if (Math.max(bmp.width, bmp.height) <= MAX) {
+      bmp.close();
+      return file;
+    }
+    const scale = MAX / Math.max(bmp.width, bmp.height);
+    const w = Math.max(1, Math.round(bmp.width * scale));
+    const h = Math.max(1, Math.round(bmp.height * scale));
+    const canvas = document.createElement('canvas');
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) {
+      bmp.close();
+      return file;
+    }
+    ctx.drawImage(bmp, 0, 0, w, h);
+    bmp.close();
+    const blob = await new Promise<Blob | null>((res) =>
+      canvas.toBlob((b) => res(b), 'image/jpeg', 0.85),
+    );
+    return blob ?? file;
+  } catch {
+    return file;
+  }
+}
+
+export interface CreateGiftOpts {
+  mode?: GiftMode;
+  tier?: Tier | null;
+  packId?: string | null;
+}
+
+/** POST /api/gifts — multipart photos[] + direction + mode/tier → {giftId, status:'reading'} */
 export async function createGift(
   photos: File[],
   direction: GiftDirection,
+  opts: CreateGiftOpts = {},
 ): Promise<CreateGiftResult> {
   const form = new FormData();
-  photos.forEach((f) => form.append('photos', f, f.name));
+  const downscaled = await Promise.all(photos.map((f) => downscaleForUpload(f)));
+  downscaled.forEach((b, i) => {
+    const name = (b instanceof File ? b.name : photos[i].name.replace(/\.[^.]+$/, '')) + '.jpg';
+    form.append('photos', b, name);
+  });
   form.append('direction', direction);
+  form.append('mode', opts.mode ?? 'digital');
+  if (opts.tier) form.append('tier', opts.tier);
+  if (opts.packId) form.append('packId', opts.packId);
   return request<CreateGiftResult>('/api/gifts', { method: 'POST', body: form });
+}
+
+/** POST /api/packs/:id/gifts — same multipart body, consumes one pack credit */
+export async function createPackGift(
+  packId: string,
+  photos: File[],
+  direction: GiftDirection,
+  opts: CreateGiftOpts = {},
+): Promise<CreateGiftResult> {
+  const form = new FormData();
+  const downscaled = await Promise.all(photos.map((f) => downscaleForUpload(f)));
+  downscaled.forEach((b, i) => {
+    const name = (b instanceof File ? b.name : photos[i].name.replace(/\.[^.]+$/, '')) + '.jpg';
+    form.append('photos', b, name);
+  });
+  form.append('direction', direction);
+  form.append('mode', opts.mode ?? 'digital');
+  if (opts.tier) form.append('tier', opts.tier);
+  return request<CreateGiftResult>(`/api/packs/${encodeURIComponent(packId)}/gifts`, {
+    method: 'POST',
+    body: form,
+  });
+}
+
+/** GET /api/packs/:id — {creditsLeft, children, ...} */
+export async function getPack(id: string): Promise<{ id: string; creditsLeft: number; purchaseGiftId: string; children: unknown[]; createdAt: string }> {
+  return request(`/api/packs/${encodeURIComponent(id)}`);
+}
+
+/** POST /api/gifts/:id/reclue — {notes} → {ok, gift} re-derived clues/rounds */
+export async function reclueGift(id: string, notes: string): Promise<{ ok: boolean; gift: Gift }> {
+  return request(`/api/gifts/${encodeURIComponent(id)}/reclue`, {
+    method: 'POST',
+    body: JSON.stringify({ notes }),
+  });
+}
+
+/** POST /api/gifts/:id/world-source — {index} pick the photo that becomes the 3D world */
+export async function setWorldSource(id: string, index: number): Promise<{ ok: boolean; worldSource: number; rebuilding: boolean }> {
+  return request(`/api/gifts/${encodeURIComponent(id)}/world-source`, {
+    method: 'POST',
+    body: JSON.stringify({ index }),
+  });
+}
+
+/** DELETE /api/gifts/:id — giver deletes a draft or a whole gift + link */
+export async function deleteGift(id: string): Promise<void> {
+  await request(`/api/gifts/${encodeURIComponent(id)}`, { method: 'DELETE' });
+}
+
+/* ------------------------------ pack stash ------------------------------ */
+
+const PACK_KEY = 'enigmagift.pack.v1';
+
+export function stashPack(packId: string): void {
+  try { localStorage.setItem(PACK_KEY, packId); } catch { /* private mode */ }
+}
+
+export function unstashPack(): string | null {
+  try { return localStorage.getItem(PACK_KEY); } catch { return null; }
+}
+
+/* ------------------------------- events ------------------------------ */
+
+export function logGiftEvent(id: string, name: string, data?: unknown): void {
+  request(`/api/gifts/${encodeURIComponent(id)}/event`, {
+    method: 'POST',
+    body: JSON.stringify({ name, data: data ?? null }),
+  }).catch(() => {});
+}
+
+export function logTrailEvent(token: string, name: string, data?: unknown): void {
+  request(`/api/trail/${encodeURIComponent(token)}/event`, {
+    method: 'POST',
+    body: JSON.stringify({ name, data: data ?? null }),
+  }).catch(() => {});
 }
 
 /** GET /api/gifts/:id */

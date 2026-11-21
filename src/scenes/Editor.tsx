@@ -4,11 +4,12 @@ import { CLUES, mockGallery } from '../data';
 import { prefersReducedMotion, seeded } from '../lib/motion';
 import { Photo } from '../components/Photo';
 import { aspectKnown, bboxToCrop, useImageAspect } from '../lib/crop';
-import { updateClues, type ApiClue, type Gift, type HideSpot } from '../lib/api';
+import { reclueGift, setWorldSource, updateClues, type ApiClue, type Gift, type GiftMode, type HideSpot } from '../lib/api';
 
 interface EditorProps {
   demo: boolean;
   gift: Gift | null;
+  mode: GiftMode;
   /** kept count + the hide spot the buyer chose (null = "somewhere else") */
   onSeal: (kept: number, hideSpot: HideSpot | null) => void;
 }
@@ -45,9 +46,12 @@ function ClueCrop({
   );
 }
 
-export function Editor({ demo, gift, onSeal }: EditorProps) {
+export function Editor({ demo, gift, mode, onSeal }: EditorProps) {
   const rootRef = useRef<HTMLElement>(null);
-  const real = !demo && !!gift && !!gift.clues?.length;
+  // local copy so a reclue can refresh the proposals in place
+  const [g, setG] = useState<Gift | null>(gift);
+  useEffect(() => setG(gift), [gift]);
+  const real = !demo && !!g && !!g.clues?.length;
 
   // one view shape for both real (pipeline) and mock (demo) clues
   const clues: {
@@ -59,10 +63,10 @@ export function Editor({ demo, gift, onSeal }: EditorProps) {
     zoom?: number;
     focus?: string;
   }[] = real
-    ? (gift!.clues as ApiClue[]).map((c) => ({
+    ? (g!.clues as ApiClue[]).map((c) => ({
         id: c.id,
         text: c.text,
-        kind: 'seen',
+        kind: c.kind === 'inferred' ? 'inferred' : 'seen',
         photoIndex: c.photoIndex ?? 0,
         bbox: c.bbox as [number, number, number, number] | undefined,
       }))
@@ -80,14 +84,45 @@ export function Editor({ demo, gift, onSeal }: EditorProps) {
   const [hideIdx, setHideIdx] = useState<number | null>(0);
   const [sealing, setSealing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // which photo becomes the 3D world of the place
+  const [worldSrc, setWorldSrc] = useState<number>(g?.worldSource ?? 0);
+  // re-derive the clues with buyer notes (bounded server-side pre-payment)
+  const [reclueOpen, setReclueOpen] = useState(false);
+  const [notes, setNotes] = useState('');
+  const [recluing, setRecluing] = useState(false);
+  const [reclueMsg, setReclueMsg] = useState<string | null>(null);
 
-  const hideSpots = real ? (gift!.hideSpots ?? []) : [];
+  const hideSpots = real ? (g!.hideSpots ?? []) : [];
   const kept = status.filter((s) => s === 'in').length;
 
   // gallery for mock crops; real crops come from /api/photo
   const mockGalleryUrls = mockGallery();
   const photoUrl = (i: number) =>
-    real ? `/api/photo/${gift!.id}/${i}` : mockGalleryUrls[i] ?? mockGalleryUrls[0];
+    real ? `/api/photo/${g!.id}/${i}` : mockGalleryUrls[i] ?? mockGalleryUrls[0];
+
+  const pickWorld = (i: number) => {
+    setWorldSrc(i);
+    if (real) setWorldSource(g!.id, i).catch(() => {});
+  };
+
+  const doReclue = async () => {
+    if (!real || recluing) return;
+    setRecluing(true);
+    setReclueMsg(null);
+    try {
+      const r = await reclueGift(g!.id, notes);
+      setG(r.gift);
+      setStatus((r.gift.clues ?? []).map(() => 'in'));
+      setEdits({});
+      setReclueOpen(false);
+      setNotes('');
+      setReclueMsg('re-derived — approve the new clues');
+    } catch (e: any) {
+      setReclueMsg(e.message || 'couldn’t re-derive — try again');
+    } finally {
+      setRecluing(false);
+    }
+  };
 
   useEffect(() => {
     const ctx = gsap.context(() => {
@@ -136,7 +171,7 @@ export function Editor({ demo, gift, onSeal }: EditorProps) {
           const t = clueText(i);
           if (t !== clues[i].text) ed[clues[i].id] = t;
         });
-        await updateClues(gift!.id, keepIds, ed);
+        await updateClues(g!.id, keepIds, ed);
       } catch (e: any) {
         setError(e.message || 'couldn’t save — try again');
         setSealing(false);
@@ -224,7 +259,65 @@ export function Editor({ demo, gift, onSeal }: EditorProps) {
           })}
         </div>
 
-        {real && hideSpots.length > 0 && (
+        {real && (
+          <div className="hide-picker clue-card" style={{ rotate: '-0.3deg' }}>
+            <div className="clue-body">
+              <p className="clue-kicker">which photo becomes the world?</p>
+              <div className="world-src-row" role="radiogroup" aria-label="world source photo">
+                {Array.from({ length: g!.photoCount }, (_, i) => (
+                  <label
+                    key={i}
+                    className={`world-src-opt ${worldSrc === i ? 'is-active' : ''}`}
+                  >
+                    <input
+                      type="radio"
+                      name="world-src"
+                      checked={worldSrc === i}
+                      onChange={() => pickWorld(i)}
+                    />
+                    <img src={photoUrl(i)} alt={`photo ${i + 1}`} />
+                  </label>
+                ))}
+              </div>
+              <p className="foot-note">
+                the reveal builds a 3D world from this photograph — pick the
+                clearest, most iconic shot
+              </p>
+            </div>
+          </div>
+        )}
+
+        {real && (
+          <div className="reclue clue-card" style={{ rotate: '0.3deg' }}>
+            <div className="clue-body">
+              <button className="demo-link" onClick={() => setReclueOpen((v) => !v)}>
+                {reclueOpen ? 'close' : 'something isn’t right? tell the agent →'}
+              </button>
+              {reclueOpen && (
+                <>
+                  <textarea
+                    className="clue-text is-editable"
+                    rows={2}
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                    placeholder="e.g. the door is green, not blue — the bench faces the water…"
+                    aria-label="corrections for the agent"
+                  />
+                  <button
+                    className="btn btn-secondary"
+                    onClick={doReclue}
+                    disabled={recluing || !notes.trim()}
+                  >
+                    {recluing ? 're-reading your photos…' : 're-derive the clues'}
+                  </button>
+                </>
+              )}
+              {reclueMsg && <p className="foot-note" aria-live="polite">{reclueMsg}</p>}
+            </div>
+          </div>
+        )}
+
+        {real && mode === 'physical' && hideSpots.length > 0 && (
           <div className="hide-picker clue-card" style={{ rotate: '0.4deg' }}>
             <div className="clue-body">
               <p className="clue-kicker">and where will you hide it?</p>
@@ -262,7 +355,7 @@ export function Editor({ demo, gift, onSeal }: EditorProps) {
             {error ??
               (kept === 0
                 ? 'nothing kept — the gift needs at least one true thing'
-                : `${kept} clue${kept === 1 ? '' : 's'} kept · now go hide it`)}
+                : `${kept} clue${kept === 1 ? '' : 's'} kept · ${mode === 'physical' ? 'now go hide it' : 'ready to seal'}`)}
           </p>
           <button className="btn btn-primary" onClick={seal} disabled={kept === 0 || sealing}>
             {sealing ? 'sealing…' : 'seal it →'}

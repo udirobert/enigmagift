@@ -5,6 +5,7 @@ import {
   WorldBackdrop,
   type WorldBackdropHandle,
 } from '../components/WorldBackdrop';
+import { getPack, unstashPack, type Tier } from '../lib/api';
 import type { Direction } from '../App';
 
 const isFileDrag = (e: DragEvent) =>
@@ -15,9 +16,18 @@ interface DoorProps {
   onWatch: () => void;
   direction: Direction;
   onDirection: (d: Direction) => void;
+  /** chosen tier — trail £4.99 (digital, default) · hide £9.99 (physical) · set £19 (pack of 3) */
+  tier: Tier;
+  onTier: (t: Tier) => void;
   /** land on the dock (after the story's "make one") rather than the cold-open */
   initialSection?: 'hero' | 'start';
 }
+
+const TIER_HINT: Record<Tier, string> = {
+  trail: 'fully digital — sealed and sent in five minutes',
+  hide: 'you hide something real at the place, with the code inside',
+  set: 'three hunts from one purchase — for different people',
+};
 
 /**
  * The landing — one scene, one place, almost no words. A single photograph
@@ -31,6 +41,8 @@ export function Door({
   onWatch,
   direction,
   onDirection,
+  tier,
+  onTier,
   initialSection = 'hero',
 }: DoorProps) {
   const inputRef = useRef<HTMLInputElement>(null);
@@ -43,6 +55,16 @@ export function Door({
   const [count, setCount] = useState(0);
   const [phase, setPhase] = useState<'photo' | 'world'>('photo');
   const [dockPulse, setDockPulse] = useState(false);
+  // an active Set pack (from a previous £19 purchase) — this hunt comes out of it
+  const [packCredits, setPackCredits] = useState<number | null>(null);
+
+  useEffect(() => {
+    const id = unstashPack();
+    if (!id) return;
+    getPack(id)
+      .then((p) => setPackCredits(p.creditsLeft))
+      .catch(() => setPackCredits(null));
+  }, []);
 
   const handleFiles = useCallback(
     (files: FileList | null) => {
@@ -231,6 +253,46 @@ export function Door({
               for me
             </button>
           </div>
+          <div
+            className="seg dock-seg dock-tier"
+            role="group"
+            aria-label="which gift"
+          >
+            <button
+              className={tier === 'trail' ? 'is-active' : ''}
+              onClick={(e) => {
+                e.stopPropagation();
+                onTier('trail');
+              }}
+            >
+              the trail · £4.99
+            </button>
+            <button
+              className={tier === 'hide' ? 'is-active' : ''}
+              onClick={(e) => {
+                e.stopPropagation();
+                onTier('hide');
+              }}
+            >
+              the hide · £9.99
+            </button>
+            <button
+              className={tier === 'set' ? 'is-active' : ''}
+              onClick={(e) => {
+                e.stopPropagation();
+                onTier('set');
+              }}
+            >
+              the set · £19
+            </button>
+          </div>
+          <p className="dock-tier-hint">{TIER_HINT[tier]}</p>
+          {packCredits != null && packCredits > 0 && (
+            <p className="dock-pack-note">
+              set pack active — {packCredits} hunt{packCredits === 1 ? '' : 's'}{' '}
+              left; this one comes out of the pack
+            </p>
+          )}
         </div>
 
         {/* the promise, live — tracks the backdrop's photo ⇄ world loop */}

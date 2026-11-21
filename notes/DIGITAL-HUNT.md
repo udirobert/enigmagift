@@ -12,15 +12,19 @@ Exploring is free and unordered. Each marked object gives a small reward of its 
 
 Only an explicit guess uses one of three chances. Misses progressively narrow the choices. The last miss offers a guided reveal, and ‘open my gift’ is always available. A paid reward is never lost. Let people revisit the other memories after finding it. Prepare hints once at creation, not via a paid model call on each tap. Keep redemption links out of previews, analytics and NPC context; explain who can open the shared link and how the giver can delete it. No gift-card issuance, custody or redemption guarantee in the pilot.
 
-## Three one-time offers to test
+## Three one-time offers (agreed naming, 2026-11-19 — aligned to the shipped trail-first architecture)
 
-| Offer | What the giver buys |
-|---|---|
-| £4.99 · The Room | One complete immersive hunt for one person in one photo-derived room, with side memories, clues and a guaranteed digital reveal or a physical ending. |
-| £9.99 · The Story | One hunt for one person across linked places. A discovery in one scene helps solve another, ending in a single personal reveal. |
-| £19 · The Gift Set | Three Story hunts, usable separately for different people or occasions. Each gets its own clues, private message, reward and recipient link. No subscription. |
+| Offer | Price | What the giver buys |
+|---|---|---|
+| **The Trail** (default) | £4.99 | One complete digital hunt for one person: photos → 3 deduction rounds → keepsake (letter, photos, 3D world, portrait). No physical step, no code. |
+| **The Hide** | £9.99 | One hunt with a physical ending: everything in The Trail, plus the giver hides a thing at the place and the code inside it unlocks the keepsake. |
+| **The Set** | £19 | A pack of three hunts, usable separately for different people or occasions. Each hunt is a Trail or a Hide with its own clues, message, reward and recipient link. No subscription. |
 
-One send means publishing one new recipient's hunt. Previews, revisits and resending the same link do not consume another send. The same exploration, guesses, hints, accessibility and guaranteed reveal apply at every price. Gift-card value is separate for each recipient. The set saves £10.97 against three Stories; three single-room gifts bought separately cost only £14.97. Recommend the cheaper choice when that is all someone needs. Track pack usage as well as purchases; model costs as if all three are sent.
+One send means publishing one new recipient's hunt. Previews, revisits and resending the same link do not consume another send. The same rounds, hints and guaranteed reveal apply at every price — the recipient is never charged. The set saves £10.97 against three Hides; recommend the cheaper choice when that is all someone needs. Track pack usage as well as purchases; model costs as if all three are sent.
+
+> The earlier Room/Story/Gift-Set naming (immersive world-first hunts) is
+> superseded: the world-first hunt remains the roadmap (below), but the
+> commercial tiers follow the shipped trail-first flow.
 
 ## Local prototype
 
@@ -44,12 +48,12 @@ Illustrative GBP per paid gift. Assume standard UK domestic card pricing of 1.5%
 
 | Offer | Card fee | Illustrative delivery allowance | Contribution per order, no VAT |
 |---|---:|---:|---:|
-| £4.99 Room | £0.27 | £0.20 | £4.52 (90.6%) |
-| £9.99 Story | £0.35 | £0.60 | £9.04 (90.5%) |
-| £19 Gift Set | £0.49 | £1.80 | £16.71 (87.9%) |
+| £4.99 Trail | £0.27 | £0.20 | £4.52 (90.6%) |
+| £9.99 Hide | £0.35 | £0.60 | £9.04 (90.5%) |
+| £19 Set (×3) | £0.49 | £1.80 | £16.71 (87.9%) |
 
-Budget scenarios only: allow 20p per room, assume all three scenes per Story and all three Stories in the set. One card payment per order. No 3D included; richer cross-scene synthesis may cost more than this simple allowance.
+Budget scenarios only: allow 20p per digital hunt, assume all three hunts in the set are sent. One card payment per order. No 3D included; richer cross-scene synthesis may cost more than this simple allowance.
 
 Contribution = revenue excluding VAT minus card fee on amount charged minus variable delivery cost. Table assumes no VAT due. If £4.99 includes 20% VAT, revenue is £4.16 rounded, photo-only contribution £3.69 (88.7% of ex-VAT revenue), or £3.45 (82.9%) with one legacy TRELLIS keepsake. Neither scenario is net profit: fixed Fly/volume bills, support, refunds, disputes and customer acquisition still need covering. Giver-funded gift-card face value is not our revenue or cost.
 
-The current flow reads uploads before payment, so abandoned drafts count. For example, if each draft actually costs 10p to read and one in four pays, reads alone cost 40p per sale, **replacing**, not adding to, the 20p planning allowance before other delivery costs. For a pilot, reconcile actual AI and delivery charges across all drafts, retries and paid gifts against settled Stripe sales over the same period; separate fixed hosting, VAT, refunds, support and acquisition. Test all three offers with real occasions, and record paid sends, opens, optional objects explored, solves vs guided/direct reveals, and which side memory recipients remember. Judge whether people buy and enjoy the search, not merely whether they redeem a gift.
+The current flow reads uploads before payment, so abandoned drafts count. For example, if each draft actually costs 10p to read and one in four pays, reads alone cost 40p per sale, **replacing**, not adding to, the 20p planning allowance before other delivery costs. Mitigations shipped with the tier work: client-side downscale before upload, per-IP rate limit on `POST /api/gifts`, and a 7-day purge of unsealed drafts. For a pilot, reconcile actual AI and delivery charges across all drafts, retries and paid gifts against settled Stripe sales over the same period; separate fixed hosting, VAT, refunds, support and acquisition. Test all three offers with real occasions, and record paid sends, opens, optional objects explored, solves vs guided/direct reveals, and which side memory recipients remember. Judge whether people buy and enjoy the search, not merely whether they redeem a gift.

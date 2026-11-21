@@ -60,6 +60,7 @@ function deriveClues(observations, n = 3) {
   const scored = observations.map((o) => {
     const ob = o.obs || {};
     let score = (ob.confidence || 0) * 10;
+    if ((ob.confidence || 0) < 0.5) score -= 8; // low-confidence reads deprioritised
     if (CLUE_CATS.has(ob.category)) score += 5;
     if (ob.hideSpotPotential) score += 1;
     // prefer distinctive over generic layout/lighting
@@ -425,32 +426,9 @@ async function runPipelineInner(giftId) {
     return;
   }
 
-  // cross-image aggregate
-  const bundleLines = [];
-  const byPhoto = new Map();
-  for (const o of flat) {
-    if (!byPhoto.has(o.photoIndex)) byPhoto.set(o.photoIndex, []);
-    byPhoto.get(o.photoIndex).push(o.obs);
-  }
-  let pi = 0;
-  for (const [photoIndex, obsList] of [...byPhoto.entries()].sort((a, b) => a[0] - b[0])) {
-    const placeType = obsRows.find((r) => r.photoIndex === photoIndex);
-    let pt = '?';
-    try { pt = JSON.parse(placeType?.data || '{}').placeType || '?'; } catch {}
-    bundleLines.push(`PHOTO ${pi}: index=${photoIndex} (placeType: ${pt})`);
-    for (const ob of obsList) {
-      bundleLines.push(
-        `  - [${ob.category || '?'}] ${ob.description || ''} conf=${ob.confidence ?? 0} hide=${!!ob.hideSpotPotential} bbox=${JSON.stringify(ob.bbox)}`
-      );
-    }
-    pi++;
-  }
-  // NOTE: basedOnObservation in the cross prompt refers to the PHOTO n ordering above;
-  // we map back via the sorted photoIndex list.
-  const photoOrder = [...byPhoto.keys()].sort((a, b) => a - b);
-
   // cross-image aggregate: a hollow result (no throughline/hideSpots) is worse
   // than an error, so retry a few times then fail the gift honestly.
+  const { bundleLines } = buildBundle(giftId);
   let cross = null;
   let crossErr = null;
   const CROSS_RETRIES = 3;
@@ -474,8 +452,70 @@ async function runPipelineInner(giftId) {
     return;
   }
 
+  const readMs = Date.now() - Date.parse(gift.created_at || 0);
+  const applied = applyCross(giftId, cross);
+  // stamp ready; guard: don't overwrite 'error' if the watchdog fired
+  db.prepare("UPDATE gifts SET status='ready', read_ready_at=? WHERE id=? AND status='reading'")
+    .run(new Date().toISOString(), giftId);
+
+  console.log(`[pipeline ${giftId}] ready in ${Math.round(readMs / 1000)}s: ${obsRows.length} photos observed, ${flat.length} observations, ${applied.clues} clues, ${applied.hideSpots} hide spots, ${applied.rounds} rounds`);
+}
+
+/* ------------------------------------------------------------------ */
+/*  Re-derivation — shared by the initial pipeline and /reclue.        */
+/* ------------------------------------------------------------------ */
+
+function safeJson(s) {
+  try { return JSON.parse(s); } catch { return {}; }
+}
+
+/**
+ * Build the cross-image prompt bundle from the stored observations.
+ * NOTE: basedOnObservation in the cross prompt refers to the PHOTO n ordering
+ * here; applyCross maps it back to the real sorted photoIndex.
+ */
+export function buildBundle(giftId) {
+  const rows = db
+    .prepare('SELECT photo_index, data FROM observations WHERE gift_id=? ORDER BY photo_index')
+    .all(giftId);
+  const byPhoto = new Map();
+  const flat = [];
+  for (const r of rows) {
+    const d = safeJson(r.data);
+    for (const ob of d.observations || []) {
+      flat.push({ photoIndex: r.photo_index, obs: ob });
+      if (!byPhoto.has(r.photo_index)) byPhoto.set(r.photo_index, []);
+      byPhoto.get(r.photo_index).push(ob);
+    }
+  }
+  const photoOrder = [...byPhoto.keys()].sort((a, b) => a - b);
+  const bundleLines = [];
+  let pi = 0;
+  for (const photoIndex of photoOrder) {
+    const row = rows.find((r) => r.photo_index === photoIndex);
+    const placeType = safeJson(row?.data || '{}').placeType || '?';
+    bundleLines.push(`PHOTO ${pi}: index=${photoIndex} (placeType: ${placeType})`);
+    for (const ob of byPhoto.get(photoIndex)) {
+      bundleLines.push(
+        `  - [${ob.category || '?'}] ${ob.description || ''} conf=${ob.confidence ?? 0} hide=${!!ob.hideSpotPotential} bbox=${JSON.stringify(ob.bbox)}`
+      );
+    }
+    pi++;
+  }
+  return { bundleLines, photoOrder, byPhoto, flat };
+}
+
+/**
+ * Apply a cross-image result to a gift: replaces clues + hide spots, rewrites
+ * throughline/place_guess/rounds/world_source. Does not touch status.
+ */
+export function applyCross(giftId, cross) {
+  const gift = db.prepare('SELECT * FROM gifts WHERE id=?').get(giftId);
+  if (!gift) throw new Error('gift not found');
+  const { photoOrder, byPhoto, flat } = buildBundle(giftId);
+
   // map hideSpots' basedOnObservation (bundle photo ordinal) back to real photoIndex
-  const hideSpots = deriveHideSpots(cross, photos.length).map((h) => {
+  const hideSpots = deriveHideSpots(cross, gift.photo_count).map((h) => {
     try {
       const d = JSON.parse(h.data);
       if (typeof d.basedOnObservation === 'number' && photoOrder[d.basedOnObservation] !== undefined) {
@@ -506,20 +546,56 @@ async function runPipelineInner(giftId) {
 
   const insClue = db.prepare('INSERT INTO clues (id, gift_id, position, text, meta) VALUES (?,?,?,?,?)');
   const insHide = db.prepare('INSERT INTO hide_spots (id, gift_id, position, data) VALUES (?,?,?,?)');
-  // duration measurement (created_at → ready) — computed before the tx so it's
-  // in scope for the log after commit
-  const readMs = Date.now() - Date.parse(gift.created_at || 0);
   db.exec('BEGIN');
   try {
+    db.prepare('DELETE FROM clues WHERE gift_id=?').run(giftId);
+    db.prepare('DELETE FROM hide_spots WHERE gift_id=?').run(giftId);
     for (const c of clues) insClue.run(c.id, giftId, c.position, c.text, c.meta);
     for (const h of hideSpots) insHide.run(h.id, giftId, h.position, h.data);
-    // stamp read_ready_at; guard: don't overwrite 'error' if the watchdog fired
-    db.prepare("UPDATE gifts SET status=?, throughline=?, place_guess=?, rounds=?, read_ready_at=?, world_source=? WHERE id=? AND status='reading'")
-      .run('ready', throughline, placeGuess, JSON.stringify(rounds), new Date().toISOString(), worldSource, giftId);
+    db.prepare('UPDATE gifts SET throughline=?, place_guess=?, rounds=?, world_source=? WHERE id=?')
+      .run(throughline, placeGuess, JSON.stringify(rounds), worldSource, giftId);
     db.exec('COMMIT');
   } catch (e) { db.exec('ROLLBACK'); throw e; }
+  return { clues: clues.length, hideSpots: hideSpots.length, rounds: rounds.length };
+}
 
-  console.log(`[pipeline ${giftId}] ready in ${Math.round(readMs / 1000)}s: ${obsRows.length} photos observed, ${flat.length} observations, ${clues.length} clues, ${hideSpots.length} hide spots, ${rounds.length} rounds`);
+/**
+ * Re-run only the cross-image pass with buyer notes appended, then replace the
+ * derivation. Bounded: max 2 reclues per gift before payment.
+ */
+export async function reclue(giftId, notes) {
+  const gift = db.prepare('SELECT * FROM gifts WHERE id=?').get(giftId);
+  if (!gift) throw Object.assign(new Error('not found'), { status: 404 });
+  if (gift.status !== 'ready' && gift.status !== 'sealed') {
+    throw Object.assign(new Error('gift is not ready for re-derivation'), { status: 409 });
+  }
+  if (!gift.paid && (gift.reclue_count || 0) >= 2) {
+    throw Object.assign(new Error('reclue limit reached (2 before payment)'), { status: 429 });
+  }
+  const { bundleLines } = buildBundle(giftId);
+  const extra = String(notes || '').trim();
+  const prompt = bundleLines.join('\n') +
+    (extra ? `\n\nBUYER CORRECTIONS (must be honoured — they outrank the photos): ${extra}` : '');
+  let cross = null;
+  let lastErr = null;
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    try {
+      const c = await crossImage(prompt);
+      if (c && (c.throughline || c.placeGuess || c.hideSpots?.length || c.roundMaterial)) {
+        cross = c;
+        break;
+      }
+      lastErr = new Error('cross-image returned empty/partial JSON');
+    } catch (e) {
+      lastErr = e;
+    }
+    if (attempt < 2) await new Promise((r) => setTimeout(r, 1500 * attempt));
+  }
+  if (!cross) throw lastErr || new Error('cross-image failed');
+  db.prepare('UPDATE gifts SET reclue_count = reclue_count + 1 WHERE id=?').run(giftId);
+  const applied = applyCross(giftId, cross);
+  console.log(`[pipeline ${giftId}] reclue #${(gift.reclue_count || 0) + 1}: ${applied.clues} clues, ${applied.rounds} rounds`);
+  return applied;
 }
 
 export { buildRounds };

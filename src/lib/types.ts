@@ -7,6 +7,12 @@ export type GiftStatus = 'reading' | 'ready' | 'sealed' | 'paid' | string;
 
 export type GiftDirection = 'someone' | 'me';
 
+/** digital (The Trail, default) = no physical hide, no code; physical (The Hide) = code gate */
+export type GiftMode = 'digital' | 'physical';
+
+/** commercial tiers: trail £4.99 · hide £9.99 · set £19 (pack of 3) */
+export type Tier = 'trail' | 'hide' | 'set';
+
 /** One located thing inside a photo (inside an observation row). */
 export interface ObsItem {
   description?: string;
@@ -68,6 +74,11 @@ export interface Gift {
   placeGuess?: string | null;
   paid?: boolean;
   worldStatus?: WorldStatus;
+  worldSource?: number | null;
+  mode?: GiftMode;
+  tier?: Tier | null;
+  packId?: string | null;
+  reclueCount?: number;
   createdAt?: string;
 }
 
@@ -97,6 +108,10 @@ export interface Trail {
   throughline: string | null;
   placeGuess: string | null;
   unlocked: boolean;
+  /** false for digital gifts (The Trail) — the keepsake opens without a code */
+  requiresCode?: boolean;
+  mode?: GiftMode;
+  tier?: Tier | null;
   /** /api/photo/:giftId/:i urls in upload order, when the server provides them */
   photoUrls?: string[];
   /** the 3D world of the place — 'worlding' while it's being generated */

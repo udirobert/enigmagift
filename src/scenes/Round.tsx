@@ -12,7 +12,7 @@ import {
 import { prefersReducedMotion, seeded } from '../lib/motion';
 import { Photo, Polaroid } from '../components/Photo';
 import { aspectKnown, bboxToCrop, useImageAspect } from '../lib/crop';
-import { answerRound, type Trail } from '../lib/api';
+import { answerRound, logTrailEvent, type Trail } from '../lib/api';
 
 interface RoundProps {
   demo: boolean;
@@ -170,6 +170,7 @@ export function Round({ demo, trail, round, onDone }: RoundProps) {
 
   const pick = (i: number) => {
     if (solved) return;
+    if (live) logTrailEvent(trail!.token, `round_${round}_picked`, { choice: i, correct: i === cfg.answer, attempts: attempts + 1 });
     if (i === cfg.answer) {
       if (live) {
         answerRound(trail!.token, round - 1, i).catch(() => {});

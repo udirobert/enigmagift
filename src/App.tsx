@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import Lenis from 'lenis';
-import { apiHealthy, createGift, getGift, getTrail, tokenFromUrl } from './lib/api';
-import type { Gift, GiftDirection, HideSpot, Trail } from './lib/types';
+import { apiHealthy, createGift, getGift, getTrail, logGiftEvent, stashPack, tokenFromUrl, unstashPack } from './lib/api';
+import type { Gift, GiftDirection, GiftMode, HideSpot, Tier, Trail } from './lib/types';
 
 import { Door } from './scenes/Door';
 import { WatchIt } from './scenes/WatchIt';
@@ -16,22 +16,31 @@ import { Reveal } from './scenes/Reveal';
    localStorage (shared across tabs on this origin) — ?paid=1 resumes at Seal. */
 const GIFT_KEY = 'enigmagift.gift.v1';
 
-function stashGift(id: string, direction: GiftDirection) {
+function stashGift(id: string, direction: GiftDirection, mode: GiftMode, tier: Tier | null) {
   try {
-    localStorage.setItem(GIFT_KEY, JSON.stringify({ id, direction }));
+    localStorage.setItem(GIFT_KEY, JSON.stringify({ id, direction, mode, tier }));
   } catch { /* private mode — paid return just won't resume */ }
 }
 
-function unstashGift(): { id: string; direction: GiftDirection } | null {
+function unstashGift(): { id: string; direction: GiftDirection; mode: GiftMode; tier: Tier | null } | null {
   try {
     const raw = localStorage.getItem(GIFT_KEY);
     if (!raw) return null;
-    const p = JSON.parse(raw) as { id?: string; direction?: GiftDirection };
-    return p.id ? { id: p.id, direction: p.direction === 'me' ? 'me' : 'someone' } : null;
+    const p = JSON.parse(raw) as { id?: string; direction?: GiftDirection; mode?: GiftMode; tier?: Tier | null };
+    return p.id
+      ? {
+          id: p.id,
+          direction: p.direction === 'me' ? 'me' : 'someone',
+          mode: p.mode === 'physical' ? 'physical' : 'digital',
+          tier: p.tier === 'hide' || p.tier === 'set' || p.tier === 'trail' ? p.tier : null,
+        }
+      : null;
   } catch {
     return null;
   }
 }
+
+
 
 export type SceneId =
   | 'door'
@@ -57,6 +66,9 @@ export default function App() {
   const [photos, setPhotos] = useState<string[]>([]);
   const [demo, setDemo] = useState(false);
   const [direction, setDirection] = useState<Direction>('someone');
+  // tier/mode — The Trail (digital) is the default; The Hide adds the physical code
+  const [mode, setMode] = useState<GiftMode>('digital');
+  const [tier, setTier] = useState<Tier>('trail');
   const [kept, setKept] = useState(3);
 
   // live-api state — all null in demo/offline mode
@@ -132,10 +144,13 @@ export default function App() {
       .then((g) => {
         if (dead || !g) return;
         setDirection(stashed.direction);
+        setMode(g.mode === 'physical' ? 'physical' : stashed.mode);
+        setTier((g.tier as Tier) || stashed.tier || 'trail');
         setGiftId(stashed.id);
         setGift(g);
         setLive(true);
         setDemo(false);
+        if (g.packId) stashPack(g.packId);
         go('seal');
       })
       .catch(() => {});
@@ -158,8 +173,15 @@ export default function App() {
       // try the real backend first — never hard-fail the user
       try {
         if (await apiHealthy()) {
-          const created = await createGift(files, direction);
-          stashGift(created.giftId, direction);
+          // a Set pack's later hunts are individual trail/hide gifts
+          const packId = unstashPack();
+          const effectiveTier: Tier = packId ? (mode === 'physical' ? 'hide' : 'trail') : tier;
+          const created = await createGift(files, direction, {
+            mode,
+            tier: effectiveTier,
+            packId,
+          });
+          stashGift(created.giftId, direction, mode, effectiveTier);
           setGiftId(created.giftId);
           setLive(true);
           go('reading');
@@ -170,7 +192,16 @@ export default function App() {
       }
       go('reading');
     },
-    [direction, go],
+    [direction, mode, tier, go],
+  );
+
+  // tier pick drives mode: only The Hide is physical
+  const handleTier = useCallback(
+    (t: Tier) => {
+      setTier(t);
+      setMode(t === 'hide' ? 'physical' : 'digital');
+    },
+    [],
   );
 
   // "watch it work" — the payoff, self-playing, before they upload anything
@@ -198,20 +229,27 @@ export default function App() {
     [go],
   );
 
-  // Editor approved the clues — now the buyer physically hides the thing
+  // Editor approved the clues — digital gifts (The Trail) go straight to the
+  // seal; only The Hide has a physical thing to hide
   const handleEditorSeal = useCallback(
     (n: number, spot: HideSpot | null) => {
       setKept(n);
       setHideSpot(spot);
-      go('hide');
+      if (giftId) logGiftEvent(giftId, 'editor_done', { kept: n, mode });
+      if (mode === 'digital') {
+        go('seal');
+      } else {
+        go('hide');
+      }
     },
-    [go],
+    [go, mode, giftId],
   );
 
   // Hide done ("i've hidden it" or "later") — on to the seal
   const handleHidden = useCallback(() => {
+    if (giftId) logGiftEvent(giftId, 'hidden', null);
     go('seal');
-  }, [go]);
+  }, [go, giftId]);
 
   // Seal sent — a real token means a real trail to preview
   const handleSend = useCallback(
@@ -222,12 +260,13 @@ export default function App() {
         } catch {
           setTrail(null); // preview falls back to the scripted rounds
         }
+        if (giftId) logGiftEvent(giftId, 'sent', { tier });
       } else {
         setTrail(null);
       }
       go('r1');
     },
-    [go],
+    [go, giftId, tier],
   );
 
   // the recipient opened a real link (live=false for them) — real trail, not the mock
@@ -244,6 +283,8 @@ export default function App() {
           onWatch={handleWatch}
           direction={direction}
           onDirection={setDirection}
+          tier={tier}
+          onTier={handleTier}
           initialSection={fromTour ? 'start' : 'hero'}
         />
       )}
@@ -264,6 +305,7 @@ export default function App() {
         <Editor
           demo={demo || !live || !gift}
           gift={live ? gift : null}
+          mode={mode}
           onSeal={handleEditorSeal}
         />
       )}
@@ -281,6 +323,8 @@ export default function App() {
           demo={trailDemo}
           giftId={live ? giftId : null}
           kept={kept}
+          tier={tier}
+          mode={mode}
           onSend={handleSend}
         />
       )}

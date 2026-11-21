@@ -3,18 +3,25 @@ import { gsap } from 'gsap';
 import { SEAL_LINK } from '../data';
 import { prefersReducedMotion } from '../lib/motion';
 import { WaxSeal } from '../components/WaxSeal';
-import { markPaid, sealGift, type SealResult } from '../lib/api';
+import { markPaid, sealGift, type GiftMode, type SealResult, type Tier } from '../lib/api';
 
 interface SealProps {
   demo: boolean;
   giftId: string | null;
   kept: number;
+  tier: Tier;
+  mode: GiftMode;
   /** buyer preview — pass the trail token so the rounds can play the real data */
   onSend: (token: string | null) => void;
 }
 
-const STRIPE_LINK: string | undefined = import.meta.env.VITE_STRIPE_LINK;
-const PRICE = '£19';
+// one Stripe Payment Link per tier (legacy single VITE_STRIPE_LINK maps to hide)
+const STRIPE_LINKS: Record<Tier, string | undefined> = {
+  trail: import.meta.env.VITE_STRIPE_LINK_TRAIL,
+  hide: import.meta.env.VITE_STRIPE_LINK_HIDE ?? import.meta.env.VITE_STRIPE_LINK,
+  set: import.meta.env.VITE_STRIPE_LINK_SET,
+};
+const PRICES: Record<Tier, string> = { trail: '£4.99', hide: '£9.99', set: '£19' };
 
 /**
  * The seal — and the till. Live gifts don't seal until the £19 clears:
@@ -22,7 +29,9 @@ const PRICE = '£19';
  * (?paid=1, window focus, or the explicit "i've paid" nudge) we mark the
  * gift paid and seal for real. Demo mode keeps the old theatre.
  */
-export function Seal({ demo, giftId, kept, onSend }: SealProps) {
+export function Seal({ demo, giftId, kept, tier, mode, onSend }: SealProps) {
+  const STRIPE_LINK = STRIPE_LINKS[tier];
+  const PRICE = PRICES[tier];
   const rootRef = useRef<HTMLElement>(null);
   const sealRef = useRef<HTMLDivElement>(null);
   const [copied, setCopied] = useState(false);
@@ -212,7 +221,7 @@ export function Seal({ demo, giftId, kept, onSend }: SealProps) {
           )}
         </div>
 
-        {!demo && code && sealed && (
+        {!demo && code && sealed && mode === 'physical' && (
           <div className="seal-code seal-anim">
             <p className="seal-code-label">
               write this into the hidden thing — it’s the only key
@@ -232,6 +241,12 @@ export function Seal({ demo, giftId, kept, onSend }: SealProps) {
               or print the card it goes in →
             </a>
           </div>
+        )}
+
+        {!demo && sealed && mode === 'digital' && (
+          <p className="foot-note seal-anim">
+            no code, nothing to hide — the link opens the keepsake directly
+          </p>
         )}
 
         <div className="seal-qr seal-anim" aria-label="qr code placeholder">

@@ -1858,3 +1858,57 @@ img { display: block; max-width: 100%; }
   .tb-temp { animation: none; opacity: 0.9; }
   .drop-hint { animation: none; }
 }
+
+/* ------------------------------ tiers (door dock) ------------------------------ */
+.dock-tier { margin-top: 0.55rem; }
+.dock-tier button { font-size: 0.62rem; padding: 0.5rem 0.9rem; letter-spacing: 0.12em; }
+.dock-tier-hint {
+  margin-top: 0.45rem;
+  font-size: 0.66rem;
+  letter-spacing: 0.04em;
+  color: var(--paper-faint);
+  text-align: center;
+}
+.dock-pack-note {
+  margin-top: 0.4rem;
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.08em;
+  color: var(--gold);
+  text-align: center;
+}
+
+/* ------------------------------ editor: world source + reclue ------------------------------ */
+.world-src-row { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 0.6rem 0; }
+.world-src-opt {
+  position: relative;
+  display: block;
+  width: 64px;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 2px solid transparent;
+  cursor: pointer;
+  opacity: 0.65;
+  transition: border-color 0.25s, opacity 0.25s;
+}
+.world-src-opt img { display: block; width: 100%; aspect-ratio: 4 / 5; object-fit: cover; }
+.world-src-opt input { position: absolute; opacity: 0; inset: 0; cursor: pointer; }
+.world-src-opt.is-active { border-color: var(--rust); opacity: 1; }
+.world-src-opt:hover { opacity: 0.9; }
+
+.reclue { margin-top: 1rem; }
+.reclue .btn-secondary { margin-top: 0.5rem; }
+
+.btn-secondary {
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  padding: 0.55rem 1.1rem;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  color: var(--paper-dim);
+  transition: color 0.25s, border-color 0.25s;
+}
+.btn-secondary:hover:not(:disabled) { color: var(--paper); border-color: var(--gold); }
+.btn-secondary:disabled { opacity: 0.45; cursor: default; }

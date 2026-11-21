@@ -24,7 +24,10 @@ Frontend and backend are **not** on the same host. Pages is static-only (+ the
 |---|---|---|
 | `SANDBASE_API_KEY` | Fly app secret (`fly -a enigmagift-api secrets set …`) | `server/sandbase.env` (gitignored) |
 | `RECRAFT_API_KEY` | Fly app secret, same `secrets set` flow | env or a `server/*.env` file (gitignored); optional — portrait skipped without it |
-| `VITE_STRIPE_LINK` | inlined at build time (`VITE_STRIPE_LINK=… npm run build`) | the `enigmagift` Payment Link URL |
+| `VITE_STRIPE_LINK_TRAIL` / `_HIDE` / `_SET` | inlined at build time (legacy single `VITE_STRIPE_LINK` maps to the Hide link) | the three `buy.stripe.com` Payment Link URLs (£4.99 / £9.99 / £19) |
+| `STRIPE_WEBHOOK_SECRET` | Fly app secret | Stripe dashboard → Webhooks → the `whsec_…` for the `/api/stripe/webhook` endpoint |
+| `STRIPE_API_KEY` (optional) | Fly app secret | lets `mark-paid` verify the checkout session server-side instead of trusting the client |
+| `ALLOWED_ORIGINS` (optional) | Fly app secret | comma-separated CORS allowlist; defaults to the deployed Pages/Netlify domains + localhost |
 | Gemini key (fallback) | any `Dev/*/.env*` the server scans | — |
 
 Note: `RECRAFT_API_KEY` spends **API units**, which are billed separately
@@ -119,28 +122,32 @@ per-gift TRELLIS world from `server/world.js`.
 ### Frontend (Cloudflare Pages)
 
 ```bash
-VITE_STRIPE_LINK="https://buy.stripe.com/<id>" npm run build
+VITE_STRIPE_LINK_TRAIL="https://buy.stripe.com/<trail>" \
+VITE_STRIPE_LINK_HIDE="https://buy.stripe.com/<hide>" \
+VITE_STRIPE_LINK_SET="https://buy.stripe.com/<set>" \
+npm run build
 npx wrangler pages deploy dist --project-name=enigmagift --branch=main
 ```
 
 `/api/*` is proxied to Fly by `functions/api/[[path]].js` — Pages `_redirects`
 cannot proxy external domains, so don't try to express the API route there.
-`VITE_STRIPE_LINK` must be set at **build** time for the £19 gate to appear. Verify it's inlined:
+The Stripe links must be set at **build** time for the pay gates to appear. Verify they're inlined:
 
 ```bash
 grep -hoE 'https://buy\.stripe\.com/[A-Za-z0-9?=_&.-]{6,20}' dist/assets/*.js
 ```
 
-If the Stripe link is missing, the seal page shows a disabled
-"payments opening soon" button.
+If a link is missing, that tier's seal button shows a disabled
+"payments opening soon" state.
 
 ---
 
-## The Stripe payment link (last sales step)
+## Stripe: three payment links + one webhook (last sales step)
 
-The seal page (`src/scenes/Seal.tsx`) reads `import.meta.env.VITE_STRIPE_LINK` and
-opens it in a new tab with `client_reference_id=<giftId>`. For the buyer to return
-and auto-seal, the Payment Link's **success URL** must be:
+The seal page (`src/scenes/Seal.tsx`) maps the chosen tier to its Payment Link
+(`VITE_STRIPE_LINK_TRAIL` £4.99 / `_HIDE` £9.99 / `_SET` £19; legacy
+`VITE_STRIPE_LINK` maps to Hide) and opens it in a new tab with
+`client_reference_id=<giftId>`. Each link's **success URL** must be:
 
 ```
 https://enigmagift.pages.dev/?paid=1&sid={CHECKOUT_SESSION_ID}
@@ -149,9 +156,22 @@ https://enigmagift.pages.dev/?paid=1&sid={CHECKOUT_SESSION_ID}
 The app detects `?paid=1` on return (or on window focus), calls
 `POST /api/gifts/:id/mark-paid`, then `POST /api/gifts/:id/seal`.
 
-Fallback: if the success URL isn't set, the buyer gets a "I've paid" nudge button
-on the seal page that completes the flow manually. The success URL is the smooth
-path though. Confirm in the Stripe dashboard that the link is **£19** and active.
+**The webhook is the source of truth for `paid`.** Configure in the Stripe
+dashboard → Webhooks:
+
+- Endpoint URL: `https://enigmagift-api.fly.dev/api/stripe/webhook`
+- Events: `checkout.session.completed`
+- Copy the signing secret into Fly as `STRIPE_WEBHOOK_SECRET`.
+
+On `checkout.session.completed` the server verifies the signature, checks the
+amount against the tier's expected price, sets `paid=1`, and for a **Set**
+payment creates a 3-credit `packs` row linked to the gift. `mark-paid` remains
+as a fallback and, when `STRIPE_API_KEY` is set, verifies the session via the
+Stripe API instead of trusting the client.
+
+Fallback UX: if the success URL isn't set, the buyer gets an "I've paid" nudge
+button on the seal page that completes the flow manually. Confirm in the
+dashboard that all three links are active at the right GBP amounts.
 
 ---
 
@@ -189,13 +209,30 @@ curl -s https://enigmagift-api.fly.dev/api/gifts/<id>
 # seal + drive the recipient
 curl -s -X POST https://enigmagift-api.fly.dev/api/gifts/<id>/seal
 curl -s https://enigmagift-api.fly.dev/api/trail/<token>
+curl -s https://enigmagift-api.fly.dev/api/trail/<token>/photo/0 -o p0.jpg   # token-scoped photo
 curl -s -X POST https://enigmagift-api.fly.dev/api/trail/<token>/unlock \
   -H 'content-type: application/json' -d '{"code":"XXXXXX"}'   # wrong → {"unlocked":false}
+# (Hide tier only — Trail trails have requiresCode=false and skip the code gate)
+
+# editor extras: re-derive clues with notes; pick the world photo
+curl -s -X POST https://enigmagift-api.fly.dev/api/gifts/<id>/reclue \
+  -H 'content-type: application/json' -d '{"notes":"the door is green, not blue"}'
+curl -s -X POST https://enigmagift-api.fly.dev/api/gifts/<id>/world-source \
+  -H 'content-type: application/json' -d '{"index":2}'
+
+# funnel events
+curl -s -X POST https://enigmagift-api.fly.dev/api/gifts/<id>/event \
+  -H 'content-type: application/json' -d '{"name":"editor_done"}'
 ```
 
 Then confirm the recipient journey in a real browser at
-`https://enigmagift.pages.dev/?t=<token>` (round 1 crop+options → code gate →
-keepsake). Use the `ego-browser` skill, not Playwright.
+`https://enigmagift.pages.dev/?t=<token>` (round 1 crop+options → code gate on
+Hide / straight to the keepsake on Trail). Use the `ego-browser` skill, not
+Playwright.
+
+Unlock codes are stored as scrypt hashes (`trails.unlock_hash`); the plaintext
+codes listed below are historical — they still verify because their hashes
+were derived from them at migration.
 
 ---
 
@@ -221,7 +258,8 @@ keepsake). Use the `ego-browser` skill, not Playwright.
 
 ## Test trails currently in the DB (for re-verification)
 
-Created live on the Fly backend 2026-11-17 (gift id → trail token → code):
+Created live on the Fly backend 2026-11-17 (gift id → trail token → original
+plaintext code, now stored hashed):
 
 - `43ddaaea-…` → trail `6rOYxBOx-rkCDWxT` → code `F3Z6BQ` (Fort Point)
 - `68e0fb7c-…` → trail `kvEkSWjhRWlr6xHc` → code `2JNVZP` (Rosa's Cafe, Portsmouth)

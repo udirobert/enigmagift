@@ -25,9 +25,15 @@ interface RevealProps {
 export function Reveal({ demo, trail, direction }: RevealProps) {
   const rootRef = useRef<HTMLElement>(null);
   const real = !demo && !!trail;
+  // digital gifts (The Trail) have no code — the keepsake opens directly
+  const needsCode = real && trail?.requiresCode !== false;
 
-  // code beat — only when the recipient has a real trail
-  const [codeDone, setCodeDone] = useState(!real); // demo skips the code
+  // code beat — only when the recipient has a real trail that requires a code
+  const [codeDone, setCodeDone] = useState(!needsCode); // demo + digital skip the code
+
+  useEffect(() => {
+    if (real && trail && trail.requiresCode === false) setCodeDone(true);
+  }, [real, trail]);
   const [code, setCode] = useState('');
   const [checking, setChecking] = useState(false);
   const [wrong, setWrong] = useState(false);
@@ -172,9 +178,13 @@ export function Reveal({ demo, trail, direction }: RevealProps) {
                 the trail, then it gives itself up.
               </p>
               <p>
-                {trail?.placeGuess
-                  ? `you stood where ${trail.placeGuess.toLowerCase()} stands and you found it.`
-                  : 'you found what i left where i said it would be.'}{' '}
+                {needsCode
+                  ? trail?.placeGuess
+                    ? `you stood where ${trail.placeGuess.toLowerCase()} stands and you found it.`
+                    : 'you found what i left where i said it would be.'
+                  : trail?.placeGuess
+                    ? `every clue pointed to where ${trail.placeGuess.toLowerCase()} stands — and you followed them all.`
+                    : 'you followed every clue to the end.'}{' '}
                 the photographs all pointed there — but only you could have
                 followed them.
               </p>

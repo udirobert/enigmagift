@@ -2,6 +2,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { mkdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import crypto from 'node:crypto';
 
 const here = dirname(fileURLToPath(import.meta.url));
 export const ROOT = here;
@@ -62,10 +63,48 @@ CREATE TABLE IF NOT EXISTS trails (
   rounds TEXT NOT NULL,
   answers TEXT NOT NULL DEFAULT '[]',
   unlock_code TEXT NOT NULL,
+  unlock_hash TEXT,
   unlocked INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+
+CREATE TABLE IF NOT EXISTS packs (
+  id TEXT PRIMARY KEY,
+  purchase_gift_id TEXT NOT NULL REFERENCES gifts(id),
+  credits_left INTEGER NOT NULL DEFAULT 3,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS events (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  gift_id TEXT,
+  token TEXT,
+  name TEXT NOT NULL,
+  data TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
 `);
+
+/* Unlock codes: stored as scrypt hashes, never plaintext. The legacy
+   unlock_code column stays (NOT NULL) but is emptied once hashed. */
+export function hashCode(code) {
+  const salt = crypto.randomBytes(16).toString('hex');
+  const hash = crypto.scryptSync(String(code).trim().toUpperCase(), salt, 32).toString('hex');
+  return `scrypt$${salt}$${hash}`;
+}
+
+export function verifyCode(code, stored) {
+  if (!stored || typeof code !== 'string') return false;
+  const norm = code.trim().toUpperCase();
+  if (stored.startsWith('scrypt$')) {
+    const [, salt, hash] = stored.split('$');
+    const calc = crypto.scryptSync(norm, salt, 32);
+    const ref = Buffer.from(hash, 'hex');
+    return calc.length === ref.length && crypto.timingSafeEqual(calc, ref);
+  }
+  // legacy plaintext row that predates hashing (shouldn't happen post-migration)
+  return norm === String(stored).trim().toUpperCase();
+}
 
 // Lightweight migration — add the world columns if an older DB is missing
 // them (CREATE TABLE IF NOT EXISTS does not alter existing tables).
@@ -86,3 +125,24 @@ addColumnIfMissing('gifts', 'world_ready_at', 'TEXT');
 addColumnIfMissing('gifts', 'portrait_status', "TEXT NOT NULL DEFAULT 'pending'");
 addColumnIfMissing('gifts', 'portrait_file', 'TEXT');
 addColumnIfMissing('gifts', 'portrait_started_at', 'TEXT');
+// tier/mode (Trail £4.99 digital default · Hide £9.99 physical · Set £19 pack)
+addColumnIfMissing('gifts', 'mode', "TEXT NOT NULL DEFAULT 'physical'");
+addColumnIfMissing('gifts', 'tier', 'TEXT');
+addColumnIfMissing('gifts', 'pack_id', 'TEXT');
+addColumnIfMissing('gifts', 'reclue_count', 'INTEGER NOT NULL DEFAULT 0');
+addColumnIfMissing('trails', 'unlock_hash', 'TEXT');
+
+// One-time migration: hash any legacy plaintext unlock codes, then clear the
+// plaintext. The codes still verify (the hash is derived from them).
+try {
+  const legacy = db
+    .prepare('SELECT token, unlock_code FROM trails WHERE unlock_hash IS NULL AND unlock_code != \'\'')
+    .all();
+  for (const row of legacy) {
+    db.prepare('UPDATE trails SET unlock_hash=?, unlock_code=\'\' WHERE token=?')
+      .run(hashCode(row.unlock_code), row.token);
+  }
+  if (legacy.length) console.log(`[db] hashed ${legacy.length} legacy unlock codes`);
+} catch (e) {
+  console.error('[db] unlock-code migration failed:', e.message);
+}

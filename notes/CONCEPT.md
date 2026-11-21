@@ -105,21 +105,19 @@ prerequisite. Place-photos are not.
 
 ---
 
-## Freemium line
+## Pricing tiers (agreed 2026-11-19)
 
-| | Free | Paid — **£19** |
-|---|---|---|
-| Read the place, propose clues | ✅ | ✅ |
-| One deduction round (sealed, watermarked) | ✅ | ✅ |
-| Full 3-round trail | — | ✅ |
-| Hiding-spot scouting from photos | — | ✅ |
-| **Atlas world of the actual place** (hunt map) | — | ✅ |
-| Flythrough film of the trail | — | ✅ |
-| Digital keepsake unlock (letter, world, film) | — | ✅ |
-| Print-ready trail card (QR to the link) | — | ✅ |
+| Tier | Price | Mode | The physical hide? |
+|---|---|---|---|
+| **The Trail** (default) | £4.99 | digital | none — 3 rounds open the keepsake directly |
+| **The Hide** | £9.99 | physical | buyer hides a thing at the place, code goes inside it |
+| **The Set** | £19 | pack of 3 | up to 3 hunts (each Trail or Hide), one link each |
 
-Free tier still delivers the *feeling* — you see what the agent noticed about
-your place — but the trail, the map, and the keepsake are the paid object.
+The read + clue proposals stay free (the *feeling* — what the agent noticed
+about your place); the sealed trail, world and keepsake are the paid object.
+Digital-first because it removes buyer labour, lead time, distance and
+non-redemption risk; the physical Hide is an upgrade for buyers who *can*
+hide something, not the base product.
 
 **"For me" mode** survives unchanged: hide something for future-you — a letter
 at a meaningful spot, opened on a date you choose.
@@ -129,15 +127,17 @@ at a meaningful spot, opened on a date you choose.
 ## The loop
 
 ```
-   buyer photographs a place  →  hides something  →  sends a sealed link
-          ↑                                              ↓
-   recipient finds it, films it  ←  enters the code  ←  follows the trail
-          ↓
-   posts the "I found it"  →  next buyer
+   buyer photographs a place ──────────────→ sends a sealed link
+          ↑                                        ↓
+   posts the reveal      ←  recipient follows the trail  ←┐
+          ↑                                              │
+   next buyer        (Hide tier adds: find the thing → enter the code)
 ```
 
-Every paid hunt ends with the recipient standing in a real place holding
-something real — the most filmable, talkable moment a £19 product can buy.
+The Trail (default, £4.99) ends with the recipient opening the keepsake on a
+screen — the letter, the photos, the world of the place. The Hide (£9.99) adds
+the physical moment: standing in a real place holding something real — the
+most filmable, talkable beat, sold as the upgrade, not the prerequisite.
 
 ---
 
@@ -151,8 +151,9 @@ something real — the most filmable, talkable moment a £19 product can buy.
 - **Ship or Die (16 Dec):** brand-new digital product, Stripe → TrustMRR,
   peaks across gifting season. The hunt is more gift-shaped than the enigma
   ever was — Christmas, birthdays, proposals, memorials.
-- Fallback for long-distance / can't-hide buyers: **digital-only mode** —
-  the v1 enigma as it exists today. Same engine, no IRL step.
+- Long-distance / can't-hide buyers are no longer a fallback — **The Trail
+  (£4.99, digital-only) is the default product**. Same engine, no IRL step;
+  The Hide (£9.99) is the physical tier for buyers who can get to the place.
 
 ---
 
@@ -160,6 +161,12 @@ something real — the most filmable, talkable moment a £19 product can buy.
 
 **Core is live (2026-11-17).** The Atlas map, flythrough film, and print card are
 the remaining spectacle layer (v2+).
+
+**Next (2026-11-19, agreed):** digital-first + tiers — Trail £4.99 (default,
+no code beat), Hide £9.99 (physical, current flow), Set £19 (pack of 3);
+P0 hardening (Stripe webhook as source of truth, scrypt-hashed codes,
+token-scoped photos, CORS allowlist, draft rate-limit + purge, funnel
+events); then `reclue` and world-source picking in the editor.
 
 1. ✅ Door → photos of the *place*.
 2. ✅ Vision pass → located observations → clue chain + **hide-spot proposals**
