@@ -71,10 +71,13 @@ export function Reveal({ demo, trail, direction }: RevealProps) {
     : mockGallery().slice(0, 6);
 
   // poll the world build until it's ready (or failed). Cheap, stops on done.
+  // Backoff while it's still building (builds take 45–90s): 5s → 10s → 20s cap.
   useEffect(() => {
     if (!real || !trail) return;
     if (worldState === 'ready' || worldState === 'failed') return;
     let dead = false;
+    let delay = 5000;
+    let timer: number | undefined;
     const tick = async () => {
       if (dead) return;
       try {
@@ -84,13 +87,19 @@ export function Reveal({ demo, trail, direction }: RevealProps) {
       } catch {
         /* api blip — keep polling */
       }
+      if (!dead) {
+        delay = Math.min(delay * 2, 20000);
+        timer = window.setTimeout(tick, delay);
+      }
     };
     tick();
-    const t = window.setInterval(tick, 5000);
-    const stop = window.setTimeout(() => window.clearInterval(t), 5 * 60 * 1000);
+    const stop = window.setTimeout(() => {
+      dead = true;
+      if (timer) window.clearTimeout(timer);
+    }, 5 * 60 * 1000);
     return () => {
       dead = true;
-      window.clearInterval(t);
+      if (timer) window.clearTimeout(timer);
       window.clearTimeout(stop);
     };
   }, [real, trail, worldState]);

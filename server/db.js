@@ -133,6 +133,16 @@ addColumnIfMissing('gifts', 'reclue_count', 'INTEGER NOT NULL DEFAULT 0');
 addColumnIfMissing('trails', 'unlock_hash', 'TEXT');
 addColumnIfMissing('trails', 'expires_at', 'TEXT');
 
+// Indexes on every gift_id foreign-key lookup — without these each is a table
+// scan (fine at tiny scale, free to fix, and the events table grows forever).
+db.exec(`
+CREATE INDEX IF NOT EXISTS idx_observations_gift ON observations(gift_id);
+CREATE INDEX IF NOT EXISTS idx_clues_gift ON clues(gift_id);
+CREATE INDEX IF NOT EXISTS idx_hide_spots_gift ON hide_spots(gift_id);
+CREATE INDEX IF NOT EXISTS idx_trails_gift ON trails(gift_id);
+CREATE INDEX IF NOT EXISTS idx_events_gift ON events(gift_id);
+`);
+
 // One-time migration: hash any legacy plaintext unlock codes, then clear the
 // plaintext. The codes still verify (the hash is derived from them).
 try {

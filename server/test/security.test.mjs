@@ -233,6 +233,40 @@ async function main() {
     assert.equal(r.status, 404);
   });
 
+  await t('API JSON responses are no-store; static hashed assets are immutable', async () => {
+    const h = await fetch(`${BASE}/api/health`);
+    assert.equal(h.headers.get('cache-control'), 'no-store');
+    // the test server serves ../dist when it exists (it does in the repo)
+    const home = await fetch(`${BASE}/`);
+    const m = (await home.text()).match(/\/assets\/(index-[^"]+\.js)/);
+    if (m) {
+      const a = await fetch(`${BASE}/assets/${m[1]}`);
+      assert.equal(a.status, 200);
+      assert.equal(a.headers.get('cache-control'), 'public, max-age=31536000, immutable');
+      const idx = await fetch(`${BASE}/`);
+      assert.equal(idx.headers.get('cache-control'), 'no-cache');
+    }
+  });
+
+  await t('deleting a gift erases its event rows too', async () => {
+    const fd = new FormData();
+    for (let i = 0; i < 5; i++) fd.append('photos', new Blob([readFileSync(PHOTO)]), `p${i}.jpg`);
+    fd.append('mode', 'digital'); fd.append('tier', 'trail');
+    const gid = (await (await fetch(`${BASE}/api/gifts`, { method: 'POST', body: fd })).json()).giftId;
+    await fetch(`${BASE}/api/gifts/${gid}/event`, {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ name: 'test_event' }),
+    });
+    const db = new DatabaseSync(join(tmp, 'test.db'));
+    const before = db.prepare('SELECT COUNT(*) c FROM events WHERE gift_id=?').get(gid).c;
+    assert.ok(before >= 1, 'expected event rows before delete');
+    db.close();
+    await fetch(`${BASE}/api/gifts/${gid}`, { method: 'DELETE' });
+    const db2 = new DatabaseSync(join(tmp, 'test.db'));
+    const after = db2.prepare('SELECT COUNT(*) c FROM events WHERE gift_id=?').get(gid).c;
+    db2.close();
+    assert.equal(after, 0, 'event rows survived gift deletion');
+  });
+
   srv.kill('SIGTERM');
   rmSync(tmp, { recursive: true, force: true });
   const failed = results.filter(([s]) => s === 'FAIL');

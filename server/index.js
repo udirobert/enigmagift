@@ -78,6 +78,14 @@ app.use((req, res, next) => {
   next();
 });
 
+// API responses are private by default — never let a shared cache store them.
+// Asset routes (photos, world, portrait) override this at send time with their
+// own `private, max-age=86400` policy via res.sendFile headers.
+app.use('/api', (req, res, next) => {
+  res.setHeader('Cache-Control', 'no-store');
+  next();
+});
+
 // Stripe webhook needs the raw body for signature verification — mount raw
 // parsing for that path BEFORE the JSON parser.
 app.use('/api/stripe/webhook', express.raw({ type: '*/*', limit: '1mb' }));
@@ -417,6 +425,8 @@ app.delete('/api/gifts/:id', (req, res) => {
   db.prepare('DELETE FROM gifts WHERE id=?').run(g.id);
   try { rmSync(join(UPLOADS_DIR, g.id), { recursive: true, force: true }); } catch {}
   logEvent(g.id, null, 'deleted', { status: g.status });
+  // erasure means erasure — no event rows left behind for a deleted gift
+  db.prepare('DELETE FROM events WHERE gift_id=?').run(g.id);
   res.json({ ok: true });
 });
 
@@ -682,7 +692,9 @@ app.get('/api/photo/:giftId/:i', (req, res) => {
   const i = Math.max(0, Math.min(11, parseInt(req.params.i, 10) || 0));
   const files = photoFiles(g.id);
   if (i >= files.length) return res.status(404).json({ error: 'no photo' });
-  res.sendFile(join(UPLOADS_DIR, g.id, files[i]));
+  res.sendFile(join(UPLOADS_DIR, g.id, files[i]), {
+    headers: { 'Cache-Control': 'private, max-age=86400' },
+  });
 });
 
 // ---------- the 3D world of the place ----------
@@ -748,9 +760,24 @@ app.get('/api/trail/:token/portrait', (req, res) => {
 
 // ---------- static (prod: server hosts the build) ----------
 if (existsSync(DIST)) {
-  app.use(express.static(DIST));
-  // SPA fallback for deep links like /?t=token — keep /api/* and /api/photo/* off
-  app.get(/^(?!\/api\/).*/, (_req, res) => res.sendFile(join(DIST, 'index.html')));
+  app.use(
+    express.static(DIST, {
+      setHeaders(res, filePath) {
+        // vite emits content-hashed files under /assets/ — cache them forever;
+        // index.html and friends must always revalidate
+        if (filePath.includes('/assets/')) {
+          res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+        } else {
+          res.setHeader('Cache-Control', 'no-cache');
+        }
+      },
+    }),
+  );
+  // SPA fallback for deep links like /t/token — keep /api/* off
+  app.get(/^(?!\/api\/).*/, (_req, res) => {
+    res.setHeader('Cache-Control', 'no-cache');
+    res.sendFile(join(DIST, 'index.html'));
+  });
 }
 
 // ---------- housekeeping: purge unsealed drafts older than 7 days ----------
@@ -765,6 +792,7 @@ function purgeStaleDrafts() {
       db.prepare('DELETE FROM clues WHERE gift_id=?').run(g.id);
       db.prepare('DELETE FROM hide_spots WHERE gift_id=?').run(g.id);
       db.prepare('DELETE FROM trails WHERE gift_id=?').run(g.id);
+      db.prepare('DELETE FROM events WHERE gift_id=?').run(g.id);
       db.prepare('DELETE FROM gifts WHERE id=?').run(g.id);
       try { rmSync(join(UPLOADS_DIR, g.id), { recursive: true, force: true }); } catch {}
     }

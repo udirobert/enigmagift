@@ -335,6 +335,27 @@ were derived from them at migration.
 - **Secrets**: pre-commit hook blocks `whsec_…`/`sk-…`/etc. (see Secrets
   hygiene). Multer bumped to 2.x.
 
+## Performance & caching (2026-11-21)
+
+- **Pages**: `/assets/*` (vite-hashed) → `Cache-Control: public, max-age=31536000, immutable`
+  via `public/_headers`; everything else revalidates. Measured ~60–80ms at the edge.
+- **API**: all `/api/*` responses default to `no-store`; token-scoped
+  photos/world/portrait and the buyer photo route override with
+  `private, max-age=86400`. When the server serves `dist/` locally it applies
+  the same policy (hashed assets immutable, index no-cache) — on Fly the image
+  is API-only (`/` is 404 there by design; Pages owns the frontend).
+- **DB**: indexes on all `gift_id` FK columns; deleting a gift or purging a
+  stale draft also deletes its `events` rows (erasure + no unbounded growth).
+- **Polling**: Reveal backs off 5s → 10s → 20s while the world builds; Reading
+  polls on a 1.6s chain (shows live progress).
+- **Cold starts**: `auto_stop_machines=stop`, `min_machines_running=0` — first
+  hit after idle pays a multi-second cold start. If that hurts, set
+  `min_machines_running=1` in `fly.toml` (one always-on shared-cpu machine).
+- **Cost levers already in**: client-side 1280px downscale before upload (fewer
+  vision tokens, less storage), EXIF strip, 5 drafts/h/IP, reclue bounded,
+  world build idempotent. Later: self-host fonts (drops a render-blocking
+  third-party request + CSP exceptions), optional `compression` on the API.
+
 ## Gotchas (actually hit)
 
 - **`/usr/local/bin/git` hangs** on every command (Homebrew Intel build under
