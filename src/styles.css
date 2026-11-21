@@ -476,7 +476,70 @@ img { display: block; max-width: 100%; }
 .dock-consent a { color: var(--gold); text-decoration: none; border-bottom: 1px dotted var(--gold); }
 .dock-consent.is-nudge { color: var(--paper); animation: dock-nudge 0.5s ease 6; }
 @keyframes dock-nudge { 50% { transform: translateX(3px); } }
+
+/* the photo promise — three glanceable trust rows above the consent box */
+.dock-promise {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  max-width: 34ch;
+  margin-top: 0.35rem;
+  padding-top: 0.45rem;
+  border-top: 1px solid var(--line);
+}
 .dock-seg { justify-content: center; }
+
+/* TrustRow + InfoDot — one icon + one line, details one tap away */
+.trust-row { display: flex; align-items: baseline; gap: 0.45rem; font-size: 0.62rem; line-height: 1.45; color: var(--paper-faint); text-align: left; }
+.trust-icon { font-size: 0.72rem; flex: none; transform: translateY(0.08em); }
+.trust-text { flex: 1; }
+.info-dot-wrap { position: relative; display: inline-block; margin-left: 0.3rem; }
+.info-dot {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 0.85rem; height: 0.85rem; border-radius: 50%;
+  border: 1px solid var(--line); background: transparent;
+  color: var(--gold); font-family: var(--mono); font-size: 0.5rem; font-style: italic;
+  cursor: pointer; vertical-align: baseline; padding: 0; line-height: 1;
+}
+.info-dot.is-open { background: var(--gold); color: var(--bg); }
+.info-pop {
+  position: absolute; z-index: 30; left: 0; bottom: calc(100% + 0.4rem);
+  width: max-content; max-width: 240px;
+  background: var(--ink-3, #241d15); color: var(--paper);
+  border: 1px solid var(--line); border-radius: 6px;
+  padding: 0.55rem 0.7rem; font-size: 0.62rem; line-height: 1.5;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45); text-align: left; font-style: normal;
+}
+.info-pop a { color: var(--gold); }
+
+/* seal — order summary above the pay button */
+.seal-order {
+  border: 1px solid var(--line); border-radius: 8px;
+  padding: 0.7rem 0.9rem; margin-bottom: 0.8rem;
+  display: flex; flex-direction: column; gap: 0.4rem;
+  background: rgba(243, 234, 217, 0.04); max-width: 340px;
+}
+.seal-order-head {
+  display: flex; justify-content: space-between; align-items: baseline;
+  font-family: var(--serif); font-size: 1rem; color: var(--paper);
+}
+.seal-order-head span:last-child { font-family: var(--mono); font-size: 0.8rem; color: var(--gold); }
+.seal-order-includes { margin: 0; font-size: 0.66rem; color: var(--paper-faint); line-height: 1.5; }
+
+/* seal — manage row under the link (revoke / delete / what's stored) */
+.seal-manage {
+  display: flex; flex-direction: column; gap: 0.35rem; align-items: center;
+  margin-top: 0.7rem; padding-top: 0.6rem; border-top: 1px solid var(--line);
+  max-width: 340px;
+}
+.seal-manage-label { font-size: 0.62rem; color: var(--paper-faint); letter-spacing: 0.02em; }
+.seal-manage-actions { display: flex; gap: 1rem; flex-wrap: wrap; justify-content: center; }
+.seal-manage .demo-link { font-size: 0.62rem; }
+.seal-danger { color: var(--rust-soft); }
+
+/* recipient first-open privacy line on round 1 */
+.round-privacy { margin-top: 0.5rem; font-size: 0.6rem; color: var(--paper-faint); opacity: 0.85; }
+.round-privacy a { color: var(--gold); text-decoration: none; border-bottom: 1px dotted var(--gold); }
 
 /* the promise — bottom centre, live with the backdrop's photo ⇄ world loop */
 .door-caption {

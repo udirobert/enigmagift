@@ -3,7 +3,8 @@ import { gsap } from 'gsap';
 import { SEAL_LINK } from '../data';
 import { prefersReducedMotion } from '../lib/motion';
 import { WaxSeal } from '../components/WaxSeal';
-import { markPaid, revokeTrail, sealGift, type GiftMode, type SealResult, type Tier } from '../lib/api';
+import { deleteGift, markPaid, revokeTrail, sealGift, type GiftMode, type SealResult, type Tier } from '../lib/api';
+import { TrustRow } from '../components/TrustRow';
 
 interface SealProps {
   demo: boolean;
@@ -22,6 +23,12 @@ const STRIPE_LINKS: Record<Tier, string | undefined> = {
   set: import.meta.env.VITE_STRIPE_LINK_SET,
 };
 const PRICES: Record<Tier, string> = { trail: '£4.99', hide: '£9.99', set: '£19' };
+const TIER_NAMES: Record<Tier, string> = { trail: 'the trail', hide: 'the hide', set: 'the set' };
+const TIER_INCLUDES: Record<Tier, string> = {
+  trail: 'one recipient link — opens the keepsake directly',
+  hide: 'one recipient link + a code you write into the hidden thing',
+  set: 'a pack of three hunts — this one, plus two more',
+};
 
 /**
  * The seal — and the till. Live gifts don't seal until the £19 clears:
@@ -45,6 +52,7 @@ export function Seal({ demo, giftId, kept, tier, mode, onSend }: SealProps) {
   );
   const [error, setError] = useState<string | null>(null);
   const [revoked, setRevoked] = useState(false);
+  const [deleted, setDeleted] = useState(false);
   const workingRef = useRef(false);
 
   const live = !demo && !!giftId;
@@ -112,6 +120,17 @@ export function Seal({ demo, giftId, kept, tier, mode, onSend }: SealProps) {
       setRevoked(true);
     } catch {
       setError('couldn’t revoke — try again');
+    }
+  };
+
+  const remove = async () => {
+    if (!giftId || deleted) return;
+    if (!window.confirm('delete this gift for good? the link stops opening, and the photos, world and portrait are erased from our server.')) return;
+    try {
+      await deleteGift(giftId);
+      setDeleted(true);
+    } catch {
+      setError('couldn’t delete — try again');
     }
   };
 
@@ -232,19 +251,36 @@ export function Seal({ demo, giftId, kept, tier, mode, onSend }: SealProps) {
 
         <div className={`seal-link seal-anim ${waiting && !sealed ? 'is-waiting' : ''}`}>
           <span className="seal-link-url">
-            {revoked ? 'link revoked — this trail no longer opens' : waiting && !sealed ? 'wax is setting…' : displayLink}
+            {deleted ? 'deleted — gone for good' : revoked ? 'link revoked — this trail no longer opens' : waiting && !sealed ? 'wax is setting…' : displayLink}
           </span>
-          {sealed && !revoked && (
+          {sealed && !revoked && !deleted && (
             <button className="seal-copy" onClick={copy}>
               {copied ? 'copied' : 'copy'}
             </button>
           )}
-          {sealed && !demo && !revoked && (
-            <button className="seal-copy seal-revoke" onClick={() => void revoke()}>
-              revoke link
-            </button>
-          )}
         </div>
+
+        {/* manage — revoke / delete / what's stored, one glance, one click each */}
+        {sealed && live && !deleted && (
+          <div className="seal-manage seal-anim">
+            <span className="seal-manage-label">
+              {revoked ? 'link revoked — the trail no longer opens' : 'live — the link opens for anyone who has it'}
+            </span>
+            <span className="seal-manage-actions">
+              {!revoked && (
+                <button className="demo-link" onClick={() => void revoke()}>
+                  revoke link
+                </button>
+              )}
+              <button className="demo-link seal-danger" onClick={() => void remove()}>
+                delete gift
+              </button>
+              <a className="demo-link" href="/privacy" target="_blank" rel="noreferrer">
+                what’s stored
+              </a>
+            </span>
+          </div>
+        )}
 
         {!demo && code && sealed && mode === 'physical' && (
           <div className="seal-code seal-anim">
@@ -282,8 +318,34 @@ export function Seal({ demo, giftId, kept, tier, mode, onSend }: SealProps) {
         </div>
 
         {/* the till — live gifts pay first, demo just presses the wax */}
-        {live && !sealed && (
+        {live && !sealed && !deleted && (
           <div className="seal-pay seal-anim">
+            {/* order summary — price, what's included, who takes the money, refunds */}
+            <div className="seal-order">
+              <div className="seal-order-head">
+                <span>{TIER_NAMES[tier]}</span>
+                <span>{PRICE}</span>
+              </div>
+              <p className="seal-order-includes">{TIER_INCLUDES[tier]}</p>
+              <TrustRow icon="🔒">paid by stripe — we never see your card</TrustRow>
+              <TrustRow
+                icon="↩"
+                more={{
+                  label: 'refund policy',
+                  body: (
+                    <>
+                      digital gifts are delivered instantly, but if the trail
+                      flops — wrong place, broken link — email us within 14
+                      days and we’ll refund or redo it. your statutory rights
+                      are unaffected.{' '}
+                      <a href="/terms" target="_blank" rel="noreferrer">terms</a>
+                    </>
+                  ),
+                }}
+              >
+                if the trail flops, we refund within 14 days
+              </TrustRow>
+            </div>
             {STRIPE_LINK ? (
               <button className="btn btn-primary" onClick={pay} disabled={waiting}>
                 {phase === 'awaiting' ? 'waiting for payment…' : `seal & send — ${PRICE}`}

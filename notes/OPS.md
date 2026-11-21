@@ -319,11 +319,19 @@ were derived from them at migration.
   pass through — documented gap). The browser also re-encodes uploads.
 - **Rate limits** on create/reclue/unlock/answer/mark-paid/seal/hide/
   world-source/revoke/delete/events; the in-memory limiter is key-bounded.
-- **Legal pages**: `/privacy`, `/terms` (static, `public/*.html`, clean URLs
-  via `_redirects`); upload requires a consent checkbox linking to `/privacy`.
+- **Legal pages**: `/privacy`, `/terms` (static, `public/*.html`, clean URLs —
+  Pages serves `privacy.html` at `/privacy` automatically; do NOT add
+  `_redirects` rules for them, that 308-loops). Both open with a "short
+  version" box; full text in `<details>`. Upload requires a consent checkbox.
   Placeholder contact addresses and governing law — **get legal review before
   launch**, and verify each AI subprocessor's retention/training terms before
   claiming anything about training in the policy.
+- **Trust UI** (informed-but-not-verbose): `TrustRow`/`InfoDot` components
+  (`src/components/TrustRow.tsx`) — photo-promise rows + consent on the Door,
+  order-summary card (tier/price/includes/Stripe lock/refund) above the pay
+  button on the Seal, and a manage row (revoke / delete / what's stored) once
+  sealed; a one-line privacy note on the recipient's round 1. Keep copy in the
+  lowercase brand voice; never pre-tick anything.
 - **Secrets**: pre-commit hook blocks `whsec_…`/`sk-…`/etc. (see Secrets
   hygiene). Multer bumped to 2.x.
 

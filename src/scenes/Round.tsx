@@ -334,6 +334,12 @@ export function Round({ demo, trail, round, onDone }: RoundProps) {
             <p className="round-hint round-anim">
               there are no wrong doors here — only three looks
             </p>
+            {real && round === 1 && (
+              <p className="round-privacy round-anim">
+                made for you from photos someone shared with permission ·{' '}
+                <a href="/privacy" target="_blank" rel="noreferrer">privacy</a>
+              </p>
+            )}
           </>
         )}
       </div>

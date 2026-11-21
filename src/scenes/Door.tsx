@@ -6,6 +6,7 @@ import {
   type WorldBackdropHandle,
 } from '../components/WorldBackdrop';
 import { getPack, unstashPack, type Tier } from '../lib/api';
+import { TrustRow } from '../components/TrustRow';
 import type { Direction } from '../App';
 
 const isFileDrag = (e: DragEvent) =>
@@ -227,6 +228,56 @@ export function Door({
               or click to browse · 5–12 shots · one is a start, more makes the
               truer
             </span>
+            <div className="dock-promise">
+              <TrustRow
+                icon="🔒"
+                more={{
+                  label: 'how we handle location metadata',
+                  body: (
+                    <>
+                      your browser re-encodes each photo before upload, and our
+                      server strips EXIF/GPS metadata again before storing.
+                      what’s left is just the picture.{' '}
+                      <a href="/privacy" target="_blank" rel="noreferrer">details</a>
+                    </>
+                  ),
+                }}
+              >
+                location stripped from every photo
+              </TrustRow>
+              <TrustRow
+                icon="🤖"
+                more={{
+                  label: 'who sees your photos',
+                  body: (
+                    <>
+                      our ai providers (listed on the privacy page) read the
+                      photos only to build your gift — never sold, never used
+                      for ads, never shown to anyone else.{' '}
+                      <a href="/privacy" target="_blank" rel="noreferrer">the list</a>
+                    </>
+                  ),
+                }}
+              >
+                read by our ai to build the clues — nothing else
+              </TrustRow>
+              <TrustRow
+                icon="🗑"
+                more={{
+                  label: 'how long we keep things',
+                  body: (
+                    <>
+                      drafts that are never sealed delete themselves after 7
+                      days. sealed gifts stay until you delete them — one
+                      click, gone for good.{' '}
+                      <a href="/privacy" target="_blank" rel="noreferrer">retention</a>
+                    </>
+                  ),
+                }}
+              >
+                drafts delete themselves after 7 days
+              </TrustRow>
+            </div>
             <label className={`dock-consent${consentNudge ? ' is-nudge' : ''}`}>
               <input
                 type="checkbox"
@@ -237,11 +288,9 @@ export function Door({
                 }}
               />
               <span>
-                {consentNudge
-                  ? 'tick the box first — '
-                  : ''}
-                i have the right to share these photos and everyone in them
-                knows · <a href="/privacy" target="_blank" rel="noreferrer">privacy</a>
+                {consentNudge ? 'tick the box first — ' : ''}
+                i can share these photos — everyone in them knows ·{' '}
+                <a href="/privacy" target="_blank" rel="noreferrer">privacy</a>
               </span>
             </label>
             <input
