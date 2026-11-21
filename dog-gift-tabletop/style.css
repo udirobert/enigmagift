@@ -330,10 +330,12 @@ body {
 .textpath {
   position: fixed;
   left: 50%;
-  bottom: 8rem;
+  bottom: max(1rem, env(safe-area-inset-bottom));
   transform: translateX(-50%);
   z-index: 6;
-  max-width: min(34rem, 90vw);
+  width: min(38rem, calc(100vw - 2rem));
+  max-height: calc(100dvh - 3rem);
+  overflow-y: auto;
   padding: 1.2rem 1.4rem;
   border-radius: 14px;
   background: var(--paper);
@@ -597,4 +599,31 @@ body {
   position: static;
   transform: none;
   flex: 0 0 auto;
+}
+
+/* ---- remix editor: the message first, clues tucked away ---- */
+.remix {
+  width: min(38rem, calc(100vw - 32px));
+  max-height: calc(100dvh - 32px);
+  align-items: stretch;
+  justify-content: flex-start;
+  text-align: left;
+  padding: clamp(1.25rem, 4vw, 2rem);
+}
+.remix > * { flex-shrink: 0; }
+.remix .note-kicker { margin: 0; }
+.remix label { font-size: 1rem; gap: 0.4rem; }
+.remix input, .remix textarea { font-size: 1rem; min-height: 44px; width: 100%; }
+.remix form { gap: 1rem; }
+.remix-clues { border-top: 1px solid #b08c5a66; padding-top: 1rem; }
+.remix-clues summary { cursor: pointer; min-height: 44px; display: list-item; }
+.remix-clues label { margin-top: 1rem; }
+
+/* ---- quiet endings: secondary actions behind one disclosure ---- */
+.gift-options { max-width: 100%; }
+.gift-options summary {
+  cursor: pointer;
+  min-height: 44px;
+  font-size: 0.9rem;
+  color: inherit;
 }

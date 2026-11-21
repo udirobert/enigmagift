@@ -110,7 +110,7 @@ app.innerHTML = `
     <div class="cover-line" id="coverLine">
       <p class="lead">I hid a gift in this room.</p>
       <button class="btn" id="enter">Step inside</button>
-      <button class="link" id="no3d" type="button">Continue without 3D</button>
+      <button class="link" id="no3d" type="button">Explore in photos</button>
     </div>
     <p class="status" id="status" role="status" aria-live="polite"></p>
   </section>
@@ -128,10 +128,15 @@ app.innerHTML = `
     <p class="hint remix-line" id="paperRemixLine" hidden></p>
     <div class="row">
       <button class="btn small" id="paperKeep">Keep exploring</button>
-      <button class="link" id="paperRecap">How the hunt went</button>
-      <button class="link" id="paperRemix" hidden>Make a gift in this room</button>
-      <button class="link" id="paperReplay">Start again</button>
     </div>
+    <details class="gift-options" id="paperOptions">
+      <summary>More options</summary>
+      <div class="row">
+        <button class="link" id="paperRecap">How the hunt went</button>
+        <button class="link" id="paperRemix" hidden>Make a gift in this room</button>
+        <button class="link" id="paperReplay">Start again</button>
+      </div>
+    </details>
   </section>
 
   <nav class="hud" id="hud" hidden>
@@ -154,7 +159,7 @@ app.innerHTML = `
       <button class="btn small" id="reset">Reset view</button>
       <button class="btn small" id="ladder">A little more help</button>
       <button class="btn small" id="walkthrough" hidden>Walk me through it</button>
-      <button class="btn small" id="motionless">Explore without motion</button>
+      <button class="btn small" id="motionless">Explore in photos</button>
       <button class="btn small ghost" id="directOpen">Just open my gift</button>
       <button class="link" id="closeHelp">Back</button>
     </div>
@@ -165,13 +170,19 @@ app.innerHTML = `
     <blockquote><p id="noteBody"></p><p class="note-sign" id="noteSign" hidden></p></blockquote>
     <div class="row">
       <button class="btn" id="keep">Keep exploring</button>
-      <button class="link" id="recapLink">How the hunt went</button>
-      <button class="link" id="remixLink" hidden>Make a gift in this room</button>
-      <button class="link" id="replay">Start again</button>
+      <button class="link" id="slipBack" hidden>Not yet</button>
     </div>
+    <details class="gift-options" id="noteOptions">
+      <summary>More options</summary>
+      <div class="row">
+        <button class="link" id="recapLink">How the hunt went</button>
+        <button class="link" id="remixLink" hidden>Make a gift in this room</button>
+        <button class="link" id="replay">Start again</button>
+      </div>
+    </details>
   </section>
 
-  <section class="textpath" id="textpath" hidden aria-label="Explore without 3D" tabindex="-1">
+  <section class="textpath" id="textpath" hidden aria-label="Explore in photos" tabindex="-1">
     <p class="help-title" id="tpTitle"></p>
     <p class="hint" id="tpClue" hidden></p>
     <p class="hint" id="tpInfo"></p>
@@ -214,20 +225,25 @@ app.innerHTML = `
 
   <section class="note paper-note remix" id="remixPanel" hidden aria-label="Make a gift in this room" tabindex="-1">
     <p class="note-kicker">Make a gift in this room</p>
-    <p class="hint">This sample room is available to reuse. Your edits stay in this tab.</p>
+    <p class="hint">Write the message they will find. This sample room is available to reuse.</p>
     <form id="remixForm">
       <label>To <input id="rmTo" maxlength="40" required placeholder="their name" /></label>
       <label>From <input id="rmFrom" maxlength="40" required placeholder="your name" /></label>
-      <label>The dog’s hint <textarea id="rmDog" maxlength="160" required rows="2"></textarea></label>
-      <label>The postcard’s clue <textarea id="rmPostcard" maxlength="160" required rows="2"></textarea></label>
-      <label>The ribbon’s keepsake <textarea id="rmMemory" maxlength="160" required rows="2"></textarea></label>
-      <label>The invitation <textarea id="rmInvite" maxlength="200" required rows="2"></textarea></label>
+      <label>Your invitation or message <textarea id="rmInvite" maxlength="200" required rows="4" placeholder="What would you like them to discover?"></textarea></label>
+      <details class="remix-clues">
+        <summary>Personalize the clues (optional)</summary>
+        <p class="hint">The room already has a working trail. Keep these clues, or add a memory of your own.</p>
+        <label>The dog’s hint <textarea id="rmDog" maxlength="160" rows="2"></textarea></label>
+        <label>The postcard’s clue <textarea id="rmPostcard" maxlength="160" rows="2"></textarea></label>
+        <label>The ribbon’s keepsake <textarea id="rmMemory" maxlength="160" rows="2"></textarea></label>
+      </details>
       <div class="row">
         <button class="btn small" type="submit" id="rmSubmit">Preview this gift</button>
         <button class="link" id="remixCancel" type="button">Back</button>
         <button class="link" id="remixOriginal" type="button">Back to original</button>
       </div>
     </form>
+    <p class="hint">Preview only — nothing is sent. This draft clears when you reload the page.</p>
   </section>
 `;
 
@@ -458,6 +474,7 @@ const doUnfold = () => {
   previewReveal();
   ($('#tpTrail') as HTMLElement).hidden = false;
   fillPaperNote();
+  ($('#paperOptions') as HTMLDetailsElement).open = false; // collapsed for each new reveal
   if (paperState === 'open') {
     paperNote.hidden = false;
     paperNote.focus();
@@ -566,7 +583,10 @@ const openGift = (route?: 'direct') => {
   sign.hidden = !sig;
   sign.textContent = sig;
   $('#keep').textContent = 'Keep exploring';
-  (note.querySelector('#replay') as HTMLElement).textContent = 'Start again';
+  const noteOpts = $('#noteOptions') as HTMLDetailsElement;
+  noteOpts.hidden = false;
+  noteOpts.open = false;
+  ($('#slipBack') as HTMLElement).hidden = true;
   note.dataset.stage = 'open';
   note.hidden = false;
   textpath.hidden = true;
@@ -609,6 +629,8 @@ const resetHunt = () => {
   note.hidden = true;
   paperNote.hidden = true;
   helpPanel.hidden = true;
+  ($('#slipBack') as HTMLElement).hidden = true;
+  ($('#noteOptions') as HTMLElement).hidden = false;
   unfoldChip.hidden = true;
   dogChip.hidden = true;
   opened = false;
@@ -657,6 +679,16 @@ $('#replay').addEventListener('click', () => {
 $('#paperReplay').addEventListener('click', () => {
   resetHunt();
   focusAfterReset();
+});
+/* the slip's only way back — hides the card, never opens the gift */
+$('#slipBack').addEventListener('click', () => {
+  note.hidden = true;
+  if (!textpath.hidden || returnToText || !world) {
+    textpath.hidden = false;
+    (tpAtlas.hidden ? $('#tpDog') : $('#tpBackPlace')).focus();
+  } else {
+    $('#help').focus();
+  }
 });
 
 /* ---------- help ---------- */
@@ -780,7 +812,8 @@ const wtAdvance = () => {
         noteBody.textContent = 'Unfold it?';
         note.dataset.stage = 'slip';
         ($('#keep') as HTMLElement).textContent = 'Unfold the note';
-        (note.querySelector('#replay') as HTMLElement).textContent = 'Not yet';
+        ($('#noteOptions') as HTMLElement).hidden = true;
+        ($('#slipBack') as HTMLElement).hidden = false;
         helpPanel.hidden = true;
         note.hidden = false;
         note.focus();
@@ -792,7 +825,7 @@ const wtAdvance = () => {
 };
 $('#motionless').addEventListener('click', () => {
   helpPanel.hidden = true;
-  openTextPath('Here’s the hunt without moving through the room.');
+  openTextPath('Choose a part of the room, then look closer at what you find.');
 });
 $('#directOpen').addEventListener('click', () => openGift('direct'));
 $('#reset').addEventListener('click', () => {
@@ -805,8 +838,10 @@ $('#back').addEventListener('click', () => world?.step(-0.5));
 
 /* ---------- text path: progressive, never names the answer ---------- */
 function openTextPath(why: string) {
-  tpTitle.textContent = why;
-  tpInfo.textContent = 'The hunt still works from here.';
+  tpTitle.textContent = 'Explore in photos';
+  tpInfo.textContent = why;
+  coverLine.hidden = true;
+  setStatus('');
   textpath.hidden = false;
   textpath.focus();
   ($('#tpReturn') as HTMLElement).hidden = !world;
@@ -814,7 +849,7 @@ function openTextPath(why: string) {
   run.start(!document.hidden);
 }
 const textPath = (why: string) => {
-  openTextPath(why + ' The hunt still works from here.');
+  openTextPath(why);
   enterBtn.disabled = false;
   enterBtn.textContent = 'Step inside';
   loading = false;
@@ -837,9 +872,7 @@ const PLACE_NAME = { table: 'Around the table', other: 'On the other side' };
 
 const showAtlasList = () => {
   ($('#tpPlaces') as HTMLElement).hidden = true;
-  ($('#tpBackPlace') as HTMLElement).textContent = atlasPlace
-    ? `Back to ${PLACE_NAME[atlasPlace]}`
-    : 'Back';
+  ($('#tpBackPlace') as HTMLElement).textContent = 'Back to the room';
   tpAtlas.hidden = false;
   tpStill.hidden = true;
   tpArtList.hidden = false;
@@ -861,6 +894,7 @@ let lastArt: HTMLElement | null = null;
 const showArtefact = (st: Still) => {
   run.tap(st.t);
   atlasTarget = st;
+  ($('#tpBackPlace') as HTMLElement).textContent = `Back to ${PLACE_NAME[st.place]}`;
   if (st.t === 'dog' || st.t === 'postcard' || st.t === 'ribbon') keepsakes.add(st.t);
   tpStill.hidden = false;
   tpArtList.hidden = true;
@@ -882,7 +916,8 @@ const showArtefact = (st: Still) => {
     noteBody.textContent = 'Unfold it?';
     note.dataset.stage = 'slip';
     $('#keep').textContent = 'Unfold the note';
-    (note.querySelector('#replay') as HTMLElement).textContent = 'Not yet';
+    ($('#noteOptions') as HTMLElement).hidden = true;
+    ($('#slipBack') as HTMLElement).hidden = false;
     note.hidden = false;
     note.focus();
   }
@@ -904,17 +939,17 @@ textpath.addEventListener('click', (e) => {
   }
 });
 $('#tpBackPlace').addEventListener('click', () => {
-  atlasPlace = null;
-  atlasTarget = null;
   /* back out of the still first, then out of the place */
   if (atlasTarget) {
     atlasTarget = null;
+    ($('#tpBackPlace') as HTMLElement).textContent = 'Back to the room';
     tpStill.hidden = true;
     tpArtList.hidden = false;
     ($('#tpGo') as HTMLElement).hidden = true;
     (lastArt ?? (tpArtList.firstElementChild as HTMLElement | null))?.focus();
     return;
   }
+  atlasPlace = null;
   tpAtlas.hidden = true;
   tpStill.hidden = true;
   ($('#tpPlaces') as HTMLElement).hidden = false;
@@ -1028,7 +1063,19 @@ const openRemix = () => {
 for (const id of ['paperRemix', 'remixLink']) {
   ($(`#${id}`) as HTMLElement).addEventListener('click', openRemix);
 }
+const readDraft = (): GiftEdition => {
+  const val = (id: string) => (($(id) as HTMLInputElement | HTMLTextAreaElement).value || '').trim();
+  const draft = makeDraft();
+  draft.to = val('#rmTo');
+  draft.from = val('#rmFrom');
+  draft.dog = val('#rmDog') || draft.dog;
+  draft.postcard = val('#rmPostcard') || draft.postcard;
+  draft.memory = val('#rmMemory') || draft.memory;
+  draft.invitation = val('#rmInvite');
+  return draft;
+};
 const closeRemix = () => {
+  lastDraft = readDraft(); // unsaved edits survive a leave-without-submit
   remixPanel.hidden = true;
   if (remixReturn === 'paper' && paperState === 'open' && world) {
     paperNote.hidden = false;
@@ -1117,14 +1164,7 @@ const closePreview = () => {
 
 ($('#remixForm') as HTMLFormElement).addEventListener('submit', (e) => {
   e.preventDefault();
-  const val = (id: string) => (($(id) as HTMLInputElement | HTMLTextAreaElement).value || '').trim();
-  const draft = makeDraft();
-  draft.to = val('#rmTo');
-  draft.from = val('#rmFrom');
-  draft.dog = val('#rmDog');
-  draft.postcard = val('#rmPostcard');
-  draft.memory = val('#rmMemory');
-  draft.invitation = val('#rmInvite');
+  const draft = readDraft();
   if (!draft.to || !draft.from || !draft.dog || !draft.postcard || !draft.memory || !draft.invitation) return;
   lastDraft = draft; // memory only — the parent's room is never replaced
   openPreview();
@@ -1163,7 +1203,7 @@ const enter = async () => {
     config = await res.json();
     if (!config.rad || !config.collider) throw new Error('schema');
   } catch {
-    bail('The 3D room is not here yet.');
+    bail('The 3D room did not finish opening. You can still discover your gift in these photos.');
     return;
   }
 
@@ -1194,7 +1234,7 @@ const enter = async () => {
   } catch {
     host.hidden = true;
     if (ctl.signal.aborted) return; // user already chose the text path
-    bail('The 3D room could not open on this device.');
+    bail('The 3D room did not finish opening. You can still discover your gift in these photos.');
     return;
   }
   if (ctl.signal.aborted) {
@@ -1257,5 +1297,7 @@ submitLabel();
 if (makeNow && ROOM.allowRemix && !isPreview) openRemix();
 no3dBtn.addEventListener('click', () => {
   abortCtl?.abort();
-  openTextPath('Here’s the hunt without moving through the room.');
+  loading = false;
+  if (!world) ($('#world') as HTMLElement).hidden = true;
+  openTextPath('Choose a part of the room, then look closer at what you find.');
 });
