@@ -221,7 +221,7 @@ function trailPayload(t, gift) {
 
 app.get('/api/health', (_req, res) => res.json({ ok: true }));
 
-function handleGiftCreate(req, res, packId = null) {
+function handleGiftCreate(req, res, packIdParam = null) {
   req.giftId = crypto.randomUUID();
   upload.array('photos', 12)(req, res, (err) => {
     if (err) return res.status(400).json({ error: err.message });
@@ -232,6 +232,8 @@ function handleGiftCreate(req, res, packId = null) {
     // digital-first: The Trail (digital) is the default; The Hide is physical.
     const mode = req.body?.mode === 'physical' ? 'physical' : 'digital';
     const tier = ['trail', 'hide', 'set'].includes(req.body?.tier) ? req.body.tier : null;
+    // packId comes from the route (/api/packs/:id/gifts) or the multipart body
+    const packId = packIdParam ?? (typeof req.body?.packId === 'string' && req.body.packId ? req.body.packId : null);
     if (packId) {
       const pack = db.prepare('SELECT * FROM packs WHERE id=?').get(packId);
       if (!pack) return res.status(404).json({ error: 'pack not found' });
@@ -255,6 +257,8 @@ app.post('/api/gifts', (req, res) => {
   if (!rateLimit(`gifts:${req.ip}`, 5, 60 * 60 * 1000)) {
     return res.status(429).json({ error: 'too many drafts — try again in an hour' });
   }
+  // packId in the multipart body is honoured inside handleGiftCreate (multer
+  // parses the body there); the pack route passes it as a param instead
   handleGiftCreate(req, res, null);
 });
 
