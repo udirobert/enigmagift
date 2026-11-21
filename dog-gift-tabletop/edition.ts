@@ -1,6 +1,7 @@
 /**
  * One room, many small editions. The world geometry is fixed; an edition is
- * only the words the hunt speaks. Drafts never leave the tab.
+ * only the words the hunt speaks. Draft previews stay in tab; explicit
+ * creation saves an immutable edition to API.
  */
 
 export const ROOM = {

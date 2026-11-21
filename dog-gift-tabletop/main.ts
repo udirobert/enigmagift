@@ -1,6 +1,9 @@
 import type { Target, WorldHandle } from './world';
 import { createRun } from './run';
 import { ROOM, CANONICAL, makeDraft, type GiftEdition } from './edition';
+import {
+  linkMode, validateEdition, initializeGiftLink, createRecipientLink, restorePendingDraft,
+} from './links';
 
 /**
  * Silent canonical v2. Unmarked photograph under a folded paper corner;
@@ -238,12 +241,14 @@ app.innerHTML = `
         <label>The ribbon’s keepsake <textarea id="rmMemory" maxlength="160" rows="2"></textarea></label>
       </details>
       <div class="row">
-        <button class="btn small" type="submit" id="rmSubmit">Preview this gift</button>
+        <button class="btn small" type="submit" id="rmCreate">Create recipient link</button>
+        <button class="link" type="submit" id="rmSubmit">Preview this gift</button>
         <button class="link" id="remixCancel" type="button">Back</button>
         <button class="link" id="remixOriginal" type="button">Back to original</button>
       </div>
+      <p class="remix-status" id="rmLinkStatus" role="status" aria-live="polite"></p>
     </form>
-    <p class="hint">Preview only — nothing is sent. This draft clears when you reload the page.</p>
+    <p class="hint">Creating a link saves this gift so someone else can open it. No email is sent — copy the link to send it yourself. Drafts stay in this tab until you create a link.</p>
   </section>
 `;
 
@@ -284,6 +289,7 @@ const tpPlaceName = $('#tpPlaceName');
 const trailBtn = $('#trailBtn') as HTMLButtonElement;
 
 const overlayOpen = () =>
+  app.hasAttribute('inert') ||
   !note.hidden || !helpPanel.hidden || !textpath.hidden || !paperNote.hidden ||
   !recapPanel.hidden || !remixPanel.hidden;
 
@@ -1036,7 +1042,8 @@ const draftChips = () => {
   }
 };
 const remixLinks = () => {
-  const on = ROOM.allowRemix && !isPreview; // a recipient preview never offers the editor
+  // recipient links and previews never offer the editor — remix is demo-only
+  const on = ROOM.allowRemix && !isPreview && linkMode === 'demo';
   ($('#paperRemix') as HTMLElement).hidden = !on;
   ($('#remixLink') as HTMLElement).hidden = !on;
 };
@@ -1044,7 +1051,7 @@ remixLinks();
 
 let remixReturn: 'paper' | 'note' | 'text' | null = null;
 const openRemix = () => {
-  if (!ROOM.allowRemix || isPreview) return;
+  if (!ROOM.allowRemix || isPreview || linkMode !== 'demo') return;
   remixReturn = !paperNote.hidden ? 'paper' : !note.hidden ? 'note' : 'text';
   note.hidden = true;
   paperNote.hidden = true;
@@ -1165,9 +1172,16 @@ const closePreview = () => {
 ($('#remixForm') as HTMLFormElement).addEventListener('submit', (e) => {
   e.preventDefault();
   const draft = readDraft();
-  if (!draft.to || !draft.from || !draft.dog || !draft.postcard || !draft.memory || !draft.invitation) return;
+  const status = $('#rmLinkStatus') as HTMLElement;
+  if (!draft.to || !draft.from || !draft.invitation) {
+    status.textContent = 'Add both names and your message before continuing.';
+    ($((!draft.to ? '#rmTo' : !draft.from ? '#rmFrom' : '#rmInvite')) as HTMLElement).focus();
+    return;
+  }
   lastDraft = draft; // memory only — the parent's room is never replaced
-  openPreview();
+  const submitter = (e as SubmitEvent).submitter as HTMLElement | null;
+  if (submitter?.id === 'rmCreate') void createRecipientLink(draft);
+  else openPreview();
 });
 $('#remixOriginal').addEventListener('click', () => {
   edition = { ...CANONICAL };
@@ -1185,6 +1199,7 @@ const enter = async () => {
   if (loading || world) return;
   loading = true;
   abortCtl = new AbortController();
+  const ctl = abortCtl;
   enterBtn.textContent = 'Opening…';
   enterBtn.disabled = true;
   setStatus('Opening…');
@@ -1198,18 +1213,18 @@ const enter = async () => {
 
   let config: { rad: string; collider: string };
   try {
-    const res = await fetch('./world.json');
+    const res = await fetch('./world.json', { signal: ctl.signal });
     if (!res.ok) throw new Error(String(res.status));
     config = await res.json();
     if (!config.rad || !config.collider) throw new Error('schema');
   } catch {
+    if (ctl.signal.aborted) return; // user already chose the photo route
     bail('The 3D room did not finish opening. You can still discover your gift in these photos.');
     return;
   }
 
   const host = $('#world');
   host.hidden = false;
-  const ctl = abortCtl;
   try {
     const { enterWorld } = await import('./world');
     if (ctl.signal.aborted) return;
@@ -1273,28 +1288,84 @@ const previewReveal = () => {
 };
 if (isPreview) {
   (coverFrame.querySelector('.paper-card') as HTMLElement).textContent = '';
-  window.addEventListener('message', (e) => {
-    if (e.source !== window.parent || e.origin !== location.origin) return;
-    const d = e.data as { type?: string; edition?: Record<string, unknown> };
-    if (d?.type !== 'gift-edition' || !d.edition || typeof d.edition !== 'object') return;
-    const ed = d.edition as Record<string, unknown>;
-    if (ed.revision !== ROOM.revision || ed.roomId !== ROOM.id) return;
-    const limits: [string, number][] = [
-      ['to', 40], ['from', 40], ['dog', 160], ['chair', 160],
-      ['postcard', 160], ['memory', 160], ['invitation', 200],
-    ];
-    if (!limits.every(([k, m]) => typeof ed[k] === 'string' && (ed[k] as string).length <= m)) return;
-    edition = { ...(ed as unknown as GiftEdition) };
-    /* the folded cover is signed for this recipient before they step inside */
-    (coverFrame.querySelector('.paper-card') as HTMLElement).textContent =
-      `For ${edition.to}, from ${edition.from}`;
+  /* the canonical gift stays inert until a trusted edition lands — a preview
+     inside a saved-link page (or a standalone preview tab) fails closed */
+  app.setAttribute('inert', '');
+  const waiting = document.createElement('p');
+  waiting.className = 'preview-wait';
+  waiting.setAttribute('role', 'status');
+  waiting.textContent = 'Opening your gift…';
+  document.body.appendChild(waiting);
+  const unavailable = (() => {
+    waiting.remove();
+    const panel = document.createElement('section');
+    panel.className = 'note paper-note delivery-panel';
+    panel.id = 'deliveryPanel';
+    panel.setAttribute('role', 'dialog');
+    panel.setAttribute('aria-modal', 'true');
+    panel.setAttribute('aria-labelledby', 'deliveryHeading');
+    panel.tabIndex = -1;
+    const kicker = document.createElement('h2');
+    kicker.className = 'note-kicker';
+    kicker.id = 'deliveryHeading';
+    kicker.textContent = 'Your gift';
+    const msg = document.createElement('p');
+    msg.className = 'delivery-status';
+    msg.textContent = 'This gift link is unavailable or has been closed. Ask the giver for another link.';
+    const row = document.createElement('div');
+    row.className = 'row';
+    const make = document.createElement('a');
+    make.className = 'link';
+    make.href = '?make=1';
+    make.textContent = 'Make a gift';
+    row.append(make);
+    panel.append(kicker, msg, row);
+    document.body.appendChild(panel);
+    panel.focus();
   });
-  window.parent.postMessage('gift-preview-ready', location.origin);
+  if (linkMode !== 'demo' || window.frameElement === null) {
+    unavailable();
+  } else {
+    window.addEventListener('message', (e) => {
+      if (e.source !== window.parent || e.origin !== location.origin) return;
+      const d = e.data as { type?: string; edition?: unknown };
+      if (d?.type !== 'gift-edition') return;
+      const ed = validateEdition(d.edition);
+      if (!ed) return;
+      edition = ed;
+      /* the folded cover is signed for this recipient before they step inside */
+      const card = coverFrame.querySelector('.paper-card') as HTMLElement;
+      card.textContent = `For ${edition.to}, from ${edition.from}`;
+      card.removeAttribute('aria-hidden');
+      waiting.remove();
+      app.removeAttribute('inert');
+    });
+    window.parent.postMessage('gift-preview-ready', location.origin);
+  }
 }
 
 enterBtn.addEventListener('click', enter);
 submitLabel();
-if (makeNow && ROOM.allowRemix && !isPreview) openRemix();
+if (linkMode === 'demo' && !isPreview) {
+  // an interrupted create left its draft+key in this tab — reopen the editor
+  const pending = restorePendingDraft();
+  if (pending) {
+    lastDraft = pending;
+    openRemix();
+  }
+}
+if (makeNow && ROOM.allowRemix && !isPreview && linkMode === 'demo') openRemix();
+// a saved recipient/manage link only ever loads on the real page — a preview
+// child must never fetch the link API or undo its own gate
+if (!isPreview) void initializeGiftLink(app, (ed) => {
+  // a real saved recipient link: apply the fetched edition — nothing else is
+  // replaced (the sender's own draft/run stays only in their tab)
+  edition = ed;
+  isDraft = false;
+  const card = coverFrame.querySelector('.paper-card') as HTMLElement;
+  card.textContent = `For ${ed.to}, from ${ed.from}`;
+  card.removeAttribute('aria-hidden');
+});
 no3dBtn.addEventListener('click', () => {
   abortCtl?.abort();
   loading = false;

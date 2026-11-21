@@ -1,0 +1,7 @@
+/*
+  Referrer-Policy: no-referrer
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: SAMEORIGIN
+  Cache-Control: no-cache
+/api/*
+  Cache-Control: no-store

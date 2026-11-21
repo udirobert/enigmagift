@@ -3,8 +3,8 @@
 Experiment cut of `dog-gift-next/` with the three interactions called out in
 `notes/CANONICAL-GIFT.md` ("What to test first") plus the fuller family-room
 pilot layer (still atlas, help ladder, keepsake recap, recipient-preview
-remix). Control build stays at `dog-gift-next/`; nothing here feeds back
-into it.
+remix, and saved recipient links). Control build stays at `dog-gift-next/`;
+nothing here feeds back into it.
 
 ## The three changes
 
@@ -55,10 +55,12 @@ The same cut also carries the fuller local hunt layer:
   dog/postcard/ribbon clues inside an optional `details` (cleared clue fields
   fall back to the draft defaults; to/from/invitation stay required,
   trimmed, maxlength); `?make=1` opens a clean editor without playing the
-  demo. The intro asks for the message they will find and a footer is
-  explicit: preview only, nothing is sent, the draft clears on reload —
-  backing out preserves the unsaved draft in memory. There is no backend,
-  no payment and no persistence. Submitting opens the draft inside a
+  demo. The intro asks for the message they will find; a footer states no
+  email is sent — the giver copies the link and sends it themselves, and
+  drafts stay in the tab until a link is created. Backing out preserves the
+  unsaved draft in memory. The two actions: "Create recipient link"
+  publishes a saved snapshot (below), "Preview this gift" opens the draft
+  inside a
   full-window same-origin iframe (`./?recipientPreview=1`) — the parent's
   room, run and keepsakes are never replaced. The draft travels by
   `postMessage` in memory only (no URL, no storage); the child validates
@@ -67,6 +69,23 @@ The same cut also carries the fuller local hunt layer:
   and offers no remix CTA. "Back to editing"/"Back to my draft" removes the
   frame and restores the form and the original session. A short paper-fold
   marks the transition (skipped under reduced motion).
+- **Saved recipient links.** "Create recipient link" posts the draft to
+  `/api/room-gifts` on the EnigmaGift API — an immutable edition snapshot,
+  saved server-side (no checkout, no email, no account; free). The API
+  returns a recipient token; the client builds the two URLs locally: the
+  recipient link `…#gift=<token>` to share, and a private management link
+  `…#manage=<key>` that opens the owner view (copy/open the recipient link,
+  and behind "Private controls" a copyable management URL and a confirmed
+  "Close recipient link" that revokes it). Anyone holding the recipient
+  link can open the gift; revoking removes the message from the stored
+  edition and the link stops working — a closed or failed link shows an
+  honest error card (retry only for transient failures), never silently the
+  canonical gift. To reply or change wording the sender makes a new link —
+  the snapshot can't be edited. An interrupted create keeps its draft and
+  management key in this tab's session so the exact retry reuses them. The
+  server allowlist (currently only this room, revision 44124720) is
+  authoritative; `ROOM.allowRemix` is not. Not yet proven on a real phone,
+  and neither the API changes nor this build are deployed.
 - **Still atlas — "Explore in photos".** The flat text fallback is named
   *Explore in photos* (entry link, help button and panel title all read it),
   is available before or without loading 3D, and a failed room open recovers
@@ -100,6 +119,16 @@ The same cut also carries the fuller local hunt layer:
 
 Run from the repo root (it reuses the root's vite + node_modules):
 
+The tabletop Vite dev server proxies `/api` to `127.0.0.1:8787`, so the
+backend (`server/index.js`, Node >= 22.15) must be running for saved-link
+features. The standalone Netlify build ships `_redirects` proxying `/api/*`
+to `enigmagift-api.fly.dev` and `_headers` with `X-Frame-Options:
+SAMEORIGIN` — deploy the API (`server/` fly deploy) before publishing a new
+tabletop bundle, and the server origin allowlist only covers the
+`tabletop-letter` default unless `ALLOWED_ORIGINS` is set explicitly for
+another host. Local verification used a temporary data directory, not
+permanent production storage.
+
 ```sh
 # local dev server
 ./node_modules/.bin/vite dog-gift-tabletop --host 127.0.0.1 --port 4296 --strictPort
@@ -129,6 +158,17 @@ end (dog → "Look from here" → paper at the low pose → Unfold), and a force
 world.json failure recovered into the photo route. Not exercised: real
 phones, full checkout/generation/sends, and the earlier 3D load failure's
 root cause is not established.
+
+Saved-link checks also passed in Ego Browser: personalized preview →
+creation → a fresh recipient page → photo discovery and reveal; reloads
+retained the edition; closing the link blocked later opens. Copy success
+and manual-copy fallback, denied session storage with an ambiguous create
+response, ambiguous revocation, API failure/retry, literal HTML as text,
+and invalid/combined URL modes were exercised. Management layouts were
+checked at 390×844 and 320×568 without horizontal overflow. API regression
+tests additionally verified persistence across a server restart. These
+were local tests against a temporary database; real phones and public
+deployment remain unverified.
 
 ## Experiment run card
 

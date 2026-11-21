@@ -188,6 +188,19 @@ Frontend env (build-time):
 | `GET /api/trail/:token/portrait` | streams the painted keepsake portrait (202 until ready/skipped) |
 | `GET /api/trail/:token/photo/:i` | original photo by sorted index, **token-scoped** |
 | `GET /api/photo/:giftId/:i` | original photo by gift id (buyer/editor side only) |
+| `POST /api/room-gifts` | `{edition}` + `Authorization: Bearer <key>` — save an immutable tabletop gift edition → `{recipientToken}`; idempotent on the same key+edition, `409` on a different edition, `410` once revoked |
+| `GET /api/room-gifts/:token` | public recipient edition (`no-store`); `404` when revoked/unknown or the room/revision is not in the server allowlist |
+| `GET /api/room-gifts/manage` | owner view (`recipientToken`, `revoked`, `edition`) behind the management key |
+| `DELETE /api/room-gifts/manage` | revoke: deletes the stored edition text and marks the link closed (repeat-safe) |
+
+Room-gift links are a pilot feature: no accounts — the sender's management
+key is a 64-hex bearer in the private `#manage=` URL and only its SHA-256
+hash is stored; revocation removes the message from the stored edition. The approved
+room/revision allowlist lives in `server/room-gifts.js` (currently only the
+dog-dining-room sample), create is rate-limited to 10/IP/hour (pilot caveat:
+shared proxies share the bucket; `trust proxy` is not enabled, so forwarded
+IPs are not honoured), and there is no email, checkout or automatic
+delivery — the giver copies the link and sends it themselves.
 
 API-only behaviors not surfaced in the current client: the frontend does not
 forward `ref` or `sendAt`; `sendAt` schedules the link's availability only —
