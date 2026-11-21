@@ -307,6 +307,11 @@ img { display: block; max-width: 100%; }
   min-height: 100dvh;
   overflow: hidden;
   background: var(--ink);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(20rem, 25rem);
+  align-items: end;
+  gap: clamp(2rem, 5vw, 5rem);
+  padding: clamp(2rem, 5vw, 4rem) clamp(1.5rem, 5vw, 4rem) 5rem;
 }
 
 /* the living world — the single photograph and its 3D world crossfading on
@@ -393,9 +398,10 @@ img { display: block; max-width: 100%; }
 
 /* the words — bottom-left, over the world */
 .door-copy {
-  position: absolute;
-  left: clamp(1.5rem, 5vw, 4rem);
-  bottom: clamp(1.5rem, 8vh, 6rem);
+  position: relative;
+  left: auto;
+  right: auto;
+  bottom: auto;
   z-index: 3;
   max-width: 30rem;
   display: flex;
@@ -426,17 +432,18 @@ img { display: block; max-width: 100%; }
 
 /* the move — a glass dock on the world */
 .door-dock {
-  position: absolute;
-  right: clamp(1.5rem, 5vw, 4rem);
-  bottom: clamp(1.5rem, 8vh, 6rem);
+  position: relative;
+  left: auto;
+  right: auto;
+  bottom: auto;
   z-index: 3;
   display: flex;
   flex-direction: column;
   gap: 0.8rem;
-  width: clamp(15rem, 22vw, 19rem);
+  width: 100%;
   padding: 1.05rem;
   border-radius: 16px;
-  background: rgba(14, 10, 8, 0.5);
+  background: rgba(22, 17, 13, 0.94);
   border: 1px solid rgba(240, 230, 214, 0.16);
   backdrop-filter: blur(14px) saturate(1.1);
   box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
@@ -1690,6 +1697,24 @@ img { display: block; max-width: 100%; }
 
 /* ------------------------------ responsive --------------------------- */
 
+/* the door — copy and dock stack in normal flow, never overlap */
+@media (max-width: 900px) {
+  .door-stage {
+    grid-template-columns: minmax(0, 1fr);
+    align-items: start;
+    gap: 2rem;
+    padding: 3rem 1.1rem 5rem;
+  }
+  .door-copy,
+  .door-dock {
+    width: 100%;
+    max-width: 38rem;
+    margin-inline: auto;
+    inset: auto;
+  }
+  .door-copy .lede { font-size: 1rem; max-width: none; }
+}
+
 @media (max-width: 760px) {
   .reading-inner { grid-template-columns: 1fr; }
   .fan { min-height: 14rem; }
@@ -1700,19 +1725,6 @@ img { display: block; max-width: 100%; }
   .editor-foot .foot-note { text-align: center; }
 
   /* the door — the world fills, copy and dock share the bottom */
-  .door-copy {
-    left: clamp(1.1rem, 4vw, 2rem);
-    right: clamp(1.1rem, 4vw, 2rem);
-    bottom: 13.5rem;
-    max-width: none;
-  }
-  .door-copy .lede { font-size: 0.95rem; max-width: none; }
-  .door-dock {
-    left: clamp(1.1rem, 4vw, 2rem);
-    right: clamp(1.1rem, 4vw, 2rem);
-    bottom: 4.2rem;
-    width: auto;
-  }
   .door-caption { bottom: 1rem; letter-spacing: 0.18em; }
   .wb-hint { font-size: 0.56rem; padding: 0.35rem 0.6rem; }
   /* one word of the product per screen on phones — the middle one, centred */
@@ -2076,3 +2088,58 @@ img { display: block; max-width: 100%; }
 }
 .btn-secondary:hover:not(:disabled) { color: var(--paper); border-color: var(--gold); }
 .btn-secondary:disabled { opacity: 0.45; cursor: default; }
+
+/* ---------------------- door dock: readable functional text ------------- */
+/* Scoped overrides — these must beat the tiny decorative tiers above. */
+.door-dock .dock-sub,
+.door-dock .dock-consent,
+.door-dock .trust-row,
+.door-dock .dock-tier-hint,
+.door-dock .dock-pack-note {
+  font-family: var(--sans);
+  font-size: 0.875rem;
+  line-height: 1.5;
+  letter-spacing: 0;
+  color: var(--paper);
+}
+.door-dock .dock-consent { max-width: none; }
+.door-dock .dock-consent input { width: 20px; height: 20px; }
+.door-dock .dock-seg { flex-wrap: wrap; }
+.door-dock .dock-seg button {
+  min-height: 44px;
+  flex: 1;
+  font-size: 0.8125rem;
+  letter-spacing: 0.02em;
+  padding: 0.6rem 0.7rem;
+}
+.door-dock .info-dot {
+  min-width: 28px;
+  min-height: 28px;
+  font-size: 0.75rem;
+  color: var(--paper);
+}
+.door-dock .info-dot-wrap { position: static; }
+.door-dock .info-pop {
+  position: static;
+  display: block;
+  transform: none;
+  width: auto;
+  max-width: none;
+  margin-top: 0.5rem;
+  font-size: 0.875rem;
+}
+.dock-files { font-size: 0.875rem; color: var(--paper); }
+.dock-status { font-size: 0.875rem; color: var(--paper); }
+.dock-build { width: 100%; }
+
+/* the drop target is a native button now — reset and full-width */
+.door-dock .dock-drop { width: 100%; font: inherit; color: inherit; }
+.door-dock .dock-drop:disabled { cursor: default; opacity: 0.6; }
+.door-dock .dock-drop .dock-label { font-family: var(--serif); }
+
+/* visible focus on the drop target and every dock control — no hover needed */
+.door-dock .dock-drop:focus-visible,
+.door-dock button:focus-visible {
+  outline: 2px solid var(--paper);
+  outline-offset: 3px;
+}

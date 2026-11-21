@@ -26,8 +26,8 @@ interface DoorProps {
 
 const TIER_HINT: Record<Tier, { someone: string; me: string }> = {
   trail: {
-    someone: 'fully digital — sealed and sent in five minutes',
-    me: 'fully digital — a keepsake only you can open, sealed in five minutes',
+    someone: 'One digital gift · send a link · no physical hiding',
+    me: 'One digital keepsake · no physical hiding',
   },
   hide: {
     someone: 'you hide something real at the place, with the code inside',
@@ -62,13 +62,26 @@ export function Door({
   const dragDepth = useRef(0);
   const [tableDrag, setTableDrag] = useState(false);
   const [hintPos, setHintPos] = useState<{ x: number; y: number } | null>(null);
-  const [count, setCount] = useState(0);
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [fileNotice, setFileNotice] = useState('');
+  const [starting, setStarting] = useState(false);
+  const startTimer = useRef<number | null>(null);
+  const previewUrls = useRef<string[]>([]);
+  const startingRef = useRef(false);
   const [phase, setPhase] = useState<'photo' | 'world'>('photo');
   const [dockPulse, setDockPulse] = useState(false);
   // an active Set pack (from a previous £19 purchase) — this hunt comes out of it
   const [packCredits, setPackCredits] = useState<number | null>(null);
   const [consent, setConsent] = useState(false);
-  const [consentNudge, setConsentNudge] = useState(false);
+  const count = selectedFiles.length;
+
+  useEffect(
+    () => () => {
+      if (startTimer.current !== null) window.clearTimeout(startTimer.current);
+      previewUrls.current.forEach((u) => URL.revokeObjectURL(u));
+    },
+    [],
+  );
 
   useEffect(() => {
     const id = unstashPack();
@@ -78,32 +91,46 @@ export function Door({
       .catch(() => setPackCredits(null));
   }, []);
 
-  const handleFiles = useCallback(
-    (files: FileList | null) => {
-      if (!files || files.length === 0) return;
-      const images = Array.from(files)
-        .filter((f) => f.type.startsWith('image/') || /\.(heic|heif)$/i.test(f.name))
-        .slice(0, 12);
-      if (images.length === 0) return;
-      setCount(images.length);
-      if (images.length < 5) {
-        window.setTimeout(() => setCount(0), 1800);
-        return;
+  const handleFiles = useCallback((files: FileList | null) => {
+    if (!files?.length || startingRef.current) return;
+    const images = Array.from(files).filter(
+      (f) => f.type.startsWith('image/') || /\.(heic|heif)$/i.test(f.name),
+    );
+    if (!images.length) {
+      setFileNotice('Choose image files to add to your trail.');
+      return;
+    }
+    setSelectedFiles((previous) => {
+      const unique = [...previous];
+      for (const image of images) {
+        if (
+          !unique.some(
+            (f) =>
+              f.name === image.name &&
+              f.size === image.size &&
+              f.lastModified === image.lastModified,
+          )
+        )
+          unique.push(image);
       }
-      // privacy gate: no upload until the buyer confirms they may share these
-      // photos (they often contain the recipient and other people)
-      if (!consent) {
-        setConsentNudge(true);
-        window.setTimeout(() => setConsentNudge(false), 3200);
-        window.setTimeout(() => setCount(0), 1800);
-        return;
-      }
-      backdropRef.current?.scatter(images.slice(0, 5).map((f) => URL.createObjectURL(f)));
-      const delay = prefersReducedMotion() ? 250 : 900;
-      window.setTimeout(() => onPhotos(images), delay);
-    },
-    [onPhotos, consent],
-  );
+      return unique.slice(0, 12);
+    });
+    setFileNotice('Up to 12 photos per trail.');
+  }, []);
+
+  const startTrail = () => {
+    if (startingRef.current || selectedFiles.length < 5 || !consent) return;
+    startingRef.current = true;
+    setStarting(true);
+    previewUrls.current = selectedFiles
+      .slice(0, 5)
+      .map((f) => URL.createObjectURL(f));
+    backdropRef.current?.scatter(previewUrls.current);
+    startTimer.current = window.setTimeout(
+      () => onPhotos(selectedFiles),
+      prefersReducedMotion() ? 250 : 900,
+    );
+  };
 
   /* drop anywhere over the page */
   useEffect(() => {
@@ -150,7 +177,16 @@ export function Door({
     if (initialSection !== 'start') return;
     setDockPulse(true);
     const t = window.setTimeout(() => setDockPulse(false), 2600);
-    return () => window.clearTimeout(t);
+    const raf = requestAnimationFrame(() => {
+      dockRef.current?.scrollIntoView({
+        behavior: prefersReducedMotion() ? 'auto' : 'smooth',
+        block: 'end',
+      });
+    });
+    return () => {
+      window.clearTimeout(t);
+      cancelAnimationFrame(raf);
+    };
   }, [initialSection]);
 
   useEffect(() => {
@@ -197,20 +233,20 @@ export function Door({
 
         {/* the words — bottom-left, over the world */}
         <div className="door-copy">
-          <p className="kicker door-anim">a gift only one person in the world can find</p>
+          <p className="kicker door-anim">
+            {direction === 'me'
+              ? 'a place worth remembering.'
+              : 'a place you share. a gift to discover.'}
+          </p>
           <h1 className="wordmark door-anim">enigmagift</h1>
           <p className="lede door-anim">
-            {direction === 'me' ? (
-              <>
-                photograph a place that matters to you. it builds a trail only
-                you can follow — and a code in what you hide opens the keepsake.
-              </>
-            ) : (
-              <>
-                photograph a place that matters. it builds a trail only they can
-                follow — and a code in what you hide opens the keepsake.
-              </>
-            )}
+            {tier === 'hide'
+              ? direction === 'me'
+                ? 'Turn a place that matters into a trail for future-you. Hide a note there; its code opens your digital keepsake.'
+                : 'Turn a place you share into a trail of clues. Hide a note there; its code opens their digital keepsake.'
+              : direction === 'me'
+                ? 'Turn photographs of a place that matters into a short trail of clues and a digital keepsake. Nothing to hide or collect.'
+                : 'Turn photographs of a place you share into a short trail of clues and a digital keepsake. Send a link — nothing to hide or collect.'}
           </p>
           <div className="hero-actions door-anim">
             <button className="btn btn-primary" onClick={onWatch}>
@@ -224,105 +260,113 @@ export function Door({
           ref={dockRef}
           className={`door-dock door-anim${dockPulse ? ' is-pulse' : ''}`}
         >
-          <div
+          <button
+            type="button"
             className={`dock-drop${tableDrag ? ' is-dragging' : ''}`}
-            role="button"
-            tabIndex={0}
-            aria-label="drop photos of the place, or click to browse"
+            disabled={starting}
             onClick={openPicker}
-            onKeyDown={(e) => e.key === 'Enter' && openPicker()}
           >
             <span className="dock-glyph" aria-hidden>
               ↑
             </span>
             <span className="dock-label">
               {count > 0
-                ? count >= 5
-                  ? `${count} photo${count === 1 ? '' : 's'} gathered — reading them now`
-                  : `a trail needs at least five — you have ${count}`
-                : 'drop photos of the place'}
+                ? `Add photos (${count}/12 selected)`
+                : 'Choose photos of the place'}
             </span>
             <span className="dock-sub">
-              or click to browse · 5–12 shots · one is a start, more makes the
-              truer
+              Choose 5–12 photos. You can add them a few at a time.
             </span>
-            <div className="dock-promise">
-              <TrustRow
-                icon="🔒"
-                more={{
-                  label: 'how we handle location metadata',
-                  body: (
-                    <>
-                      your browser re-encodes each photo before upload, and our
-                      server strips EXIF/GPS metadata again before storing.
-                      what’s left is just the picture.{' '}
-                      <a href="/privacy" target="_blank" rel="noreferrer">details</a>
-                    </>
-                  ),
-                }}
-              >
-                location stripped from every photo
-              </TrustRow>
-              <TrustRow
-                icon="🤖"
-                more={{
-                  label: 'who sees your photos',
-                  body: (
-                    <>
-                      our ai providers (listed on the privacy page) read the
-                      photos only to build your gift — never sold, never used
-                      for ads, never shown to anyone else.{' '}
-                      <a href="/privacy" target="_blank" rel="noreferrer">the list</a>
-                    </>
-                  ),
-                }}
-              >
-                read by our ai to build the clues — nothing else
-              </TrustRow>
-              <TrustRow
-                icon="🗑"
-                more={{
-                  label: 'how long we keep things',
-                  body: (
-                    <>
-                      drafts that are never sealed delete themselves after 7
-                      days. sealed gifts stay until you delete them — one
-                      click, gone for good.{' '}
-                      <a href="/privacy" target="_blank" rel="noreferrer">retention</a>
-                    </>
-                  ),
-                }}
-              >
-                drafts delete themselves after 7 days
-              </TrustRow>
-            </div>
-            <label className={`dock-consent${consentNudge ? ' is-nudge' : ''}`}>
-              <input
-                type="checkbox"
-                checked={consent}
-                onChange={(e) => {
-                  setConsent(e.target.checked);
-                  setConsentNudge(false);
-                }}
-              />
-              <span>
-                {consentNudge ? 'tick the box first — ' : ''}
-                i can share these photos — everyone in them knows ·{' '}
-                <a href="/privacy" target="_blank" rel="noreferrer">privacy</a>
-              </span>
-            </label>
-            <input
-              ref={inputRef}
-              type="file"
-              accept="image/*"
-              multiple
-              hidden
-              onChange={(e) => {
-                handleFiles(e.target.files);
-                e.target.value = '';
+          </button>
+          <div className="dock-promise">
+            <TrustRow
+              icon="🔒"
+              more={{
+                label: 'how we handle location metadata',
+                body: (
+                  <>
+                    your browser re-encodes each photo before upload, and our
+                    server strips EXIF/GPS metadata again before storing.
+                    what’s left is just the picture.{' '}
+                    <a href="/privacy" target="_blank" rel="noreferrer">details</a>
+                  </>
+                ),
               }}
-            />
+            >
+              location stripped from every photo
+            </TrustRow>
+            <TrustRow
+              icon="🤖"
+              more={{
+                label: 'who sees your photos',
+                body: (
+                  <>
+                    our ai providers (listed on the privacy page) read the
+                    photos only to build your gift — never sold, never used
+                    for ads, never shown to anyone else.{' '}
+                    <a href="/privacy" target="_blank" rel="noreferrer">the list</a>
+                  </>
+                ),
+              }}
+            >
+              read by our ai to build the clues — nothing else
+            </TrustRow>
+            <TrustRow
+              icon="🗑"
+              more={{
+                label: 'how long we keep things',
+                body: (
+                  <>
+                    drafts that are never sealed delete themselves after 7
+                    days. sealed gifts stay until you delete them — one
+                    click, gone for good.{' '}
+                    <a href="/privacy" target="_blank" rel="noreferrer">retention</a>
+                  </>
+                ),
+              }}
+            >
+              drafts delete themselves after 7 days
+            </TrustRow>
           </div>
+          <label className="dock-consent">
+            <input
+              type="checkbox"
+              checked={consent}
+              disabled={starting}
+              onChange={(e) => setConsent(e.target.checked)}
+            />
+            <span>
+              i can share these photos — everyone in them knows ·{' '}
+              <a href="/privacy" target="_blank" rel="noreferrer">privacy</a>
+            </span>
+          </label>
+          <input
+            ref={inputRef}
+            type="file"
+            accept="image/*,.heic,.heif"
+            multiple
+            hidden
+            onChange={(e) => {
+              handleFiles(e.target.files);
+              e.target.value = '';
+            }}
+          />
+          {count > 0 && (
+            <p className="dock-files">
+              {count} photo{count === 1 ? '' : 's'} selected ·{' '}
+              <button
+                type="button"
+                className="link"
+                disabled={starting}
+                onClick={() => {
+                  setSelectedFiles([]);
+                  setFileNotice('');
+                }}
+              >
+                Clear selection
+              </button>
+            </p>
+          )}
           <div
             className="seg dock-seg"
             role="group"
@@ -330,6 +374,8 @@ export function Door({
           >
             <button
               className={direction === 'someone' ? 'is-active' : ''}
+              aria-pressed={direction === 'someone'}
+              disabled={starting}
               onClick={(e) => {
                 e.stopPropagation();
                 onDirection('someone');
@@ -339,6 +385,8 @@ export function Door({
             </button>
             <button
               className={direction === 'me' ? 'is-active' : ''}
+              aria-pressed={direction === 'me'}
+              disabled={starting}
               onClick={(e) => {
                 e.stopPropagation();
                 onDirection('me');
@@ -354,6 +402,8 @@ export function Door({
           >
             <button
               className={tier === 'trail' ? 'is-active' : ''}
+              aria-pressed={tier === 'trail'}
+              disabled={starting}
               onClick={(e) => {
                 e.stopPropagation();
                 onTier('trail');
@@ -363,6 +413,8 @@ export function Door({
             </button>
             <button
               className={tier === 'hide' ? 'is-active' : ''}
+              aria-pressed={tier === 'hide'}
+              disabled={starting}
               onClick={(e) => {
                 e.stopPropagation();
                 onTier('hide');
@@ -372,6 +424,8 @@ export function Door({
             </button>
             <button
               className={tier === 'set' ? 'is-active' : ''}
+              aria-pressed={tier === 'set'}
+              disabled={starting}
               onClick={(e) => {
                 e.stopPropagation();
                 onTier('set');
@@ -387,6 +441,24 @@ export function Door({
               left; this one comes out of the pack
             </p>
           )}
+          <p className="dock-status" role="status" aria-live="polite">
+            {starting
+              ? 'Opening your trail…'
+              : count < 5
+                ? `${count} of 5 photos selected. Add ${5 - count} more to continue.`
+                : !consent
+                  ? 'Your photos are ready. Confirm you can share them to continue.'
+                  : 'Your photos are ready. Build your trail when you are ready.'}
+          </p>
+          {fileNotice && <p className="dock-status">{fileNotice}</p>}
+          <button
+            type="button"
+            className="btn btn-primary dock-build"
+            onClick={startTrail}
+            disabled={starting || count < 5 || !consent}
+          >
+            {starting ? 'Opening…' : 'Build my trail'}
+          </button>
         </div>
 
         {/* the promise, live — tracks the backdrop's photo ⇄ world loop */}
