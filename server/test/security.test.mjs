@@ -265,6 +265,47 @@ async function main() {
     assert.equal(r.status, 404);
   });
 
+  // --- mid-flow tier upsell (Trail → Hide), locked once sealed ---
+  let upsellId;
+  await t('PATCH tier trail→hide on an unsealed gift → 200 and persists', async () => {
+    const fd = new FormData();
+    for (let i = 0; i < 5; i++) fd.append('photos', new Blob([readFileSync(PHOTO)]), `p${i}.jpg`);
+    fd.append('mode', 'digital'); fd.append('tier', 'trail'); fd.append('direction', 'someone');
+    const c = await fetch(`${BASE}/api/gifts`, { method: 'POST', body: fd });
+    upsellId = (await c.json()).giftId;
+    const r = await fetch(`${BASE}/api/gifts/${upsellId}/tier`, {
+      method: 'PATCH', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ tier: 'hide', mode: 'physical' }),
+    });
+    assert.equal(r.status, 200);
+    assert.deepEqual(await r.json(), { ok: true, tier: 'hide', mode: 'physical' });
+    const g = await (await fetch(`${BASE}/api/gifts/${upsellId}`)).json();
+    assert.equal(g.tier, 'hide');
+    assert.equal(g.mode, 'physical');
+  });
+
+  await t('PATCH tier rejects anything but trail|hide → 400', async () => {
+    const r = await fetch(`${BASE}/api/gifts/${upsellId}/tier`, {
+      method: 'PATCH', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ tier: 'set', mode: 'digital' }),
+    });
+    assert.equal(r.status, 400);
+  });
+
+  await t('PATCH tier after seal → 409 (tier locked)', async () => {
+    const db = new DatabaseSync(join(tmp, 'test.db'));
+    const ROUNDS2 = [{ kicker: 'r1', question: 'q?', options: ['a', 'b', 'c'], correct: 1, cropPhotoIndex: 0 }];
+    db.prepare("UPDATE gifts SET status='ready', rounds=? WHERE id=?").run(JSON.stringify(ROUNDS2), upsellId);
+    db.close();
+    const s = await fetch(`${BASE}/api/gifts/${upsellId}/seal`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' });
+    assert.equal(s.status, 200);
+    const r = await fetch(`${BASE}/api/gifts/${upsellId}/tier`, {
+      method: 'PATCH', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ tier: 'trail', mode: 'digital' }),
+    });
+    assert.equal(r.status, 409);
+  });
+
   await t('API JSON responses are no-store; static hashed assets are immutable', async () => {
     const h = await fetch(`${BASE}/api/health`);
     assert.equal(h.headers.get('cache-control'), 'no-store');

@@ -296,6 +296,18 @@ export async function revokeTrail(id: string): Promise<{ ok: boolean; revoked: b
   return request(`/api/gifts/${encodeURIComponent(id)}/revoke`, { method: 'POST' });
 }
 
+/** PATCH /api/gifts/:id/tier — swap tier pre-seal (Trail → Hide upsell). 409 once sealed */
+export async function updateGiftTier(
+  id: string,
+  tier: 'trail' | 'hide',
+  mode: GiftMode,
+): Promise<{ ok: boolean; tier: string; mode: string }> {
+  return request(`/api/gifts/${encodeURIComponent(id)}/tier`, {
+    method: 'PATCH',
+    body: JSON.stringify({ tier, mode }),
+  });
+}
+
 /* ------------------------------- trail ------------------------------ */
 
 /** GET /api/trail/:token */

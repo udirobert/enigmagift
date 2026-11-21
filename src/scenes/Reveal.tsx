@@ -85,7 +85,7 @@ export function Reveal({ demo, trail, direction }: RevealProps) {
 
   const copyFoundIt = async () => {
     if (!trail) return;
-    const msg = `i followed the trail and found it 💛 — ${recap?.rounds ?? 3} rounds, ${recap?.looks ?? 0} looks, ${recap?.mins ?? 0} min`;
+    const msg = `i followed the trail and found it 💛 — ${recap?.rounds ?? 3} rounds, ${recap?.looks ?? 0} looks, ${recap?.mins ?? 0} min · made with enigmagift (${window.location.origin})`;
     try {
       await navigator.clipboard.writeText(msg);
       setCopiedBack(true);
@@ -410,6 +410,13 @@ export function Reveal({ demo, trail, direction }: RevealProps) {
             </div>
           </>
         )}
+
+        {/* virality — the recipient becomes the next giver */}
+        <div className="reveal-make reveal-anim">
+          <a className="demo-link" href="/">
+            loved this? make one for someone you love →
+          </a>
+        </div>
       </div>
     </section>
   );

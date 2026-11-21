@@ -184,6 +184,13 @@ img { display: block; max-width: 100%; }
 }
 .demo-link:hover { color: var(--rust-soft); }
 
+/* mid-flow upsell (Trail → Hide) — a quiet step up, not a competitor to the pay button */
+.seal-upsell {
+  color: var(--rust-soft);
+  text-decoration-style: dashed;
+}
+.seal-upsell:hover { color: var(--rust); }
+
 /* quiet secondary door — an alternative, not a competitor to upload */
 .demo-cta {
   font-family: var(--mono);
@@ -569,6 +576,13 @@ img { display: block; max-width: 100%; }
 
 /* reveal recap — the recipient's own trail + note back to the giver */
 .reveal-recap { margin-top: 1.6rem; max-width: 420px; }
+
+/* virality — recipient → next giver, one quiet line at the very end */
+.reveal-make {
+  margin-top: 2.2rem;
+  display: flex;
+  justify-content: center;
+}
 .recap-polaroids { display: flex; gap: 0.7rem; flex-wrap: wrap; margin: 0.6rem 0; }
 .recap-polaroid {
   margin: 0; width: 108px; padding: 0.35rem 0.35rem 0.5rem;

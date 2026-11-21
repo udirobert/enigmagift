@@ -15,6 +15,8 @@ interface SealProps {
   mode: GiftMode;
   /** buyer preview — pass the trail token so the rounds can play the real data */
   onSend: (token: string | null) => void;
+  /** mid-flow upsell (Trail → Hide) — only wired for live, unsealed gifts */
+  onTier?: (t: Tier) => void;
 }
 
 // one Stripe Payment Link per tier (legacy single VITE_STRIPE_LINK maps to hide)
@@ -37,7 +39,7 @@ const TIER_INCLUDES: Record<Tier, string> = {
  * (?paid=1, window focus, or the explicit "i've paid" nudge) we mark the
  * gift paid and seal for real. Demo mode keeps the old theatre.
  */
-export function Seal({ demo, giftId, kept, tier, mode, onSend }: SealProps) {
+export function Seal({ demo, giftId, kept, tier, mode, onSend, onTier }: SealProps) {
   const STRIPE_LINK = STRIPE_LINKS[tier];
   const PRICE = PRICES[tier];
   const rootRef = useRef<HTMLElement>(null);
@@ -388,6 +390,15 @@ export function Seal({ demo, giftId, kept, tier, mode, onSend }: SealProps) {
             {!STRIPE_LINK && (
               <button className="demo-link" onClick={() => void finalize(false)}>
                 preview the trail without paying →
+              </button>
+            )}
+            {tier === 'trail' && onTier && phase === 'idle' && (
+              <button
+                className="demo-link seal-upsell"
+                onClick={() => onTier('hide')}
+                title="The Hide adds the physical ending: you hide something at the place, they find it with a code"
+              >
+                add the physical ending — hide something at the place (+£5) →
               </button>
             )}
           </div>

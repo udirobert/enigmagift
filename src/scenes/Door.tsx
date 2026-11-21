@@ -24,10 +24,19 @@ interface DoorProps {
   initialSection?: 'hero' | 'start';
 }
 
-const TIER_HINT: Record<Tier, string> = {
-  trail: 'fully digital — sealed and sent in five minutes',
-  hide: 'you hide something real at the place, with the code inside',
-  set: 'three hunts from one purchase — for different people',
+const TIER_HINT: Record<Tier, { someone: string; me: string }> = {
+  trail: {
+    someone: 'fully digital — sealed and sent in five minutes',
+    me: 'fully digital — a keepsake only you can open, sealed in five minutes',
+  },
+  hide: {
+    someone: 'you hide something real at the place, with the code inside',
+    me: 'hide something for future-you at the place — the code opens the keepsake',
+  },
+  set: {
+    someone: 'three hunts from one purchase — for different people',
+    me: 'three hunts from one purchase — one for each future occasion',
+  },
 };
 
 /**
@@ -191,8 +200,17 @@ export function Door({
           <p className="kicker door-anim">a gift only one person in the world can find</p>
           <h1 className="wordmark door-anim">enigmagift</h1>
           <p className="lede door-anim">
-            photograph a place that matters. it builds a trail only they can
-            follow — and a code in what you hide opens the keepsake.
+            {direction === 'me' ? (
+              <>
+                photograph a place that matters to you. it builds a trail only
+                you can follow — and a code in what you hide opens the keepsake.
+              </>
+            ) : (
+              <>
+                photograph a place that matters. it builds a trail only they can
+                follow — and a code in what you hide opens the keepsake.
+              </>
+            )}
           </p>
           <div className="hero-actions door-anim">
             <button className="btn btn-primary" onClick={onWatch}>
@@ -362,7 +380,7 @@ export function Door({
               the set · £19
             </button>
           </div>
-          <p className="dock-tier-hint">{TIER_HINT[tier]}</p>
+          <p className="dock-tier-hint">{TIER_HINT[tier][direction]}</p>
           {packCredits != null && packCredits > 0 && (
             <p className="dock-pack-note">
               set pack active — {packCredits} hunt{packCredits === 1 ? '' : 's'}{' '}

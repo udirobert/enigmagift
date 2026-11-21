@@ -416,6 +416,23 @@ app.post('/api/gifts/:id/world-source', (req, res) => {
   res.json({ ok: true, worldSource: idx, rebuilding: wasBuilt });
 });
 
+// Change tier pre-seal (the Trail → Hide upsell swaps the payment link and
+// mode before anything is sealed/paid). Sealed/paid gifts are immutable.
+app.patch('/api/gifts/:id/tier', (req, res) => {
+  if (limitOr429(res, `tier:${req.params.id}`, 10, 60 * 60 * 1000)) return;
+  const g = getGift(req.params.id);
+  if (!g) return res.status(404).json({ error: 'not found' });
+  if (g.status === 'sealed' || g.status === 'paid') {
+    return res.status(409).json({ error: 'already sealed — tier is locked' });
+  }
+  const tier = ['trail', 'hide'].includes(req.body?.tier) ? req.body.tier : null;
+  if (!tier) return res.status(400).json({ error: 'tier must be trail|hide' });
+  const mode = req.body?.mode === 'physical' ? 'physical' : 'digital';
+  db.prepare('UPDATE gifts SET tier=?, mode=? WHERE id=?').run(tier, mode, g.id);
+  logEvent(g.id, null, 'tier_changed', { tier, mode });
+  res.json({ ok: true, tier, mode });
+});
+
 app.post('/api/gifts/:id/event', (req, res) => {
   if (limitOr429(res, `event:${req.ip}`, 240, 60 * 60 * 1000)) return;
   const g = getGift(req.params.id);

@@ -35,6 +35,9 @@ is all someone needs (the set saves £10.97 against three Hides).
 0. **Watch it** — an auto-playing showcase of a real gift's recipient side
    (the sales pitch before the ask).
 1. **Door** — pick a tier, drop 5–12 photos of a place (or "for me" / demo mode).
+   Copy adapts to direction: "for me" reframes the lede ("a place that matters
+   to you… only you can follow") and the tier hints ("hide something for
+   future-you").
 2. **Reading** — vision pass (SandBase → Gemini fallback) returns located
    observations per photo. Each photo's read lands in the DB as it finishes, so
    the buyer watches the discoveries stream in live (`photosObserved` ticks
@@ -48,14 +51,20 @@ is all someone needs (the set saves £10.97 against three Hides).
    The Trail tier skips this scene entirely.
 5. **Seal** — Stripe Payment Link for the chosen tier; on return (webhook +
    `?paid=1`) the gift seals and issues a trail token (+ unlock code for
-   The Hide; The Set also creates a 3-credit pack).
+   The Hide; The Set also creates a 3-credit pack). Mid-flow upsell: on a
+   live, unsealed Trail the pay block offers "add the physical ending
+   (+£5)", which switches the order summary to The Hide and persists via
+   `PATCH /api/gifts/:id/tier` (409 once sealed/paid — tier is locked then).
 6. **Recipient** — `?t=<token>` opens three deduction rounds (detail →
    connection → throughline reveal), then either the keepsake directly
    (Trail: `requiresCode=false`) or the code gate (Hide). The reveal also
    shows the **3D world of the place** — built from one of the buyer's photos
    (SandBase Run API + TRELLIS.2, `server/world.js`) at seal time — which the
    recipient can orbit and keep (`download` a `.glb`), plus the painted
-   keepsake portrait when Recraft is configured.
+   keepsake portrait when Recraft is configured. The reveal ends with a
+   quiet virality CTA — "loved this? make one for someone you love →" —
+   and the copyable note-back to the giver includes the site origin, so
+   recipients become the next givers.
 
 Scene order in code: WatchIt → Door → Reading → Editor → [Hide] → Seal →
 R1 → R2 → R3 → Reveal (state machine in `src/App.tsx`, no router; the Hide
@@ -131,6 +140,7 @@ Frontend env (build-time):
 | `POST /api/gifts` | multipart `photos` (5–12, field name `photos`) + `direction` + `mode` (`digital`\|`physical`) + `tier` (`trail`\|`hide`\|`set`) + optional `packId` → `{giftId}`. Rate-limited per IP |
 | `GET /api/gifts/:id` | gift payload (clues, hideSpots, throughline, rounds, mode, tier) |
 | `PATCH /api/gifts/:id/clues` | `{keepIds, edits}` buyer approval |
+| `PATCH /api/gifts/:id/tier` | `{tier: trail\|hide, mode}` — mid-flow upsell pre-seal; `409` once sealed/paid, `400` for other tiers |
 | `POST /api/gifts/:id/reclue` | `{notes}` — re-run the cross-image pass with buyer notes; regenerates clues/rounds (bounded to 2 pre-payment) |
 | `POST /api/gifts/:id/world-source` | `{index}` — pick which photo becomes the 3D world; rebuilds if already built |
 | `POST /api/gifts/:id/hide` | record the physical hide (Hide tier) |

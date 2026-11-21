@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import Lenis from 'lenis';
-import { apiHealthy, createGift, getGift, getTrail, logGiftEvent, stashPack, tokenFromUrl, unstashPack } from './lib/api';
+import { apiHealthy, createGift, getGift, getTrail, logGiftEvent, stashPack, tokenFromUrl, unstashPack, updateGiftTier } from './lib/api';
 import type { Gift, GiftDirection, GiftMode, HideSpot, Tier, Trail } from './lib/types';
 
 import { Door } from './scenes/Door';
@@ -205,13 +205,20 @@ export default function App() {
     [direction, mode, tier, go],
   );
 
-  // tier pick drives mode: only The Hide is physical
+  // tier pick drives mode: only The Hide is physical. For a live, unsealed
+  // gift we also persist it server-side so a refresh mid-flow doesn't lose it.
   const handleTier = useCallback(
     (t: Tier) => {
       setTier(t);
-      setMode(t === 'hide' ? 'physical' : 'digital');
+      const m: GiftMode = t === 'hide' ? 'physical' : 'digital';
+      setMode(m);
+      if (live && giftId && (t === 'trail' || t === 'hide')) {
+        void updateGiftTier(giftId, t, m).catch(() => {
+          /* local state already moved; server sync is best-effort here */
+        });
+      }
     },
-    [],
+    [live, giftId],
   );
 
   // "watch it work" — the payoff, self-playing, before they upload anything
@@ -336,6 +343,7 @@ export default function App() {
           tier={tier}
           mode={mode}
           onSend={handleSend}
+          onTier={handleTier}
         />
       )}
       {scene === 'r1' && (
