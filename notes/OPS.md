@@ -11,7 +11,7 @@ secrets, the gotchas that actually bit us, and how to verify the live flow.
 |---|---|---|
 | Frontend | Cloudflare Pages — `enigmagift.pages.dev` (project `enigmagift`) | `npm run build` → `wrangler pages deploy dist --project-name=enigmagift --branch=main`. `/api/*` proxied to Fly by `functions/api/[[path]].js`; `/*` → `index.html` via `_redirects`. Netlify (`enigmagift.netlify.app`) still live as legacy mirror. |
 | Backend | Fly.io — `enigmagift-api.fly.dev`, app `enigmagift-api`, region `iad` | `fly deploy` from `server/`. 512MB shared-cpu-1x, `/data` volume for SQLite + uploads. |
-| Tabletop room pilot | Cloudflare Worker `enigmagift-room` (workers.dev; URL pending publish) | `npm run deploy:room` — builds `dog-gift-tabletop/dist` and deploys `dog-gift-tabletop/wrangler.jsonc`. Static assets + `worker.ts` proxying only `/api/health` and `/api/room-gifts*` to Fly. Deploy the Fly API first. |
+| Tabletop room pilot | Cloudflare Worker `enigmagift-room` — `https://enigmagift-room.trustfall.workers.dev` | `npm run deploy:room` — builds `dog-gift-tabletop/dist` and deploys `dog-gift-tabletop/wrangler.jsonc`. Static assets + `worker.ts` proxying only `/api/health` and `/api/room-gifts*` to Fly. Deploy the Fly API first. |
 | Vision | SandBase `api.sandbase.ai/v1` (primary) + Google Gemini (fallback) | Key held as a Fly secret + local `server/sandbase.env`. |
 
 Frontend and backend are **not** on the same host. Pages is static-only (+ the
@@ -101,10 +101,25 @@ npm run deploy:room   # from the repo root, after `fly deploy` for the API
 ```
 
 Builds `dog-gift-tabletop/dist`, regenerates Worker types and publishes
-Worker `enigmagift-room`. The workers.dev URL is recorded here after first
-publish. Generation keys stay out of the Docker image via
-`server/.dockerignore` (`*.env`). Rollback: redeploy the previous Fly image
-plus the prior Worker deployment ID (recorded here after publish).
+Worker `enigmagift-room`. Generation keys stay out of the Docker image via
+`server/.dockerignore` (`*.env`).
+
+**First deploy, 2026-11-21** (source `ecc9781`):
+
+- Fly: image `registry.fly.io/enigmagift-api:deployment-01M804EX88G88CSZCV9AZ958GF`,
+  machine `080ee739b9d578` version 17, volume `vol_vlygqw13dp1zwxg4` (`/data`).
+  Pre-room-feature rollback image: `deployment-01M7Z9H5XHACZPY9PPB689MNC9`.
+- Worker: `https://enigmagift-room.trustfall.workers.dev`, initial version
+  `7aa6dfad-2d85-4da0-8164-2949ff6a8aa8`, account
+  `e7383c0c7474c8f61cc06598eeb134a0`. Current Worker version:
+  `2d92d543-6f15-45fe-81a4-4f38abce6428` (metadata-only update setting the
+  public Open Graph image URL). The initial version remains the rollback
+  target.
+- Rollback: Fly → prior image above; Worker →
+  `wrangler rollback <VERSION_ID> --config dog-gift-tabletop/wrangler.jsonc`
+  (takes a **version** ID, not a deployment ID). The initial version is the
+  only rollback target until a newer one is recorded — there is no prior
+  Worker to roll back to. The SQLite database is not rolled back with code.
 
 ### The world (per-gift 3D model)
 

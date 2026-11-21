@@ -84,8 +84,10 @@ The same cut also carries the fuller local hunt layer:
   the snapshot can't be edited. An interrupted create keeps its draft and
   management key in this tab's session so the exact retry reuses them. The
   server allowlist (currently only this room, revision 44124720) is
-  authoritative; `ROOM.allowRemix` is not. Not yet proven on a real phone,
-  and neither the API changes nor this build are deployed.
+  authoritative; `ROOM.allowRemix` is not. Live since 2026-11-21 on
+  Cloudflare Worker `enigmagift-room`
+  (`https://enigmagift-room.trustfall.workers.dev`, `?make=1` for the
+  editor), proxying to the Fly API. Not yet proven on a real phone.
 - **Still atlas — "Explore in photos".** The flat text fallback is named
   *Explore in photos* (entry link, help button and panel title all read it),
   is available before or without loading 3D, and a failed room open recovers
@@ -169,9 +171,20 @@ and manual-copy fallback, denied session storage with an ambiguous create
 response, ambiguous revocation, API failure/retry, literal HTML as text,
 and invalid/combined URL modes were exercised. Management layouts were
 checked at 390×844 and 320×568 without horizontal overflow. API regression
-tests additionally verified persistence across a server restart. These
-were local tests against a temporary database; real phones and public
-deployment remain unverified.
+tests additionally verified persistence across a server restart. Those
+were local tests against a temporary database.
+
+Live verification (2026-11-21, Cloudflare Worker + Fly API): a disposable
+test gift was created through the real UI, opened in a fresh recipient
+page (personalized cover, photo discovery, unfolded message and
+signature), refreshed intact, and closed through the private controls —
+after which the recipient link returned the unavailable card. The preview
+iframe ran same-origin unblocked, and management layout was re-checked at
+390×844. HTTP checks confirmed `/api/health` 200 with no-store,
+unauthenticated manage 401, non-room API paths 404, cross-origin POST 403,
+SAMEORIGIN + no-referrer headers, and 404 (not HTML) for missing assets.
+Not exercised: real phones, checkout, generation, or sending through an
+external messaging app.
 
 ## Experiment run card
 

@@ -226,9 +226,10 @@ Full runbook: `notes/OPS.md` (topology, secrets, redeploy, gotchas).
   the Pages Function `functions/api/[[path]].js` (Pages `_redirects`
   cannot proxy external domains). Netlify remains as a legacy mirror.
 - **Backend**: `cd server && fly deploy`.
-- **Tabletop room pilot**: Cloudflare Worker `enigmagift-room` —
-  `npm run deploy:room` (builds `dog-gift-tabletop/dist`, deploys
-  `dog-gift-tabletop/wrangler.jsonc`); deploy the Fly API first.
+- **Tabletop room pilot**: Cloudflare Worker `enigmagift-room`, live at
+  `https://enigmagift-room.trustfall.workers.dev` (editor at
+  `…/?make=1`) — `npm run deploy:room` (builds `dog-gift-tabletop/dist`,
+  deploys `dog-gift-tabletop/wrangler.jsonc`); deploy the Fly API first.
 - Each Payment Link's success URL is
   `https://enigmagift.pages.dev/?paid=1&sid={CHECKOUT_SESSION_ID}`.
   The gift ID survives the new-tab checkout via `localStorage`
