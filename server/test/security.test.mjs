@@ -1,10 +1,10 @@
 // Security regression tests — boots the real server on a throwaway DB and
 // asserts the auth/payment/scoping invariants. Run: node test/security.test.mjs
 import { spawn } from 'node:child_process';
-import { mkdtempSync, rmSync, readFileSync, existsSync } from 'node:fs';
+import { mkdtempSync, rmSync, readFileSync, existsSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import crypto from 'node:crypto';
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
@@ -15,22 +15,55 @@ const SERVER = join(HERE, '..', 'index.js');
 const PHOTO = join(HERE, '..', '..', 'public', 'showcase', '0.jpg');
 const PORT = 8898;
 const BASE = `http://127.0.0.1:${PORT}`;
-const SECRET = 'whsec_testsecret_testsecret_test';
+// generated per run — no fixed fixture looking like a real whsec_ secret
+const SECRET = crypto.randomBytes(24).toString('hex');
 
 const tmp = mkdtempSync(join(tmpdir(), 'eg-sec-'));
+
+// Module-load preload: provider modules (pipeline/world/portrait) can reach
+// paid APIs and discover credentials from sibling .env files, so the test
+// server must never import them. A resolve hook swaps each for a stub when
+// index.js asks for them; fetch is disabled outright as a second guard.
+const PRELOAD = join(tmp, 'isolate-providers.mjs');
+writeFileSync(PRELOAD, `import { registerHooks } from 'node:module';
+const modules = {
+ './pipeline.js': 'export async function runPipeline(){}; export async function reclue(){};',
+ './world.js': 'export async function buildWorld(){};',
+ './portrait.js': 'export async function buildPortrait(){}; export function portraitMime(){return "image/webp";};'
+};
+registerHooks({resolve(specifier,context,next){
+ if(context.parentURL?.endsWith('/server/index.js') && modules[specifier]) return {url:'data:text/javascript,'+encodeURIComponent(modules[specifier]),shortCircuit:true};
+ return next(specifier,context);
+}});
+import { Server } from 'node:net';
+const originalListen = Server.prototype.listen;
+Server.prototype.listen = function (port, callback) {
+ return originalListen.call(this, port, '127.0.0.1', callback);
+};
+globalThis.fetch = async () => { throw new Error('External HTTP disabled in security tests'); };
+`);
+
+// whitelisted env only — cwd is the temp dir so dotenv/config can never
+// pick up server/*.env (provider credentials) or repo .env files
 const env = {
-  ...process.env,
+  PATH: process.env.PATH,
   PORT: String(PORT),
   DB_PATH: join(tmp, 'test.db'),
   UPLOADS_DIR: join(tmp, 'uploads'),
   STRIPE_WEBHOOK_SECRET: SECRET,
-  // deliberately NO STRIPE_API_KEY — mark-paid must fail closed
+  STRIPE_API_KEY: '', // mark-paid must fail closed; also blocks stripe fetch
 };
 
-const srv = spawn('node', [SERVER], { env, stdio: ['ignore', 'pipe', 'pipe'] });
+const srv = spawn(process.execPath, ['--import', pathToFileURL(PRELOAD).href, SERVER], {
+  cwd: tmp,
+  env,
+  stdio: ['ignore', 'pipe', 'pipe'],
+});
 let serverLog = '';
 srv.stdout.on('data', (d) => { serverLog += d; });
 srv.stderr.on('data', (d) => { serverLog += d; });
+let spawnError = null;
+srv.on('error', (error) => { spawnError = error; });
 
 const results = [];
 async function t(name, fn) {
@@ -38,12 +71,35 @@ async function t(name, fn) {
   catch (e) { results.push(['FAIL', name]); console.error(`  FAIL — ${name}: ${e.message}`); }
 }
 
+// readiness is gated on OUR child's startup marker, not on the port
+// answering — a foreign service on :PORT must never satisfy waitUp
 async function waitUp() {
   for (let i = 0; i < 50; i++) {
-    try { const r = await fetch(`${BASE}/api/health`); if (r.ok) return; } catch {}
-    await new Promise((r) => setTimeout(r, 200));
+    if (spawnError || srv.exitCode !== null || srv.signalCode !== null) {
+      throw new Error('test server exited before readiness\n' + serverLog, { cause: spawnError });
+    }
+    if (serverLog.includes(`[enigmagift-server] http://localhost:${PORT}`)) {
+      try { const r = await fetch(`${BASE}/api/health`); if (r.ok) return; } catch {}
+    }
+    await new Promise((r) => setTimeout(() => r(), 200));
   }
   throw new Error('server did not start\n' + serverLog);
+}
+
+// stop our own child before removing its temp dir; subscribe to 'exit'
+// BEFORE signalling so a fast exit can't slip past the await
+async function stopServer() {
+  if (spawnError || srv.exitCode !== null || srv.signalCode !== null) {
+    rmSync(tmp, { recursive: true, force: true });
+    return;
+  }
+  const exited = new Promise((r) => srv.once('exit', r));
+  srv.kill('SIGTERM');
+  if (!(await Promise.race([exited.then(() => true), new Promise((r) => setTimeout(() => r(false), 3000))]))) {
+    srv.kill('SIGKILL');
+  }
+  await exited;
+  rmSync(tmp, { recursive: true, force: true });
 }
 
 function sign(payload) {
@@ -131,7 +187,7 @@ async function main() {
   });
 
   await t('webhook with bad signature → 400', async () => {
-    const payload = JSON.stringify({ type: 'checkout.session.completed', data: { object: { id: 'cs_x', client_reference_id: giftId, amount_total: 499 } } });
+    const payload = JSON.stringify({ type: 'checkout.session.completed', data: { object: { id: 'cs_x', client_reference_id: giftId, amount_total: 499, payment_status: 'paid', currency: 'gbp' } } });
     const r = await fetch(`${BASE}/api/stripe/webhook`, {
       method: 'POST', headers: { 'content-type': 'application/json', 'stripe-signature': 't=1,v1=bad' }, body: payload,
     });
@@ -139,7 +195,7 @@ async function main() {
   });
 
   await t('webhook with wrong amount → 400', async () => {
-    const payload = JSON.stringify({ type: 'checkout.session.completed', data: { object: { id: 'cs_x', client_reference_id: giftId, amount_total: 1 } } });
+    const payload = JSON.stringify({ type: 'checkout.session.completed', data: { object: { id: 'cs_x', client_reference_id: giftId, amount_total: 1, payment_status: 'paid', currency: 'gbp' } } });
     const r = await fetch(`${BASE}/api/stripe/webhook`, {
       method: 'POST', headers: { 'content-type': 'application/json', 'stripe-signature': sign(payload) }, body: payload,
     });
@@ -147,7 +203,7 @@ async function main() {
   });
 
   await t('webhook with valid signature + correct amount sets paid', async () => {
-    const payload = JSON.stringify({ type: 'checkout.session.completed', data: { object: { id: 'cs_ok', client_reference_id: giftId, amount_total: 499 } } });
+    const payload = JSON.stringify({ type: 'checkout.session.completed', data: { object: { id: 'cs_ok', client_reference_id: giftId, amount_total: 499, payment_status: 'paid', currency: 'gbp' } } });
     const r = await fetch(`${BASE}/api/stripe/webhook`, {
       method: 'POST', headers: { 'content-type': 'application/json', 'stripe-signature': sign(payload) }, body: payload,
     });
@@ -374,11 +430,215 @@ async function main() {
     assert.equal(after, 0, 'event rows survived gift deletion');
   });
 
-  srv.kill('SIGTERM');
-  rmSync(tmp, { recursive: true, force: true });
+  // ---------- webhook payment validation matrix ----------
+  // seeded drafts (no paid pipeline) — one independent gift per case
+  const seed = (tier = 'trail', referredBy = null) => {
+    const id = crypto.randomUUID();
+    const db = new DatabaseSync(join(tmp, 'test.db'));
+    db.prepare("INSERT INTO gifts(id,status,photo_count,mode,tier,rounds,referred_by) VALUES (?,'ready',0,'digital',?,?,?)").run(id, tier, JSON.stringify(ROUNDS), referredBy);
+    db.close();
+    return id;
+  };
+  const dbGet = (sql, ...args) => {
+    const db = new DatabaseSync(join(tmp, 'test.db'));
+    const row = db.prepare(sql).get(...args);
+    db.close();
+    return row;
+  };
+  const postWebhook = async (giftRef, overrides = {}) => {
+    const session = {
+      id: `cs_${crypto.randomUUID()}`,
+      client_reference_id: giftRef,
+      payment_status: 'paid',
+      currency: 'gbp',
+      amount_total: 499,
+      ...overrides,
+    };
+    for (const k of Object.keys(session)) if (session[k] === undefined) delete session[k];
+    const payload = JSON.stringify({ type: 'checkout.session.completed', data: { object: session } });
+    const r = await fetch(`${BASE}/api/stripe/webhook`, {
+      method: 'POST', headers: { 'content-type': 'application/json', 'stripe-signature': sign(payload) }, body: payload,
+    });
+    return r.status;
+  };
+  const paidOf = (id) => !!dbGet('SELECT paid FROM gifts WHERE id=?', id)?.paid;
+
+  await t('webhook accepts full price per tier and sets paid', async () => {
+    for (const [tier, amount] of [['trail', 499], ['hide', 999], ['set', 1900]]) {
+      const id = seed(tier);
+      assert.equal(await postWebhook(id, { amount_total: amount }), 200, `${tier} @ ${amount}`);
+      assert.equal(paidOf(id), true, `${tier} paid flag`);
+    }
+  });
+  await t('webhook accepts £1 referral discount only with a recorded referral', async () => {
+    for (const [tier, amount] of [['trail', 399], ['hide', 899], ['set', 1800]]) {
+      const id = seed(tier, 'source-fixture');
+      assert.equal(await postWebhook(id, { amount_total: amount }), 200, `${tier} @ ${amount} referred`);
+      assert.equal(paidOf(id), true, `${tier} referred paid flag`);
+    }
+  });
+  await t('webhook rejects discounted amount without referral → 400, not paid', async () => {
+    for (const [tier, amount] of [['trail', 399], ['hide', 899], ['set', 1800]]) {
+      const id = seed(tier);
+      assert.equal(await postWebhook(id, { amount_total: amount }), 400, `${tier} @ ${amount} no-ref`);
+      assert.equal(paidOf(id), false, `${tier} no-ref must stay unpaid`);
+    }
+  });
+  await t('rejected Set discount creates no pack', async () => {
+    const id = seed('set');
+    assert.equal(await postWebhook(id, { amount_total: 1800 }), 400);
+    assert.equal(dbGet('SELECT id FROM packs WHERE purchase_gift_id=?', id), undefined);
+    assert.equal(dbGet('SELECT pack_id FROM gifts WHERE id=?', id)?.pack_id, null);
+  });
+  await t('webhook rejects unpaid/wrong-currency/wrong-or-missing amount → 400', async () => {
+    const cases = [
+      [{ payment_status: 'unpaid', amount_total: 499 }, 'unpaid'],
+      [{ currency: 'usd', amount_total: 499 }, 'usd'],
+      [{ amount_total: 1 }, 'amount 1'],
+      [{ amount_total: undefined }, 'missing amount'],
+    ];
+    for (const [overrides, label] of cases) {
+      const id = seed('trail');
+      assert.equal(await postWebhook(id, overrides), 400, label);
+      assert.equal(paidOf(id), false, label);
+    }
+  });
+  await t('webhook rejects unknown tier; null tier priced as legacy hide', async () => {
+    const bogus = seed('bogus');
+    assert.equal(await postWebhook(bogus, { amount_total: 499 }), 400);
+    assert.equal(paidOf(bogus), false);
+    const legacy = seed(null);
+    assert.equal(await postWebhook(legacy, { amount_total: 999 }), 200);
+    assert.equal(paidOf(legacy), true);
+    const legacyBad = seed(null);
+    assert.equal(await postWebhook(legacyBad, { amount_total: 499 }), 400);
+    assert.equal(paidOf(legacyBad), false);
+  });
+
+  // ---------- scheduled availability (send_at) ----------
+  await t('seal schedules availability; expiry counts from open; all routes closed until then', async () => {
+    const id = seed('trail');
+    const sendAt = new Date(Date.now() + 2 * 86400000).toISOString();
+    const seal = await (await fetch(`${BASE}/api/gifts/${id}/seal`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ sendAt, expireDays: 1 }),
+    })).json();
+    assert.ok(seal.trailToken);
+    assert.equal(seal.sendAt, sendAt);
+    assert.equal(
+      Date.parse(seal.expiresAt),
+      Date.parse(sendAt) + 86400000,
+      'expiry must be counted from the scheduled open, not from seal time',
+    );
+    const ov = await (await fetch(`${BASE}/api/gifts/${id}/overview`)).json();
+    assert.equal(ov.trail.sendAt, sendAt);
+    assert.equal(ov.trail.scheduled, true);
+    // idempotent: a second seal with a different valid sendAt returns the original
+    const seal2 = await (await fetch(`${BASE}/api/gifts/${id}/seal`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ sendAt: new Date(Date.now() + 86400000).toISOString() }),
+    })).json();
+    assert.equal(seal2.trailToken, seal.trailToken);
+    assert.equal(seal2.sendAt, sendAt);
+    const tok = seal.trailToken;
+    // pending link: recipient sees the schedule, never the rounds
+    const tr = await fetch(`${BASE}/api/trail/${tok}`);
+    assert.equal(tr.status, 423);
+    assert.deepEqual(await tr.json(), { error: 'scheduled', sendAt });
+    // every sensitive route fails closed pre-open
+    const closed = [
+      fetch(`${BASE}/api/trail/${tok}/answer`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ round: 0, choice: 1 }) }),
+      fetch(`${BASE}/api/trail/${tok}/unlock`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ code: 'ABCDEF' }) }),
+      fetch(`${BASE}/api/trail/${tok}/event`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ name: 'x' }) }),
+      fetch(`${BASE}/api/trail/${tok}/photo/0`),
+      fetch(`${BASE}/api/trail/${tok}/world-status`),
+      fetch(`${BASE}/api/trail/${tok}/world`),
+      fetch(`${BASE}/api/trail/${tok}/portrait`),
+    ];
+    for (const p of closed) assert.equal((await p).status, 404);
+    // a scheduled peek must not log an 'opened' event
+    assert.equal(
+      dbGet("SELECT COUNT(*) c FROM events WHERE gift_id=? AND name='opened'", id).c,
+      0,
+    );
+    // once send_at passes the same token is live and the trail answers
+    const db = new DatabaseSync(join(tmp, 'test.db'));
+    db.prepare('UPDATE trails SET send_at=? WHERE token=?').run(new Date(Date.now() - 1000).toISOString(), tok);
+    db.close();
+    assert.equal((await fetch(`${BASE}/api/trail/${tok}`)).status, 200);
+    const right = await (await fetch(`${BASE}/api/trail/${tok}/answer`, {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ round: 0, choice: 1 }),
+    })).json();
+    assert.equal(right.correct, true);
+  });
+
+  await t('seal rejects malformed/past/over-horizon sendAt → 400, no trail row', async () => {
+    const bad = [
+      true,
+      123,
+      {},
+      'nonsense',
+      new Date(Date.now() - 1000).toISOString(),
+      new Date(Date.now() + 367 * 86400000).toISOString(),
+    ];
+    for (const sendAt of bad) {
+      const id = seed('trail');
+      const r = await fetch(`${BASE}/api/gifts/${id}/seal`, {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ sendAt }),
+      });
+      assert.equal(r.status, 400, `sendAt=${JSON.stringify(sendAt)}`);
+      assert.equal(dbGet('SELECT token FROM trails WHERE gift_id=?', id), undefined);
+    }
+  });
+
+  await t('unscheduled seal opens immediately and stays idempotent', async () => {
+    const id = seed('trail');
+    const seal = await (await fetch(`${BASE}/api/gifts/${id}/seal`, {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}',
+    })).json();
+    assert.ok(seal.trailToken);
+    assert.equal(seal.sendAt, null);
+    assert.equal((await fetch(`${BASE}/api/trail/${seal.trailToken}`)).status, 200);
+    const seal2 = await (await fetch(`${BASE}/api/gifts/${id}/seal`, {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ sendAt: '' }),
+    })).json();
+    assert.equal(seal2.trailToken, seal.trailToken);
+  });
+
+  // ---------- referral attribution ----------
+  await t('ref token attributes the new gift; source sees conversion but not the destination id', async () => {
+    const sourceId = seed('trail');
+    const sourceSeal = await (await fetch(`${BASE}/api/gifts/${sourceId}/seal`, {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}',
+    })).json();
+    const refToken = sourceSeal.trailToken;
+    // one additional real /api/gifts (5 drafts total incl. earlier tests) — carries the source token as ref
+    const fd = new FormData();
+    for (let i = 0; i < 5; i++) fd.append('photos', new Blob([readFileSync(PHOTO)]), `p${i}.jpg`);
+    fd.append('mode', 'digital'); fd.append('tier', 'trail'); fd.append('ref', refToken);
+    const c = await fetch(`${BASE}/api/gifts`, { method: 'POST', body: fd });
+    assert.equal(c.status, 201);
+    const newId = (await c.json()).giftId;
+    assert.equal(dbGet('SELECT referred_by FROM gifts WHERE id=?', newId).referred_by, refToken);
+    // source overview: conversion event present, destination gift id absent —
+    // the gift id is the destination owner's delete/edit capability
+    const srcOv = await (await fetch(`${BASE}/api/gifts/${sourceId}/overview`)).json();
+    assert.ok(srcOv.events.some((e) => e.name === 'referred_conversion'), 'conversion not logged');
+    assert.ok(!JSON.stringify(srcOv).includes(newId), 'destination gift id leaked to source owner');
+    // destination overview records the referral token
+    const dstOv = await (await fetch(`${BASE}/api/gifts/${newId}/overview`)).json();
+    assert.equal(dstOv.gift.referredBy, refToken);
+  });
+
+  await stopServer();
   const failed = results.filter(([s]) => s === 'FAIL');
   console.log(`\n${results.length - failed.length}/${results.length} passed`);
   process.exit(failed.length ? 1 : 0);
 }
 
-main().catch((e) => { console.error(e); srv.kill('SIGTERM'); process.exit(1); });
+main().catch(async (e) => {
+  console.error(e);
+  await stopServer();
+  process.exit(1);
+});

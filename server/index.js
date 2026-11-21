@@ -119,8 +119,29 @@ function limitOr429(res, key, max, windowMs) {
   return true;
 }
 
-// Tier → expected Stripe amount (in pence) for webhook verification.
-const TIER_PRICE_PENCE = { trail: 499, hide: 999, set: 1900 };
+// Tier → accepted Stripe amount (in pence), shared by the webhook and the
+// mark-paid verification path. A null tier is a legacy physical gift (priced
+// like The Hide); an unknown non-null tier is rejected. The £1 referral
+// discount is only accepted when the gift carries a recorded referral —
+// promo codes must be configured separately in Stripe.
+const TIER_PRICE_PENCE = {
+  trail: 499,
+  hide: 999,
+  set: 1900,
+};
+
+function validGiftPayment(gift, session) {
+  const fullPrice =
+    TIER_PRICE_PENCE[gift.tier] ??
+    (gift.tier == null ? TIER_PRICE_PENCE.hide : null);
+  return (
+    fullPrice != null &&
+    session.payment_status === 'paid' &&
+    session.currency === 'gbp' &&
+    (session.amount_total === fullPrice ||
+      (!!gift.referred_by && session.amount_total === fullPrice - 100))
+  );
+}
 
 // EXIF stripping lives in exif.js (imported below) so it can be unit-tested.
 
@@ -326,9 +347,26 @@ function handleGiftCreate(req, res, packIdParam = null) {
       if ((pack.credits_left || 0) < 1) return res.status(409).json({ error: 'pack has no hunts left' });
       db.prepare('UPDATE packs SET credits_left = credits_left - 1 WHERE id=?').run(packId);
     }
-    db.prepare('INSERT INTO gifts (id, direction, status, photo_count, mode, tier, pack_id) VALUES (?,?,?,?,?,?,?)')
-      .run(req.giftId, direction, 'reading', files.length, mode, tier, packId);
-    logEvent(req.giftId, null, 'uploaded', { photos: files.length, mode, tier });
+    // referral — optional multipart `ref` field carrying a source trail token
+    // (frontend forwarding is not implemented; the field exists for direct
+    // API use). The ref is a trail token: scoped, revocable, and never the
+    // giver's gift id. Unknown, expired, revoked or not-yet-live (scheduled)
+    // refs are ignored — never a hard error.
+    const ref = typeof req.body?.ref === 'string' && /^[A-Za-z0-9_-]{6,64}$/.test(req.body.ref)
+      ? req.body.ref
+      : null;
+    const referredBy = ref && liveTrail(ref) ? ref : null;
+    db.prepare('INSERT INTO gifts (id, direction, status, photo_count, mode, tier, pack_id, referred_by) VALUES (?,?,?,?,?,?,?,?)')
+      .run(req.giftId, direction, 'reading', files.length, mode, tier, packId, referredBy);
+    logEvent(req.giftId, null, 'uploaded', { photos: files.length, mode, tier, referred: !!referredBy });
+    if (referredBy) {
+      logEvent(req.giftId, null, 'referred', { ref: referredBy });
+      // the source owner sees the conversion — never the destination gift id:
+      // the overview returns event data to the source owner, and the new gift
+      // id is the destination owner's delete/edit capability
+      const source = liveTrail(referredBy);
+      if (source) logEvent(source.gift_id, source.token, 'referred_conversion', null);
+    }
     // async pipeline — do not await
     runPipeline(req.giftId).catch((e) => {
       console.error(`[pipeline ${req.giftId}] fatal:`, e);
@@ -363,7 +401,7 @@ app.get('/api/gifts/:id/overview', (req, res) => {
   const g = getGift(req.params.id);
   if (!g) return res.status(404).json({ error: 'not found' });
   const trail = db
-    .prepare('SELECT token, unlocked, expires_at, created_at FROM trails WHERE gift_id=?')
+    .prepare('SELECT token, unlocked, expires_at, send_at, created_at FROM trails WHERE gift_id=?')
     .get(g.id);
   const pack = g.pack_id
     ? db.prepare('SELECT id, credits_left FROM packs WHERE id=?').get(g.pack_id)
@@ -405,6 +443,7 @@ app.get('/api/gifts/:id/overview', (req, res) => {
       worldStatus: g.world_status ?? 'pending',
       portraitStatus: g.portrait_status ?? 'pending',
       packId: g.pack_id ?? null,
+      referredBy: g.referred_by ?? null,
       createdAt: g.created_at,
     },
     trail: trail
@@ -413,6 +452,8 @@ app.get('/api/gifts/:id/overview', (req, res) => {
           url: `/t/${trail.token}`,
           unlocked: !!trail.unlocked,
           expiresAt: trail.expires_at ?? null,
+          sendAt: trail.send_at ?? null,
+          scheduled: !!(trail.send_at && new Date(trail.send_at).getTime() > Date.now()),
           createdAt: trail.created_at,
         }
       : null,
@@ -578,7 +619,7 @@ app.post('/api/gifts/:id/seal', (req, res) => {
   if (!g) return res.status(404).json({ error: 'not found' });
   if (g.status === 'reading') return res.status(409).json({ error: 'still reading' });
   // idempotent: return existing trail if already sealed
-  const existing = db.prepare('SELECT token, unlock_code FROM trails WHERE gift_id=?').get(g.id);
+  const existing = db.prepare('SELECT token, unlock_code, send_at FROM trails WHERE gift_id=?').get(g.id);
   if (existing) {
     // sealing is idempotent, but the world build may not have started yet.
     // NB: unlock_code is stored hashed ('' post-migration) — the plaintext is
@@ -589,6 +630,7 @@ app.post('/api/gifts/:id/seal', (req, res) => {
       trailToken: existing.token,
       trailUrl: `/t/${existing.token}`,
       unlockCode: existing.unlock_code || null,
+      sendAt: existing.send_at ?? null,
     });
   }
   const token = crypto.randomBytes(12).toString('base64url');
@@ -599,19 +641,35 @@ app.post('/api/gifts/:id/seal', (req, res) => {
     return s;
   })();
   const rounds = safeParse(g.rounds);
-  // optional link expiry (days) chosen by the buyer — 0/absent = never expires
+  const now = Date.now();
+  // optional scheduled availability — the link is issued now but does not
+  // open until send_at passes (enforced at read time in liveTrail; there is
+  // no email or automatic delivery). Bounded: must be a future date, at most
+  // a year out.
+  const requestedSendAt = req.body?.sendAt;
+  let sendAt = null;
+  if (requestedSendAt != null && requestedSendAt !== '') {
+    const timestamp = typeof requestedSendAt === 'string' ? Date.parse(requestedSendAt) : NaN;
+    if (!Number.isFinite(timestamp) || timestamp <= now || timestamp > now + 366 * 86400000) {
+      return res.status(400).json({ error: 'sendAt must be a future date within a year' });
+    }
+    sendAt = new Date(timestamp).toISOString();
+  }
+  // optional link expiry (days) chosen by the buyer — 0/absent = never
+  // expires. For a scheduled link the countdown starts when it opens, not at
+  // seal time.
   const expireDays = parseInt(req.body?.expireDays, 10);
   const expiresAt = Number.isInteger(expireDays) && expireDays > 0
-    ? new Date(Date.now() + expireDays * 86400000).toISOString()
+    ? new Date((sendAt ? Date.parse(sendAt) : now) + expireDays * 86400000).toISOString()
     : null;
   // the code is stored as a scrypt hash only — the plaintext exists solely in
   // the response so the buyer can write it into the hidden thing (Hide tier)
-  db.prepare('INSERT INTO trails (token, gift_id, rounds, unlock_code, unlock_hash, expires_at) VALUES (?,?,?,?,?,?)')
-    .run(token, g.id, JSON.stringify(rounds), '', hashCode(unlockCode), expiresAt);
+  db.prepare('INSERT INTO trails (token, gift_id, rounds, unlock_code, unlock_hash, expires_at, send_at) VALUES (?,?,?,?,?,?,?)')
+    .run(token, g.id, JSON.stringify(rounds), '', hashCode(unlockCode), expiresAt, sendAt);
   if (g.status !== 'paid') {
     db.prepare("UPDATE gifts SET status='sealed' WHERE id=?").run(g.id);
   }
-  logEvent(g.id, token, 'sealed', { mode: g.mode, tier: g.tier });
+  logEvent(g.id, token, 'sealed', { mode: g.mode, tier: g.tier, scheduled: !!sendAt });
   // the recipient's payoff: build the 3D world of their place now, while they
   // follow the trail. Non-blocking — the reveal polls for it. Same for the
   // keepsake portrait (best-effort — needs RECRAFT_API_KEY, API units).
@@ -622,6 +680,7 @@ app.post('/api/gifts/:id/seal', (req, res) => {
     trailUrl: `/t/${token}`,
     unlockCode, // the buyer writes this into the hidden thing
     expiresAt,
+    sendAt,
   });
 });
 
@@ -653,12 +712,12 @@ app.post('/api/gifts/:id/mark-paid', async (req, res) => {
       });
       if (r.ok) {
         const s = await r.json();
-        if (s.payment_status === 'paid' && s.client_reference_id === g.id) {
+        if (s.client_reference_id === g.id && validGiftPayment(g, s)) {
           db.prepare('UPDATE gifts SET paid=1, status=CASE WHEN status=\'sealed\' THEN \'paid\' ELSE status END WHERE id=?').run(g.id);
           logEvent(g.id, null, 'paid', { tier: g.tier, verified: true });
           return res.json({ ok: true, paid: true, verified: true });
         }
-        return res.status(402).json({ ok: false, paid: false, error: 'session not paid' });
+        return res.status(402).json({ ok: false, paid: false, error: 'session payment does not match gift' });
       }
     } catch (e) {
       console.error(`[mark-paid ${g.id}] stripe verify failed:`, e.message);
@@ -696,13 +755,12 @@ app.post('/api/stripe/webhook', (req, res) => {
     const giftId = s.client_reference_id || null;
     const g = giftId ? getGift(giftId) : null;
     if (g) {
-      const expected = TIER_PRICE_PENCE[g.tier] ?? null;
-      if (expected != null && s.amount_total !== expected) {
-        console.error(`[stripe webhook] amount mismatch gift=${g.id} tier=${g.tier} got=${s.amount_total} want=${expected}`);
-        return res.status(400).json({ error: 'amount mismatch' });
+      if (!validGiftPayment(g, s)) {
+        console.error('[stripe webhook] payment does not match gift', g.id);
+        return res.status(400).json({ error: 'payment mismatch' });
       }
       db.prepare('UPDATE gifts SET paid=1, status=CASE WHEN status=\'sealed\' THEN \'paid\' ELSE status END WHERE id=?').run(g.id);
-      logEvent(g.id, null, 'paid', { tier: g.tier, via: 'webhook', session: s.id });
+      logEvent(g.id, null, 'paid', { tier: g.tier, via: 'webhook', session: s.id, amount: s.amount_total, referred: !!g.referred_by });
       // a Set payment creates the 3-credit pack (idempotent)
       if (g.tier === 'set' && !g.pack_id) {
         const packId = crypto.randomUUID();
@@ -726,9 +784,24 @@ function getTrail(token) {
   return t;
 }
 
+// A scheduled gift exists but is not live yet — every mutating/media route
+// must fail closed on it, exactly like a revoked link.
+function scheduledUntil(t) {
+  return t?.send_at && new Date(t.send_at).getTime() > Date.now() ? t.send_at : null;
+}
+
+function liveTrail(token) {
+  const t = getTrail(token);
+  if (t && scheduledUntil(t)) return null;
+  return t;
+}
+
 app.get('/api/trail/:token', (req, res) => {
   const t = getTrail(req.params.token);
   if (!t) return res.status(404).json({ error: 'not found' });
+  // scheduled send: tell the recipient when it opens instead of leaking rounds
+  const soon = scheduledUntil(t);
+  if (soon) return res.status(423).json({ error: 'scheduled', sendAt: soon });
   const gift = getGift(t.gift_id);
   logEvent(t.gift_id, t.token, 'opened', null);
   res.json(trailPayload(t, gift));
@@ -736,7 +809,7 @@ app.get('/api/trail/:token', (req, res) => {
 
 app.post('/api/trail/:token/answer', (req, res) => {
   if (limitOr429(res, `answer:${req.params.token}`, 120, 60 * 60 * 1000)) return;
-  const t = getTrail(req.params.token);
+  const t = liveTrail(req.params.token);
   if (!t) return res.status(404).json({ error: 'not found' });
   const { round, choice } = req.body || {};
   const rounds = safeParse(t.rounds);
@@ -754,7 +827,7 @@ app.post('/api/trail/:token/answer', (req, res) => {
 app.post('/api/trail/:token/unlock', (req, res) => {
   // per-token attempt cap — the 6-char code must not be brute-forceable online
   if (limitOr429(res, `unlock:${req.params.token}`, 10, 60 * 60 * 1000)) return;
-  const t = getTrail(req.params.token);
+  const t = liveTrail(req.params.token);
   if (!t) return res.status(404).json({ error: 'not found' });
   const { code } = req.body || {};
   // codes are stored as scrypt hashes (unlock_hash); legacy plaintext rows
@@ -777,7 +850,7 @@ app.post('/api/trail/:token/unlock', (req, res) => {
 
 app.post('/api/trail/:token/event', (req, res) => {
   if (limitOr429(res, `event:${req.ip}`, 240, 60 * 60 * 1000)) return;
-  const t = getTrail(req.params.token);
+  const t = liveTrail(req.params.token);
   if (!t) return res.status(404).json({ error: 'not found' });
   const name = typeof req.body?.name === 'string' ? req.body.name.slice(0, 64) : 'event';
   logEvent(t.gift_id, t.token, name, req.body?.data);
@@ -786,7 +859,7 @@ app.post('/api/trail/:token/event', (req, res) => {
 
 // token-scoped photo — the recipient only ever holds the trail token
 app.get('/api/trail/:token/photo/:i', (req, res) => {
-  const t = getTrail(req.params.token);
+  const t = liveTrail(req.params.token);
   if (!t) return res.status(404).json({ error: 'not found' });
   const g = getGift(t.gift_id);
   if (!g) return res.status(404).json({ error: 'not found' });
@@ -815,14 +888,14 @@ app.get('/api/photo/:giftId/:i', (req, res) => {
 // world-status is a cheap poll; /world streams the GLB once the build is done.
 
 app.get('/api/trail/:token/world-status', (req, res) => {
-  const t = getTrail(req.params.token);
+  const t = liveTrail(req.params.token);
   if (!t) return res.status(404).json({ error: 'not found' });
   const g = getGift(t.gift_id);
   res.json({ worldStatus: g?.world_status ?? 'pending' });
 });
 
 app.get('/api/trail/:token/world', (req, res) => {
-  const t = getTrail(req.params.token);
+  const t = liveTrail(req.params.token);
   if (!t) return res.status(404).json({ error: 'not found' });
   const g = getGift(t.gift_id);
   // self-heal a stale 'worlding' (the machine that was building it is gone)
@@ -849,7 +922,7 @@ app.get('/api/trail/:token/world', (req, res) => {
 // the keepsake portrait — streams the painted "portrait of the place" once
 // the seal-time build has finished. Best-effort: 202 while it's painting.
 app.get('/api/trail/:token/portrait', (req, res) => {
-  const t = getTrail(req.params.token);
+  const t = liveTrail(req.params.token);
   if (!t) return res.status(404).json({ error: 'not found' });
   const g = getGift(t.gift_id);
   // self-heal a stale 'painting' (the machine that was painting it is gone)

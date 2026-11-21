@@ -132,6 +132,10 @@ addColumnIfMissing('gifts', 'pack_id', 'TEXT');
 addColumnIfMissing('gifts', 'reclue_count', 'INTEGER NOT NULL DEFAULT 0');
 addColumnIfMissing('trails', 'unlock_hash', 'TEXT');
 addColumnIfMissing('trails', 'expires_at', 'TEXT');
+// scheduled send — the trail row exists but does not open until send_at passes
+addColumnIfMissing('trails', 'send_at', 'TEXT');
+// referral — the trail token whose recipient's note-back led to this gift
+addColumnIfMissing('gifts', 'referred_by', 'TEXT');
 
 // Indexes on every gift_id foreign-key lookup — without these each is a table
 // scan (fine at tiny scale, free to fix, and the events table grows forever).
