@@ -39,6 +39,32 @@ The key file `server/sandbase.env` is gitignored (`.gitignore` has `*.env` and
 `server/*.env`). It is **never** committed. The key is `sk-…` (the `enigmagift`
 key, created with a $10 spend cap).
 
+### Secrets hygiene (how we stay secure)
+
+- **Secret values live only in**: Fly secrets (`fly -a enigmagift-api secrets
+  set …`), the Stripe dashboard, and gitignored local `*.env` files. Never in
+  committed files, docs, screenshots, or commit messages.
+- `STRIPE_WEBHOOK_SECRET` (`whsec_…`) is a Fly secret; docs reference it by
+  name only. The Payment Link URLs (`buy.stripe.com/…`) are **public by
+  design** — they're inlined into the frontend bundle on purpose.
+- The `pre-commit` hook (`.githooks/`, wired via `core.hooksPath`) greps staged
+  content for full-length secret shapes — Stripe webhook secrets
+  (`whsec_` + 16+ chars), `sk-…` vendor keys, live/test secret-key prefixes,
+  GitHub tokens, AWS keys, private keys, `Bearer …` tokens, and
+  `api_key`/`password` assignments — and blocks the commit on a match. Docs
+  may mention the *prefix* (`whsec_…`) but never a full value, and must not
+  quote the hook's raw regexes (write them with a character-class shim, e.g.
+  `s[k]_[a-z]+ive_`, so the doc itself doesn't trip the scan).
+- Audit anytime (bracket shims keep the command itself out of the scan):
+  `git grep -nE 'whsec_[A-Za-z0-9]{16,}|s[k]_[a-z]+ive_|r[k]_[a-z]+ive_' -- .`
+  must only ever hit `.githooks/pre-commit` itself. History check:
+  `for c in $(git rev-list --all); do git grep -lE 'whsec_[A-Za-z0-9]{16,}' $c; done | sort -u`
+- Databases and uploads are gitignored (`server/*.db`, `server/uploads/`),
+  and `dist/` is build output, never committed.
+- If a secret ever does leak: rotate it in the provider (Stripe: roll the
+  webhook secret; SandBase: revoke the key), set the new value as a Fly
+  secret, redeploy, then scrub history only if the repo is private.
+
 To set the Fly secret without printing the key:
 
 ```bash
