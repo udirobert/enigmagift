@@ -341,6 +341,10 @@ were derived from them at migration.
   Gotcha: the unlock code plaintext is returned ONLY by the first seal
   (stored as a scrypt hash afterwards) — re-sealing returns `unlockCode: null`,
   and the UI says so.
+- **Hide destination clue**: the trail payload carries `hideHint` (the hide
+  spot the giver actually used, else the best pipeline-proposed spot) for
+  physical gifts only; Round 3 shows "one last clue — the thing is hidden …"
+  and the CTA becomes "go find it →". Digital trails carry no hideHint.
 - **Secrets**: pre-commit hook blocks `whsec_…`/`sk-…`/etc. (see Secrets
   hygiene). Multer bumped to 2.x.
 
@@ -364,6 +368,32 @@ were derived from them at migration.
   vision tokens, less storage), EXIF strip, 5 drafts/h/IP, reclue bounded,
   world build idempotent. Later: self-host fonts (drops a render-blocking
   third-party request + CSP exceptions), optional `compression` on the API.
+
+## Weekly ops routine (volume, funnel, money, webhook health)
+
+Run the report inside the Fly machine (the script ships in the image):
+
+```bash
+fly -a enigmagift-api ssh console -C "node /app/scripts/ops-report.mjs"
+```
+
+It prints: gifts by status/tier/mode, paid-by-tier + estimated gross £, unsealed
+drafts (7d count = vision spend at risk), trails (unlocked/expired), packs,
+the event funnel (round-pick correctness, `shared_back`, `webhook_ok`,
+`markpaid_pending`), and the reconciliation checklist:
+
+1. Stripe → Developers → Webhooks → `we_…` → Recent deliveries: all 2xx?
+   Compare with `webhook_ok` in the report — a gap means a lost `paid` event.
+2. Stripe → Balance/payouts vs estimated gross (same window).
+3. SandBase + Recraft dashboards → spend in the same window. If
+   drafts(7d) × ~10p approaches paid revenue, consider gating the vision read
+   behind payment or tightening the 5/h draft limit.
+
+Also: `fly -a enigmagift-api logs --no-tail | grep -i "stripe webhook"` for
+endpoint errors. Every verified webhook is logged as a `webhook_ok` event
+(`server/index.js`), which is what makes the gap check possible.
+
+---
 
 ## Gotchas (actually hit)
 

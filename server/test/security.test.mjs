@@ -171,6 +171,38 @@ async function main() {
     assert.ok(!('correct' in tr.rounds[0]), 'correct leaked to client');
     assert.ok(!('answer' in tr.rounds[0]));
     assert.ok(!JSON.stringify(tr).includes('"correct"'));
+    // digital gift: no hide hint
+    assert.ok(!tr.hideHint, 'digital trail should not carry a hide hint');
+  });
+
+  await t('physical (Hide) trail carries the hide hint, still no answer key', async () => {
+    const fd = new FormData();
+    for (let i = 0; i < 5; i++) fd.append('photos', new Blob([readFileSync(PHOTO)]), `p${i}.jpg`);
+    fd.append('mode', 'physical'); fd.append('tier', 'hide');
+    const gid = (await (await fetch(`${BASE}/api/gifts`, { method: 'POST', body: fd })).json()).giftId;
+    const db = new DatabaseSync(join(tmp, 'test.db'));
+    db.prepare("UPDATE gifts SET status='ready', rounds=? WHERE id=?").run(JSON.stringify(ROUNDS), gid);
+    db.prepare("INSERT INTO hide_spots (id, gift_id, position, data) VALUES ('hide_abc', ?, 0, ?)").run(
+      gid, JSON.stringify({ description: 'behind the third stair', confidence: 0.9 }),
+    );
+    db.prepare("UPDATE gifts SET hides=? WHERE id=?").run(
+      JSON.stringify({ current: { hideSpotId: 'hide_abc', hideNote: null, hiddenAt: 'x' } }), gid,
+    );
+    db.close();
+    const seal = await (await fetch(`${BASE}/api/gifts/${gid}/seal`, {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}',
+    })).json();
+    assert.ok(seal.unlockCode, 'first seal must return the plaintext code');
+    const tr = await (await fetch(`${BASE}/api/trail/${seal.trailToken}`)).json();
+    assert.equal(tr.hideHint, 'behind the third stair');
+    assert.ok(!JSON.stringify(tr).includes('"correct"'));
+    // re-seal: code must come back null, not ''
+    const seal2 = await (await fetch(`${BASE}/api/gifts/${gid}/seal`, {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}',
+    })).json();
+    assert.equal(seal2.unlockCode, null);
+    assert.equal(seal2.trailToken, seal.trailToken);
+    await fetch(`${BASE}/api/gifts/${gid}`, { method: 'DELETE' });
   });
 
   await t('answer route checks server-side (right + wrong)', async () => {

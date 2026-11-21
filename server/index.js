@@ -250,8 +250,24 @@ function photoUrl(giftId, i) {
 
 function trailPayload(t, gift) {
   const files = gift ? photoFiles(gift.id) : [];
+  // For The Hide, the recipient needs the destination clue: which hide spot
+  // the giver actually used (buyer's hides.current.hideSpotId), else the best
+  // pipeline-proposed spot. Never the answer key — just where to look.
+  let hideHint = null;
+  if (gift && (gift.mode ?? 'physical') === 'physical') {
+    const hides = safeParse(gift.hides);
+    const spots = db.prepare('SELECT id, data FROM hide_spots WHERE gift_id=? ORDER BY position').all(gift.id);
+    const chosenId = hides?.current?.hideSpotId || null;
+    const chosen = spots.find((s) => s.id === chosenId) || spots[0] || null;
+    if (chosen) {
+      const d = safeParse(chosen.data);
+      if (d?.description) hideHint = String(d.description);
+    }
+    if (!hideHint && hides?.current?.hideNote) hideHint = String(hides.current.hideNote).slice(0, 200);
+  }
   return {
     token: t.token,
+    hideHint,
     // the answer key never leaves the server — /answer checks it
     rounds: safeParse(t.rounds).map((r) => {
       if (!r || typeof r !== 'object') return r;
@@ -580,6 +596,9 @@ app.post('/api/stripe/webhook', (req, res) => {
   } catch {
     return res.status(400).json({ error: 'bad payload' });
   }
+  // health signal: every verified webhook is recorded, so ops-report can
+  // compare Stripe-side deliveries against what actually landed here
+  logEvent(null, null, 'webhook_ok', { type: event.type, id: event.id ?? null });
   if (event.type === 'checkout.session.completed') {
     const s = event.data?.object || {};
     const giftId = s.client_reference_id || null;

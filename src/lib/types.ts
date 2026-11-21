@@ -107,6 +107,8 @@ export interface TrailRound {
 export interface Trail {
   token: string;
   rounds: TrailRound[];
+  /** Hide tier only — where the giver hid the thing ("behind the third stair") */
+  hideHint?: string | null;
   throughline: string | null;
   placeGuess: string | null;
   unlocked: boolean;

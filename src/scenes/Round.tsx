@@ -269,8 +269,13 @@ export function Round({ demo, trail, round, onDone }: RoundProps) {
             {real && trail!.placeGuess && (
               <p className="throughline-sub round-anim">{trail!.placeGuess}</p>
             )}
+            {real && round === 3 && trail!.hideHint && (
+              <p className="round-hide-hint round-anim">
+                one last clue — the thing is hidden {trail!.hideHint}
+              </p>
+            )}
             <button className="demo-link round-anim" onClick={finish}>
-              open the keepsake →
+              {real && trail!.hideHint && round === 3 ? 'go find it →' : 'open the keepsake →'}
             </button>
           </>
         ) : (
