@@ -6,12 +6,13 @@
 
 > **Let the photographs lead them to it.**
 
-A gift only one person can find. The buyer photographs a place that matters,
-and the agent reads the photos — finding the details only they would know —
-and builds a sealed trail of clues that leads the recipient to the keepsake.
+Turn photographs of a place you share into a short trail of clues and a
+digital keepsake. The buyer photographs a place that matters, and the agent
+reads the photos — finding the details only they would know — and builds a
+sealed trail of clues that leads the recipient to the keepsake.
 **The default gift is fully digital** (The Trail, £4.99): three deduction
-rounds open the keepsake directly — no physical errand, any distance, sent in
-five minutes. **The Hide** (£9.99) adds the physical beat: the buyer hides
+rounds open the keepsake directly — no physical errand, any distance, sent
+as a link. **The Hide** (£9.99) adds the physical beat: the buyer hides
 something at the place and writes an unlock code into it. **The Set** (£19)
 is a pack of three hunts for different people or occasions.
 
@@ -34,10 +35,12 @@ is all someone needs (the set saves £10.97 against three Hides).
 
 0. **Watch it** — an auto-playing showcase of a real gift's recipient side
    (the sales pitch before the ask).
-1. **Door** — pick a tier, drop 5–12 photos of a place (or "for me" / demo mode).
-   Copy adapts to direction: "for me" reframes the lede ("a place that matters
-   to you… only you can follow") and the tier hints ("hide something for
-   future-you").
+1. **Door** — pick a tier, choose photos of a place (or "for me" / demo
+   mode). The selection accumulates across picks and drops — up to 12,
+   deduplicated, minimum 5 — and nothing is uploaded until the buyer
+   confirms consent and presses "Build my trail"; "Clear selection" resets
+   it. Copy adapts to direction and tier: "for me" reframes the lede, and
+   the digital tiers say there is a link to send, not a thing to hide.
 2. **Reading** — vision pass (SandBase → Gemini fallback) returns located
    observations per photo. Each photo's read lands in the DB as it finishes, so
    the buyer watches the discoveries stream in live (`photosObserved` ticks
@@ -110,6 +113,11 @@ giver watching live sees rounds land. Unsealed drafts get a
 ```bash
 npm install
 npm run dev          # frontend on :5173, proxies /api → :8787
+npm run dev -- --host 127.0.0.1 --port 4297 --strictPort   # or pinned port
+
+# the tabletop experiment (see dog-gift-tabletop/README.md; ?make=1 is a
+# local author shortcut)
+./node_modules/.bin/vite dog-gift-tabletop --host 127.0.0.1 --port 4296 --strictPort
 
 cd server
 npm install
@@ -131,7 +139,15 @@ Env (backend, `server/.env` or Fly secrets):
   checkout session server-side instead of trusting the client.
 - `ALLOWED_ORIGINS` — comma-separated CORS allowlist (defaults to the
   deployed Pages/Netlify domains + localhost).
-- `DB_PATH`, `UPLOADS_DIR` — default to `./data` locally, `/data/*` on Fly.
+- `DB_PATH`, `UPLOADS_DIR` — default to `server/enigmagift.db` and
+  `server/uploads` locally, `/data/*` on Fly.
+
+Optional local sandbox for browser testing: `DAYTONA_API_KEY` may live in a
+gitignored root `.env.local` (never a `VITE_` prefix — it must not reach the
+bundle; `server/.env` stays the backend's own file). Nothing loads it
+automatically in an arbitrary shell — `node --env-file=.env.local` reads it.
+A Daytona macOS sandbox requires a 24h reservation and creation can auto-reserve;
+consult the current Daytona catalog, not pinned prices.
 
 Frontend env (build-time):
 
@@ -147,15 +163,15 @@ Frontend env (build-time):
 | Route | Purpose |
 |---|---|
 | `GET /api/health` | liveness |
-| `POST /api/gifts` | multipart `photos` (5–12, field name `photos`) + `direction` + `mode` (`digital`\|`physical`) + `tier` (`trail`\|`hide`\|`set`) + optional `packId` → `{giftId}`. Rate-limited per IP |
+| `POST /api/gifts` | multipart `photos` (5–12, field name `photos`) + `direction` + `mode` (`digital`\|`physical`) + `tier` (`trail`\|`hide`\|`set`) + optional `packId` + optional `ref` (a source trail token for referral attribution; unknown/expired/revoked/scheduled refs are ignored) → `{giftId}`. Rate-limited per IP |
 | `GET /api/gifts/:id` | gift payload (clues, hideSpots, throughline, rounds, mode, tier) |
-| `GET /api/gifts/:id/overview` | giver-dashboard payload: status, trail link, pack, stats derived from events, recent events. **Never includes clues/rounds/answers/unlock hashes.** Rate-limited, `no-store` |
+| `GET /api/gifts/:id/overview` | giver-dashboard payload: status, trail link (incl. `sendAt`/`scheduled`), pack, `referredBy`, stats derived from events, recent events. **Never includes clues/rounds/answers/unlock hashes.** Rate-limited, `no-store` |
 | `PATCH /api/gifts/:id/clues` | `{keepIds, edits}` buyer approval |
 | `PATCH /api/gifts/:id/tier` | `{tier: trail\|hide, mode}` — mid-flow upsell pre-seal; `409` once sealed/paid, `400` for other tiers |
 | `POST /api/gifts/:id/reclue` | `{notes}` — re-run the cross-image pass with buyer notes; regenerates clues/rounds (bounded to 2 pre-payment) |
 | `POST /api/gifts/:id/world-source` | `{index}` — pick which photo becomes the 3D world; rebuilds if already built |
 | `POST /api/gifts/:id/hide` | record the physical hide (Hide tier) |
-| `POST /api/gifts/:id/seal` | → `{trailToken, trailUrl, unlockCode?, expiresAt?}`; optional `{expireDays}` sets link expiry (code only for Hide) |
+| `POST /api/gifts/:id/seal` | → `{trailToken, trailUrl, unlockCode?, expiresAt?, sendAt?}`; optional `{sendAt}` schedules availability (future, ≤1 year — enforced at read time) and optional `{expireDays}` sets link expiry, counted from the scheduled open when one is set (code only for Hide). Idempotent: re-sealing returns the existing token/sendAt |
 | `POST /api/gifts/:id/mark-paid` | fallback paid-marker; verifies the Stripe session server-side when `STRIPE_API_KEY` is set — **fails closed otherwise** (never trusts the client; only the webhook sets `paid`) |
 | `POST /api/gifts/:id/revoke` | buyer revokes the recipient trail link (token stops resolving immediately) |
 | `POST /api/stripe/webhook` | signed Stripe webhook — the source of truth for `paid`; creates a pack on a Set payment |
@@ -163,7 +179,7 @@ Frontend env (build-time):
 | `POST /api/gifts/:id/event` | funnel event `{name}` |
 | `GET /api/packs/:id` | pack status (`creditsLeft`) |
 | `POST /api/packs/:id/gifts` | create another hunt from a Set pack (consumes a credit; same multipart body as `POST /api/gifts`) |
-| `GET /api/trail/:token` | recipient trail (rounds **without the answer key**, token-scoped photo URLs, world status, `requiresCode`); 404 when revoked or expired |
+| `GET /api/trail/:token` | recipient trail (rounds **without the answer key**, token-scoped photo URLs, world status, `requiresCode`); 404 when revoked or expired; **423 `{error:'scheduled', sendAt}` while pending**, and every sensitive trail route (answer/unlock/event/photo/world-status/world/portrait) returns 404 until it opens |
 | `POST /api/trail/:token/answer` | `{round, choice}` |
 | `POST /api/trail/:token/unlock` | `{code}` → keepsake (Hide tier; codes stored as scrypt hashes) |
 | `POST /api/trail/:token/event` | recipient funnel event |
@@ -172,6 +188,19 @@ Frontend env (build-time):
 | `GET /api/trail/:token/portrait` | streams the painted keepsake portrait (202 until ready/skipped) |
 | `GET /api/trail/:token/photo/:i` | original photo by sorted index, **token-scoped** |
 | `GET /api/photo/:giftId/:i` | original photo by gift id (buyer/editor side only) |
+
+API-only behaviors not surfaced in the current client: the frontend does not
+forward `ref` or `sendAt`; `sendAt` schedules the link's availability only —
+there is no email or automatic delivery worker, and the recipient UI does not
+render a countdown. Referral promotions must be configured separately in
+Stripe; the discounted amount is accepted only when the gift carries a
+recorded `ref`.
+
+**Payment validation** is identical at both entry points (signed webhook and
+`mark-paid` session verification): the session must be `paid`, in GBP, and
+total exactly the tier's price — trail 499p, hide 999p, set 1900p — or £1
+less only when the gift has a recorded referral. A `null` tier is a legacy
+physical gift priced as Hide (999p); unknown non-null tiers are rejected.
 
 ## Deploy
 
@@ -223,8 +252,12 @@ Public pages: `/privacy` and `/terms` (`public/privacy.html`, `public/terms.html
 - The giver can `DELETE /api/gifts/:id` (draft or whole gift + link + photos)
   and revoke the recipient link at any time.
 - Security regression tests: `cd server && node test/security.test.mjs`
-  (webhook signature, fail-closed mark-paid, answer-key stripping, unlock
-  rate limit, revoke/expiry, EXIF strip, headers).
+  (webhook signature + payment-amount matrix, fail-closed mark-paid,
+  answer-key stripping, unlock rate limit, revoke/expiry, scheduled
+  availability, referral attribution, EXIF strip, headers). Requires Node
+  ≥22.15 (`module.registerHooks`); runs against a temporary DB and mocked
+  pipeline/world/portrait providers with external HTTP disabled — no paid
+  provider calls, no credentials needed.
 
 ## Known gaps (pre-launch hardening)
 

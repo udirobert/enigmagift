@@ -33,7 +33,7 @@ Test £4.99 for the complete silent hunt, £9.99 for a richer Story with a voice
 
 ## Tabletop cut (experiment preview)
 
-The [silent preview](https://for-you-room--enigmagift.netlify.app/) remains the control. The local tabletop preview (not published) (`dog-gift-tabletop/`) keeps everything else identical and changes only the three interactions below.
+The [silent preview](https://for-you-room--enigmagift.netlify.app/) remains the control. The local tabletop preview (not published) in `dog-gift-tabletop/` began with the three interactions below. The current family-room pilot also adds a still-atlas photo route, help ladder, keepsake recap and recipient-preview editor. The published control is unchanged; the current pilot is no longer a controlled comparison of only three interactions.
 
 1. **Accent what was touched.** A chair tap outlines the specific chair back or leg patch for a moment, rather than answering for the whole object class.
 2. **The dog's viewpoint is optional.** After meeting the dog, 'Look from here' drops to a low camera beside it where a paper edge shows under the table lip; 'Back to my spot' restores the previous pose.
@@ -47,7 +47,7 @@ The run card above describes the next experiment. No further builds are needed t
 
 ## From recipient to giver (local pilot)
 
-The same tabletop cut now runs two local builds: `:4295` serves the earlier approved snapshot; `:4296` serves the latest family-room pilot with the 360 keepsakes, private keepsake recap, help ladder, the two-place still atlas and the recipient-preview remix. The giver shortcut `:4296/?make=1` opens a clean editor without playing the demo; submitting it opens the draft inside an isolated same-origin iframe (`?recipientPreview=1`) where the recipient cover is signed with the giver's names — nothing leaves the tab.
+The same tabletop cut is served locally on demand — port numbers are conventions, not a promise something is running: `:4296` serves the latest family-room pilot (still atlas, keepsake recap, help ladder, recipient-preview remix) and `:4297` the root frontend. See [README](../README.md#development) for the run commands and [dog-gift-tabletop/README.md](../dog-gift-tabletop/README.md#verification-so-far-manual-one-session) for the verified UI checks. The giver shortcut `?make=1` opens a clean editor without playing the demo; submitting it opens the draft inside an isolated same-origin iframe (`?recipientPreview=1`) where the recipient cover is signed with the giver's names — nothing leaves the tab. Human first-time-recipient research has not been run yet — the run card above is still the next experiment, not an observed outcome.
 
 A room revision owns the licensed world, calibrated objects and permitted template. A gift edition references that revision but owns its private recipient, words and reward. A play session belongs to one recipient; it is never copied. Only a room owner can opt a private world into reuse; a playable link is not a licence to republish a home. In production enforce that on the server, offer revocation and never fork gift links, codes, voice recordings or run history. The sample prototype has a local flag, not an access-control service.
 
