@@ -93,6 +93,18 @@ CREATE TABLE IF NOT EXISTS room_gifts (
   created_at TEXT NOT NULL,
   revoked_at TEXT
 );
+
+CREATE TABLE IF NOT EXISTS photo_gifts (
+  token TEXT PRIMARY KEY,
+  manage_hash TEXT NOT NULL UNIQUE,
+  edition_json TEXT,
+  image BLOB,
+  image_width INTEGER,
+  image_height INTEGER,
+  content_hash TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  revoked_at TEXT
+);
 `);
 
 /* Unlock codes: stored as scrypt hashes, never plaintext. The legacy

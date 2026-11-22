@@ -11,6 +11,7 @@ import { buildWorld } from './world.js';
 import { buildPortrait, portraitMime } from './portrait.js';
 import { stripExif } from './exif.js';
 import { mountRoomGiftRoutes } from './room-gifts.js';
+import { mountPhotoGiftRoutes } from './photo-gifts.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const DIST = join(HERE, '..', 'dist');
@@ -323,6 +324,7 @@ app.get('/api/health', (_req, res) => res.json({ ok: true }));
 
 // Tabletop room-gift pilot links: private recipient links + owner management.
 mountRoomGiftRoutes(app, { db, limitOr429 });
+mountPhotoGiftRoutes(app, { db, limitOr429 });
 
 function handleGiftCreate(req, res, packIdParam = null) {
   req.giftId = crypto.randomUUID();

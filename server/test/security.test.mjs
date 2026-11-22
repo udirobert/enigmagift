@@ -910,6 +910,243 @@ async function main() {
     assert.equal((await rgGet(`/${badTok}`)).status, 404);
   });
 
+  // ---------- photo-gift recipient links (personal-photo pilot) ----------
+  const PG = '/api/photo-gifts';
+  const pgKey = rgKey;
+  const pgPhoto = readFileSync(PHOTO);
+  const pgEdition = (over = {}) => ({
+    version: 1, to: 'Sam', from: 'Alex',
+    message: 'Saturday pancakes, as always.\n\nYour turn to pick the film.',
+    clue: 'Where the kettle sings…',
+    hidingSpot: { x: 0.31, y: 0.72 },
+    ...over,
+  });
+  const pgPost = (edition, photo, key, extra = {}) => {
+    const fd = new FormData();
+    if (edition !== null) fd.append('edition', typeof edition === 'string' ? edition : JSON.stringify(edition));
+    if (photo !== null) fd.append('photo', new Blob([photo], { type: 'image/jpeg' }), 'photo.jpg');
+    return fetch(`${BASE}${PG}`, {
+      method: 'POST',
+      headers: { ...(key ? { authorization: `Bearer ${key}` } : {}), ...extra },
+      body: fd,
+    });
+  };
+  const pgGet = (path, key) => fetch(`${BASE}${PG}${path}`,
+    key ? { headers: { authorization: `Bearer ${key}` } } : {});
+  const pgDel = (key) => fetch(`${BASE}${PG}/manage`, {
+    method: 'DELETE', headers: { authorization: `Bearer ${key}` } });
+  const pgCount = () => dbGet('SELECT COUNT(*) c FROM photo_gifts').c;
+
+  await t('photo POST auth + payload validation: 401/400/413, no rows written', async () => {
+    const before = pgCount();
+    const key = pgKey();
+    const vis = rgVisitor('192.0.2.60');
+    assert.equal((await pgPost(pgEdition(), pgPhoto)).status, 401, 'no key');
+    assert.equal((await pgPost(pgEdition(), pgPhoto, 'zz')).status, 401, 'bad key shape');
+    assert.equal((await pgPost(pgEdition(), null, key, vis)).status, 400, 'missing photo');
+    assert.equal((await pgPost(pgEdition(), Buffer.from('not a jpeg at all'), key, vis)).status, 400, 'corrupt');
+    const png = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47]), pgPhoto.subarray(4)]);
+    assert.equal((await pgPost(pgEdition(), png, key, vis)).status, 400, 'non-JPEG bytes');
+    assert.equal((await pgPost(pgEdition(), Buffer.alloc(4 * 1024 * 1024, 0xff), key, vis)).status, 413, 'oversize');
+    // edition field problems
+    assert.equal((await pgPost('{not json', pgPhoto, key, vis)).status, 400, 'bad JSON');
+    assert.equal((await pgPost(pgEdition({ version: 2 }), pgPhoto, key, vis)).status, 400, 'version');
+    assert.equal((await pgPost(pgEdition({ hidingSpot: { x: 1.2, y: 0.5 } }), pgPhoto, key, vis)).status, 400, 'x out of range');
+    assert.equal((await pgPost(pgEdition({ hidingSpot: { x: '0.5', y: 0.5 } }), pgPhoto, key, vis)).status, 400, 'non-finite x');
+    assert.equal((await pgPost(pgEdition({ to: 'x'.repeat(41) }), pgPhoto, key, vis)).status, 400, 'to over-limit');
+    assert.equal((await pgPost(pgEdition({ message: 'x'.repeat(601) }), pgPhoto, key, vis)).status, 400, 'message over-limit');
+    assert.equal((await pgPost(pgEdition({ clue: 'x'.repeat(201) }), pgPhoto, key, vis)).status, 400, 'clue over-limit');
+    assert.equal((await pgPost(pgEdition({ to: '   ' }), pgPhoto, key, vis)).status, 400, 'blank to');
+    assert.equal((await pgPost(pgEdition({ message: '' }), pgPhoto, key, vis)).status, 400, 'empty message');
+    assert.equal((await pgPost(null, pgPhoto, key, vis)).status, 400, 'missing edition field');
+    // a photo-shaped body without a management key still stops at 401 first
+    assert.equal((await pgPost(pgEdition(), pgPhoto)).status, 401);
+    assert.equal(pgCount(), before, 'nothing was stored');
+  });
+
+  await t('photo create stores normalized JPEG + edition; HTML/newlines literal', async () => {
+    const key = pgKey();
+    const vis = rgVisitor('192.0.2.61');
+    const edition = pgEdition({ to: '<b>Sam</b>', hacker: 'drop-me' });
+    const r = await pgPost(edition, pgPhoto, key, vis);
+    assert.equal(r.status, 201);
+    assert.equal(r.headers.get('x-ratelimit-scope'), 'verified-client');
+    const token = (await r.json()).recipientToken;
+    assert.match(token, /^[A-Za-z0-9_-]{43}$/);
+    const row = dbGet('SELECT * FROM photo_gifts WHERE token=?', token);
+    assert.equal(row.manage_hash, rgSha(key));
+    const stored = JSON.parse(row.edition_json);
+    assert.deepEqual(Object.keys(stored).sort(), ['clue', 'from', 'hidingSpot', 'message', 'to', 'version'].sort());
+    assert.equal(stored.to, '<b>Sam</b>');
+    assert.ok(stored.message.includes('\n\n'), 'paragraphs preserved');
+    assert.equal(row.image_width > 0 && row.image_height > 0, true);
+    // public view: edition + image dims, no owner fields, no BLOB
+    const pub = await (await pgGet(`/${token}`)).json();
+    assert.equal(pub.edition.to, '<b>Sam</b>');
+    assert.deepEqual(pub.image, { width: row.image_width, height: row.image_height });
+    assert.ok(!JSON.stringify(pub).includes(key));
+    assert.ok(!JSON.stringify(pub).includes('manage_hash'));
+    // image route: JPEG bytes, no-store, nosniff
+    const img = await pgGet(`/${token}/image`);
+    assert.equal(img.status, 200);
+    assert.match(img.headers.get('content-type'), /^image\/jpeg/);
+    assert.equal(img.headers.get('cache-control'), 'no-store');
+    assert.equal(img.headers.get('x-content-type-options'), 'nosniff');
+    const bytes = Buffer.from(await img.arrayBuffer());
+    assert.equal(bytes[0], 0xff); assert.equal(bytes[1], 0xd8, 'JPEG SOI');
+    assert.ok(!bytes.includes(Buffer.from('manage_hash')));
+  });
+
+  await t('EXIF metadata does not survive normalization', async () => {
+    const key = pgKey();
+    const vis = rgVisitor('192.0.2.62');
+    const { default: sharp } = await import('sharp');
+    const withExif = await sharp({ create: { width: 40, height: 24, channels: 3, background: '#794c36' } })
+      .jpeg()
+      .withMetadata({ orientation: 6, exif: { IFD0: { Artist: 'EXIF fixture' } } })
+      .toBuffer();
+    const before = await sharp(withExif).metadata();
+    assert.equal(before.orientation, 6, 'fixture carries orientation');
+    assert.ok(before.exif?.length, 'fixture carries an EXIF block');
+    const r = await pgPost(pgEdition(), withExif, key, vis);
+    assert.equal(r.status, 201);
+    const token = (await r.json()).recipientToken;
+    const stored = await (await pgGet(`/${token}/image`)).arrayBuffer();
+    const after = await sharp(Buffer.from(stored)).metadata();
+    assert.equal(after.exif, undefined, 'EXIF block removed entirely (GPS cannot survive)');
+    assert.equal(after.orientation, undefined, 'orientation applied, then stripped');
+    assert.equal(after.width, 24, 'rotated dimensions');
+    assert.equal(after.height, 40);
+  });
+
+  await t('huge pixel canvas under the byte limit → 413, nothing stored; extra part → 400', async () => {
+    const before = pgCount();
+    const key = pgKey();
+    const vis = rgVisitor('192.0.2.66');
+    const { default: sharp } = await import('sharp');
+    // a 4100×4100 JPEG compresses well under the 3 MiB byte ceiling but
+    // exceeds the 16-megapixel decode bound
+    const huge = await sharp({ create: { width: 4100, height: 4100, channels: 3, background: '#4a6a8a' } })
+      .jpeg({ quality: 20 }).toBuffer();
+    assert.ok(huge.length < 3 * 1024 * 1024, 'fixture must pass the byte gate to reach the pixel gate');
+    const big = await pgPost(pgEdition(), huge, key, vis);
+    assert.equal(big.status, 413, 'oversize pixels');
+    assert.equal(pgCount(), before, 'nothing stored');
+    // a third multipart part is rejected by the strict part/field limits
+    const fd = new FormData();
+    fd.append('edition', JSON.stringify(pgEdition()));
+    fd.append('note', 'one field too many');
+    fd.append('photo', new Blob([pgPhoto], { type: 'image/jpeg' }), 'photo.jpg');
+    const extraPart = await fetch(`${BASE}${PG}`, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${key}`, ...vis },
+      body: fd,
+    });
+    assert.equal(extraPart.status, 400, 'extra multipart part');
+    // the normal two-part shape still creates
+    const ok = await pgPost(pgEdition(), pgPhoto, key, vis);
+    assert.equal(ok.status, 201, 'two-part request still accepted');
+  });
+
+  await t('photo retry semantics: identical → 200 same token; concurrent → one gift; changed → 409; wrong owner → 404', async () => {
+    const key = pgKey();
+    const vis = rgVisitor('192.0.2.63');
+    const first = await pgPost(pgEdition(), pgPhoto, key, vis);
+    assert.equal(first.status, 201);
+    const token = (await first.json()).recipientToken;
+    const again = await pgPost(pgEdition(), pgPhoto, key, vis);
+    assert.equal(again.status, 200, 'identical retry');
+    assert.equal((await again.json()).recipientToken, token);
+    // two concurrent identical POSTs still produce exactly one immutable gift
+    const key2 = pgKey();
+    const [c1, c2] = await Promise.all([
+      pgPost(pgEdition({ to: 'Concurrent' }), pgPhoto, key2, vis),
+      pgPost(pgEdition({ to: 'Concurrent' }), pgPhoto, key2, vis),
+    ]);
+    const [j1, j2] = await Promise.all([c1.json(), c2.json()]);
+    assert.equal(j1.recipientToken, j2.recipientToken, 'concurrent identical → same token');
+    assert.deepEqual([c1.status, c2.status].sort(), [200, 201], 'one create, one replay');
+    assert.equal(dbGet('SELECT COUNT(*) c FROM photo_gifts WHERE manage_hash=?', rgSha(key2)).c, 1);
+    // changed edition or changed image conflicts with the same key
+    assert.equal((await pgPost(pgEdition({ message: 'Rewritten.' }), pgPhoto, key, vis)).status, 409);
+    const { default: sharp } = await import('sharp');
+    const altJpeg = await sharp({ create: { width: 16, height: 16, channels: 3, background: '#883311' } }).jpeg().toBuffer();
+    const alt = await pgPost(pgEdition(), altJpeg, key, vis);
+    assert.equal(alt.status, 409, 'changed image');
+    // a second key gets its own gift, and the wrong owner sees nothing
+    const other = await pgPost(pgEdition(), pgPhoto, pgKey(), vis);
+    assert.equal(other.status, 201);
+    assert.notEqual((await other.json()).recipientToken, token);
+    const mg = await pgGet('/manage', pgKey());
+    assert.equal(mg.status, 404, 'wrong owner');
+    const mgBad = await pgGet('/manage');
+    assert.equal(mgBad.status, 401, 'no key');
+  });
+
+  await t('photo revoke: recipient + image + manage metadata all close atomically', async () => {
+    const key = pgKey();
+    const vis = rgVisitor('192.0.2.64');
+    const token = (await (await pgPost(pgEdition(), pgPhoto, key, vis)).json()).recipientToken;
+    assert.equal((await pgGet(`/${token}/image`)).status, 200);
+    assert.equal((await pgDel(key)).status, 200);
+    assert.equal((await pgGet(`/${token}`)).status, 404, 'metadata closed');
+    assert.equal((await pgGet(`/${token}/image`)).status, 404, 'image closed');
+    const row = dbGet('SELECT edition_json, image, image_width, image_height, revoked_at FROM photo_gifts WHERE token=?', token);
+    assert.equal(row.edition_json, null);
+    assert.equal(row.image, null);
+    assert.equal(row.image_width, null);
+    assert.ok(row.revoked_at, 'revoked_at stamped');
+    const mg = await (await pgGet('/manage', key)).json();
+    assert.equal(mg.revoked, true);
+    assert.equal(mg.edition, null);
+    assert.equal(mg.image, null);
+    assert.equal((await pgDel(key)).status, 200, 'repeat delete idempotent');
+    assert.equal((await pgPost(pgEdition(), pgPhoto, key, vis)).status, 410, 'revoked key stays revoked');
+    assert.equal((await pgGet('/manage', pgKey())).status, 404);
+  });
+
+  await t('restart keeps the stored photo servable', async () => {
+    const key = pgKey();
+    const vis = rgVisitor('192.0.2.65');
+    const create = await pgPost(pgEdition(), pgPhoto, key, vis);
+    assert.equal(create.status, 201, 'pre-restart create');
+    const token = (await create.json()).recipientToken;
+    await stopServer(false);
+    srv = launchServer();
+    await waitUp();
+    assert.equal((await pgGet(`/${token}`)).status, 200, 'metadata after restart');
+    const img = await pgGet(`/${token}/image`);
+    assert.equal(img.status, 200, 'image after restart');
+    const bytes = Buffer.from(await img.arrayBuffer());
+    assert.equal(bytes[0], 0xff); assert.equal(bytes[1], 0xd8);
+  });
+
+  await t('create quota is shared with room gifts; retries stay free', async () => {
+    const vis = rgVisitor('192.0.2.66');
+    const firstKey = pgKey();
+    const firstEdition = pgEdition({ message: 'Quota message 0.' });
+    const first = await pgPost(firstEdition, pgPhoto, firstKey, vis);
+    assert.equal(first.status, 201);
+    const firstToken = (await first.json()).recipientToken;
+    for (let i = 1; i < 10; i++) {
+      const r = await pgPost(pgEdition({ message: `Quota message ${i}.` }), pgPhoto, pgKey(), vis);
+      assert.equal(r.status, 201, `creation ${i}`);
+    }
+    const roomCreate = await rgPost({ edition: rgEdition() }, rgKey(), vis);
+    assert.equal(roomCreate.status, 429, 'photo creations share the room-create bucket');
+    const over = await pgPost(pgEdition(), pgPhoto, pgKey(), vis);
+    assert.equal(over.status, 429);
+    assert.equal(over.headers.get('x-ratelimit-scope'), 'verified-client');
+    // an identical retry under the exhausted bucket resolves, not a new gift
+    const retry = await pgPost(firstEdition, pgPhoto, firstKey, vis);
+    assert.equal(retry.status, 200, 'identical retry never consumes creation allowance');
+    assert.equal((await retry.json()).recipientToken, firstToken);
+    // a different signed visitor still has an independent bucket
+    const other = rgVisitor('203.0.113.66');
+    const b = await pgPost(pgEdition(), pgPhoto, pgKey(), other);
+    assert.equal(b.status, 201, 'a second visitor is unaffected');
+  });
+
   await stopServer();
   const failed = results.filter(([s]) => s === 'FAIL');
   console.log(`\n${results.length - failed.length}/${results.length} passed`);
