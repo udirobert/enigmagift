@@ -1,5 +1,9 @@
 # EnigmaGift — research log
 
+For the later research into the giver's first impression and the approved
+interactive-letter direction, see [Giver onboarding](ONBOARDING.md)
+(2026-11-22). The market research below is the earlier concept-stage record.
+
 Date: 2026-11-17. Sources: TikHub TikTok search via Monid (live, last 7 days, GB,
 sorted by engagement), Tavily, Oriane video search, local portfolio review.
 

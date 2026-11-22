@@ -2,7 +2,12 @@
 
 [Open the public recipient gift](https://saved-you-a-seat--enigmagift.netlify.app/). This dog-and-dining-room gift is the reference for iterating EnigmaGift. The shelf and Marble studio remain experiments, not substitutes for this recipient journey.
 
-## Two published builds
+The active [room pilot](https://enigmagift-room.trustfall.workers.dev/)
+runs on Cloudflare; its [giver entry](https://enigmagift-room.trustfall.workers.dev/?make=1)
+supports personalized, saved recipient links. See [Giver onboarding](ONBOARDING.md)
+for the research and approved letter-led redesign of its opening.
+
+## Historical comparison builds
 
 The [original gift](https://saved-you-a-seat--enigmagift.netlify.app/) is the baseline: original photograph, generated room, a dog clue in the controls, four targets on the photograph and a sample dinner invitation. The world beyond the camera is an interpretation, not a scan. Neither demo is a checkout.
 
@@ -33,7 +38,7 @@ Test £4.99 for the complete silent hunt, £9.99 for a richer Story with a voice
 
 ## Tabletop cut (experiment preview)
 
-The [silent preview](https://for-you-room--enigmagift.netlify.app/) remains the control. The local tabletop preview (not published) in `dog-gift-tabletop/` began with the three interactions below. The current family-room pilot also adds a still-atlas photo route, help ladder, keepsake recap and recipient-preview editor. The published control is unchanged; the current pilot is no longer a controlled comparison of only three interactions.
+The [silent preview](https://for-you-room--enigmagift.netlify.app/) remains the historical control. The tabletop preview in `dog-gift-tabletop/`, now published as the Cloudflare room pilot above, began with the three interactions below. The current family-room pilot also adds a still-atlas photo route, help ladder, keepsake recap and recipient-preview editor. The published control is unchanged; the current pilot is no longer a controlled comparison of only three interactions.
 
 1. **Accent what was touched.** A chair tap outlines the specific chair back or leg patch for a moment, rather than answering for the whole object class.
 2. **The dog's viewpoint is optional.** After meeting the dog, 'Look from here' drops to a low camera beside it where a paper edge shows under the table lip; 'Back to my spot' restores the previous pose.
@@ -45,7 +50,7 @@ Run card: give a first-time recipient ONE build with the neutral instruction 'So
 
 The run card above describes the next experiment. No further builds are needed to run it; these are proposed tests, not observed outcomes.
 
-## From recipient to giver (local pilot)
+## From recipient to giver (room pilot)
 
 The same tabletop cut is served locally on demand — port numbers are conventions, not a promise something is running: `:4296` serves the latest family-room pilot (still atlas, keepsake recap, help ladder, recipient-preview remix) and `:4297` the root frontend. See [README](../README.md#development) for the run commands and [dog-gift-tabletop/README.md](../dog-gift-tabletop/README.md#verification-so-far-manual-one-session) for the verified UI checks. The giver shortcut `?make=1` opens a clean editor without playing the demo — a staged People → Message → Clues → Review composer whose stage tabs are always clickable; 'Preview as [name]' opens the draft inside an isolated same-origin iframe (`?recipientPreview=1`) where the recipient cover is signed with the giver's names — the preview stays in the tab. 'Create recipient link' saves a snapshot as described below. Human first-time-recipient research has not been run yet — the run card above is still the next experiment, not an observed outcome.
 
