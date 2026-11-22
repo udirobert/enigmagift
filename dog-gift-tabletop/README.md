@@ -271,7 +271,7 @@ evidence additionally covers strict TypeScript, the room build, the
 reduced-motion behavior. Real phones and human
 research remain open.
 
-Post-release fixes (pending release): the "Look from here" chip and the
+Post-release fixes (published 2026-11-22, source `cf498a4`, Worker `7febf89f-d567-4994-a423-d04a6c0b0a67`): the "Look from here" chip and the
 photo route's ask-the-dog clue now live only while their moment does —
 turning away, inspecting another object, opening the note or finishing
 the gift clears them, and an off-view dog no longer earns a pinned chip;
@@ -287,9 +287,60 @@ path on both the 3D and photo routes, replay resetting every hint, the
 composer refitting inside pinch-zoomed and 360px-tall visual viewports
 with footer actions and starter choices in bounds, Enter/newline behavior, and zero
 running animations under reduced motion. Not yet proven on a real phone
-or its virtual keyboard — emulation only. The pilot still offers the
-fixed sample room (the table hiding place, word-only customization);
-giver-supplied photos remain future work.
+or its virtual keyboard — emulation only. The sample still offers the
+fixed room (the table hiding place, word-only customization) —
+giver-supplied photos now have their own path below.
+
+## Personal photo hunts (`?photo=1`)
+
+A second, separate route — `/?photo=1` — lets a sender hide a folded
+note inside one of their own photographs instead of the sample room.
+The flow is five views: choose a photo (JPEG, PNG or WebP, normalized
+in the browser to a JPEG before upload), tap or arrow-key the hiding
+spot, write an optional clue, write the note (To / message / From),
+then a review with "Try the hunt" and "Create gift link". Publishing is
+free and unauthenticated, exactly like room gifts: an immutable
+recipient link `?photo=1#gift=<token>` and a private management link
+`?photo=1#manage=<key>` the sender keeps. Closing the link removes the
+photo and the edition atomically — the recipient page, the metadata
+endpoint and the image endpoint all answer 404.
+
+The recipient plays directly on the photo: a tap within ~22px (or 10%
+of the short side, whichever is larger) of the spot finds the note;
+misses get a gentle nudge, "A little hint" outlines the containing
+third and is consumed, a "Search by area" grid offers the nine named
+regions for keyboard play, and "Open without searching" is always
+there. The note renders as plain text with paragraph breaks preserved.
+
+Drafts live in IndexedDB (blob, not blob URL): closing the tab and
+reopening offers "Resume the draft" / "Start over"; a failed create
+retains the draft plus a pending management key so an identical retry
+reuses the same key and lands on the existing gift. Revoked-key retries
+keep the words but drop the key. When IndexedDB is unavailable the app
+keeps the draft in memory and says so rather than pretending to persist.
+
+Server-side (`server/photo-gifts.js`): the photo is uploaded as
+multipart, re-encoded by sharp (orientation honoured, EXIF stripped,
+bounded by a 1-active/4-waiting decode queue with a generic 503 beyond
+capacity), and stored once. Metadata responses never carry the image.
+Creation shares the room-gift quota and a separate upload-attempt
+budget; concurrent identical POSTs with the same management key
+serialize on `BEGIN IMMEDIATE` and return the same immutable gift,
+while a changed edition or photo answers 409. The Worker proxies the
+multipart POST with signed visitor headers and a 45s budget; image
+responses are served no-store.
+
+Verified locally against a real browser and the local API: the whole
+creator path with real taps and keypresses, portrait and landscape
+photos, the player miss → hint → hit → open → replay cycle, nine-region
+search, a compact 390×360 viewport with footer actions in bounds,
+draft resume/discard, failed-save pending recovery, corrupt-upload
+rejection keeping the prior draft, legacy `?make=1&sample=1` and cover
+routes untouched, and a fresh recipient link playing the exact note
+before revocation removed both image and metadata. `tsc --strict`
+clean, `npm run build:room` green, 55/55 server security tests and
+14/14 Worker tests pass. Not yet proven on real phones or their
+virtual keyboards — emulation only; production deployment is pending.
 
 Delight/intuitiveness release (source `71911b9`) verified live on
 2026-11-22: `?make=1` served the new assets; empty Review guided "Add

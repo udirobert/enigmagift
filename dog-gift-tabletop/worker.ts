@@ -12,7 +12,9 @@ export default {
     if (!url.pathname.startsWith('/api/')) return env.ASSETS.fetch(request);
     const allowed = url.pathname === '/api/health'
       || url.pathname === '/api/room-gifts'
-      || url.pathname.startsWith('/api/room-gifts/');
+      || url.pathname.startsWith('/api/room-gifts/')
+      || url.pathname === '/api/photo-gifts'
+      || url.pathname.startsWith('/api/photo-gifts/');
     if (!allowed) return apiError(404, 'not_found');
     const origin = request.headers.get('origin');
     if (origin && origin !== url.origin) return apiError(403, 'origin_not_allowed');
@@ -32,7 +34,8 @@ export default {
     headers.delete('x-real-ip');
     headers.delete('x-forwarded-for');
     try {
-      if (request.method === 'POST' && url.pathname === '/api/room-gifts') {
+      if (request.method === 'POST'
+        && (url.pathname === '/api/room-gifts' || url.pathname === '/api/photo-gifts')) {
         // Cloudflare overwrites CF-Connecting-IP with the connecting client's address.
         const ip = request.headers.get('CF-Connecting-IP');
         const secret = env.ROOM_PROXY_SECRET;
@@ -56,7 +59,9 @@ export default {
         headers,
         body: request.method === 'GET' || request.method === 'HEAD' ? undefined : request.body,
         redirect: 'manual',
-        signal: AbortSignal.timeout(12000),
+        // photo creation carries a multi-MB upload — it gets a longer leash
+        signal: AbortSignal.timeout(
+          request.method === 'POST' && url.pathname === '/api/photo-gifts' ? 45000 : 12000),
       });
       const responseHeaders = new Headers(upstream.headers);
       responseHeaders.set('Cache-Control', 'no-store');

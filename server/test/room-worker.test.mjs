@@ -230,3 +230,100 @@ test('upstream failure returns 503 api_unavailable without leaking detail', asyn
     assert.ok(!text.includes('connect failed'));
   } finally { restore(); }
 });
+
+/* ---- photo-gift routes: same allowlist rules, signing and sanitizing ---- */
+
+test('POST /api/photo-gifts forwards the multipart body with signed visitor headers', async () => {
+  let captured = null;
+  const restore = stubFetch(async (input, init) => {
+    captured = {
+      url: String(input), init,
+      headers: Object.fromEntries(init.headers.entries()),
+      bodyText: await new Response(init.body).text(),
+    };
+    return new Response(JSON.stringify({ recipientToken: 'pt' }), {
+      status: 201, headers: { 'Content-Type': 'application/json' },
+    });
+  });
+  try {
+    const fd = new FormData();
+    fd.append('edition', JSON.stringify({ version: 1 }));
+    fd.append('photo', new Blob(['fakejpeg'], { type: 'image/jpeg' }), 'photo.jpg');
+    const res = await worker.fetch(new Request('https://room.example/api/photo-gifts', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${KEY}`,
+        Origin: 'https://room.example',
+        Cookie: 'session=abc',
+        'CF-Connecting-IP': '198.51.100.9',
+      },
+      body: fd,
+    }), ENV);
+    const { id, proof } = visitorFor('198.51.100.9');
+    assert.equal(captured.url, `${FLY}/api/photo-gifts`);
+    assert.equal(captured.headers['x-enigmagift-visitor'], id);
+    assert.equal(captured.headers['x-enigmagift-visitor-proof'], proof);
+    assert.ok(captured.bodyText.includes('fakejpeg'), 'multipart body forwarded');
+    for (const h of ['origin', 'host', 'cookie', 'x-forwarded-for']) {
+      assert.equal(captured.headers[h], undefined, `leaked ${h}`);
+    }
+    assert.equal(res.status, 201);
+  } finally { restore(); }
+});
+
+test('photo creation gets the 45s timeout; other routes keep 12s', async () => {
+  const timeoutOf = async (path, method) => {
+    const restore = stubFetch(async () => new Response('{}', { status: 200 }));
+    try {
+      await worker.fetch(new Request('https://room.example' + path, {
+        method, headers: { 'CF-Connecting-IP': '198.51.100.9', Authorization: `Bearer ${KEY}` },
+        body: method === 'GET' ? undefined : 'x',
+      }), ENV);
+    } finally { restore(); }
+  };
+  const delays = [];
+  const orig = AbortSignal.timeout;
+  AbortSignal.timeout = (ms) => { delays.push(ms); return new AbortController().signal; };
+  try {
+    await timeoutOf('/api/photo-gifts', 'POST');
+    await timeoutOf('/api/room-gifts', 'POST');
+    await timeoutOf('/api/photo-gifts/manage', 'GET');
+    assert.deepEqual(delays, [45000, 12000, 12000]);
+  } finally { AbortSignal.timeout = orig; }
+});
+
+test('GET /api/photo-gifts/:token/image proxies bytes with no-store, no identity headers', async () => {
+  let captured = null;
+  const restore = stubFetch(async (input, init) => {
+    captured = { url: String(input), headers: Object.fromEntries(init.headers.entries()) };
+    return new Response(new Uint8Array([0xff, 0xd8, 0xff, 0xd9]), {
+      status: 200, headers: { 'Content-Type': 'image/jpeg' },
+    });
+  });
+  try {
+    const res = await worker.fetch(new Request('https://room.example/api/photo-gifts/abc/image', {
+      headers: { 'X-Enigmagift-Visitor': '0'.repeat(64) },
+    }), ENV);
+    assert.equal(captured.url, `${FLY}/api/photo-gifts/abc/image`);
+    assert.equal(captured.headers['x-enigmagift-visitor'], undefined);
+    assert.equal(res.status, 200);
+    assert.equal(res.headers.get('cache-control'), 'no-store');
+    const bytes = new Uint8Array(await res.arrayBuffer());
+    assert.equal(bytes[0], 0xff);
+  } finally { restore(); }
+});
+
+test('cross-origin photo POST is still rejected 403; unlisted API paths stay 404', async () => {
+  let calls = 0;
+  const restore = stubFetch(() => { calls++; return new Response(''); });
+  try {
+    const res = await worker.fetch(new Request('https://room.example/api/photo-gifts', {
+      method: 'POST', headers: { Origin: 'https://other.invalid' }, body: 'x',
+    }), ENV);
+    assert.equal(res.status, 403);
+    assert.deepEqual(await res.json(), { error: 'origin_not_allowed' });
+    const res2 = await worker.fetch(new Request('https://room.example/api/photo-gifts-secret', { method: 'GET' }), ENV);
+    assert.equal(res2.status, 404, 'unknown prefix never forwards');
+  } finally { restore(); }
+  assert.equal(calls, 0);
+});

@@ -123,6 +123,17 @@ Small sessions provide qualitative direction, not conversion-rate evidence.
 
 ## Implemented and published (2026-11-22, source `b839209`)
 
+Post-release fixes shipped 2026-11-22 in source `cf498a4` (Worker
+`7febf89f-d567-4994-a423-d04a6c0b0a67`): contextual "Look from here" /
+clue hints no longer outlive their moment, the composer follows the
+visual viewport so mobile keyboards and pinch zoom keep the footer
+actions reachable, onboarding copy was shortened, and "Tuck it away"
+became "Create gift link". Verified locally and by public asset smoke;
+real-phone keyboard checks remain open. The personal-photo hunt that
+grew from the same feedback is specified in `PHOTO-HUNT.md` and
+implemented behind `?photo=1` (local verification only, not deployed).
+
+
 The letter-led composer described above now exists in `dog-gift-tabletop`,
 live at [the giver entry](https://enigmagift-room.trustfall.workers.dev/?make=1) (verified
 2026-11-22): a transparent dialog over the dimmed room holds an envelope

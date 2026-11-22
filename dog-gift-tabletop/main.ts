@@ -115,6 +115,7 @@ app.innerHTML = `
       <button class="btn" id="enter">Step inside</button>
       <button class="link" id="no3d" type="button">Explore in photos</button>
       <button class="link resume-gift" id="coverResume" type="button" hidden>Continue your gift</button>
+      <a class="link" id="coverPhoto" href="?photo=1" hidden>Use your own photo</a>
     </div>
     <p class="status" id="status" role="status" aria-live="polite"></p>
   </section>
@@ -1357,6 +1358,7 @@ const syncResumeLinks = () => {
   for (const id of ['#coverResume', '#helpResume', '#tpResume']) {
     ($(id) as HTMLElement).hidden = !show;
   }
+  ($('#coverPhoto') as HTMLElement).hidden = !(ROOM.allowRemix && !isPreview && linkMode === 'demo');
 };
 for (const id of ['paperRemix', 'remixLink', 'coverResume', 'helpResume', 'tpResume']) {
   ($(`#${id}`) as HTMLElement).addEventListener('click', openRemix);
