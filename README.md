@@ -214,7 +214,10 @@ delivery — the giver copies the link and sends it themselves.
 Photo-gift links follow the same pilot model but use **one** of the
 sender's own photos (the paid trail still requires 5–12): the photo is
 normalized server-side to a JPEG and stored next to the note, and revoke
-removes both at once. See `notes/PHOTO-HUNT.md`.
+removes both at once. The ready screen offers "See what they see"
+(play the saved gift) and "Make changes" — saved links are immutable,
+so changes always copy into the editor and "Save changes" mints a new
+link without touching the original. See `notes/PHOTO-HUNT.md`.
 
 API-only behaviors not surfaced in the current client: the frontend does not
 forward `ref` or `sendAt`; `sendAt` schedules the link's availability only —

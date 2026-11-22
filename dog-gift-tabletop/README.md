@@ -107,17 +107,24 @@ The same cut also carries the fuller local hunt layer:
   saved server-side (no checkout, no email, no account; free). The API
   returns a recipient token; the client builds the two URLs locally: the
   recipient link `…#gift=<token>` to share, and a private management link
-  `…#manage=<key>` that opens the owner view ("Your gift is ready." — a
-  copyable recipient link and, where the OS supports it, a native
-  "Share gift…" that only ever carries the public `#gift` URL, with copy
+  `…#manage=<key>` that opens the owner view ("Your gift is ready." —
+  "See what they see" plays the saved gift in a new tab and
+  "Make changes" copies it back into the ordinary editor; a "Link to
+  share" field with Copy and, where the OS supports it, a native
+  "Share gift" that only ever carries the public `#gift` URL, with copy
   always present as fallback and cancel leaving copy available; and behind
-  "Keep your private controls" a copyable management URL and a confirmed
-  "Close recipient link" that revokes it). Anyone holding the recipient
+  "Your private link" a copyable management URL and a confirmed
+  "Close gift link" that revokes it). Anyone holding the recipient
   link can open the gift; revoking removes the message from the stored
   edition and the link stops working — a closed or failed link shows an
   honest error card (retry only for transient failures), never silently the
-  canonical gift. To reply or change wording the sender makes a new link —
-  the snapshot can't be edited. An interrupted create keeps its draft and
+  canonical gift. Saved links stay immutable: "Make changes" copies the
+  saved edition into an ordinary draft (kept in this tab's session,
+  including partial fields) and "Save changes" mints a brand-new
+  recipient/private link pair — the original is never updated or revoked,
+  and its private page stays reachable via Back. On refresh the newest
+  copied draft wins over an older pending save, so words typed after a
+  failed save are not lost. An interrupted create keeps its draft and
   management key in this tab's session so the exact retry reuses them. The
   server allowlist (currently only this room, revision 44124720) is
   authoritative; `ROOM.allowRemix` is not. Live since 2026-11-21 on

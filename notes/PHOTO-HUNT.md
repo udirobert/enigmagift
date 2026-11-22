@@ -274,6 +274,16 @@ the note. Pointer misses give brief feedback but do not consume guesses.
 One hint outlines the containing third, a second reveals the note marker,
 and the direct-open action never requires a successful visual search.
 
+The ready screen lets the giver inspect, test and adjust before sharing:
+"See what they see" plays the saved gift in this tab (the same hunt, not a
+direct reveal), "Make changes" copies the saved photo, spot, clue and note
+back into the ordinary editor, and the public "Link to share" sits beside
+Copy/native Share while the private management URL and close controls stay
+behind a "Your private link" disclosure. Saved links are immutable —
+editing is always a copy: "Save changes" mints a new recipient/private
+pair, the original link is never updated or revoked, and the original
+private page stays in browser history via `history.pushState`.
+
 Before saving, validate the final edition and selected photo. Persist a new
 pending management key and draft fingerprint before the request. Reuse that
 key for an identical retry; editing the payload uses a new key. Freeze
@@ -312,3 +322,23 @@ without stalling creation, and a failed recipient image load shows an
 honest message with a working retry and direct note access. Remaining
 gaps: real phones, their virtual keyboards and retry races against
 production are still open.
+
+A ready-screen/copy batch is implemented locally but unpublished: the
+ready screen above ("See what they see" / "Make changes" / "Link to
+share" / "Your private link"), immutable copy-editing with `Save
+changes` minting a new link, the shared ready layout for the sample
+room, and plain-language copy across the React app scenes. Verified
+locally in-browser: photo save → preview → copy-edit → new token with
+original metadata unchanged, original private page reachable via Back,
+draft restore after refresh, failed saved-image fetch preserving the
+draft, denied storage falling back to in-memory editing, confirm-cancel
+preserving an unfinished draft, single-player recipient retry after a
+transient 503, frozen controls during a deferred saved-image fetch,
+`pushState` failure leaving private controls and drafts intact, and
+320/390/320×360 layouts including the visible new-link footnote. The room
+flow was verified the same way (new token, original unchanged, no edit
+controls on the recipient route, native Share carrying only the public
+URL); on refresh the newest copied draft wins over an older pending save.
+React Editor and Seal were rendered in demo mode via a direct component
+mount on the dev server — component proof, not full pipeline coverage.
+Native OS share sheet and real phones remain unverified.
