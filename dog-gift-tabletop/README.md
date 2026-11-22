@@ -59,11 +59,16 @@ The same cut also carries the fuller local hunt layer:
   straight back to — the final look ("Add a personal clue" / "Edit your
   discoveries", "Back to gift"). A quiet "Your gift" header link jumps to
   the review at any time; Close keeps the draft in the tab. The letter
-  offers two optional first-line openings ("An evening together", "A little
-  thank-you") and a "My own words" choice while the field is blank or the starter
+  offers optional first-line openings ("An evening", "Thank you") and a
+  "My words" choice in a footer row while the field is blank or the starter
   is untouched — typing hides them without stealing focus, clearing shows
   them again, and an untouched starter can't be tucked away until it's
-  finished ("Finish your note" guides back to the field). The recipient's
+  finished ("Finish your note" guides back to the field). The composer
+  follows the visual viewport (CSS-pixel geometry and pan offsets via
+  `visualViewport`), so a virtual keyboard, pinch zoom or pan keeps the
+  footer controls inside the usable area; short viewports get a compact
+  letter (smaller padding, no stamp or footnote — input text stays at least 16px), and
+  narrow ones drop the wordmark. The recipient's
   name appears on the writing and review pages and links back to the
   envelope; the sender signs in the
   writing page's From field. The giver's own line breaks survive into
@@ -72,7 +77,7 @@ The same cut also carries the fuller local hunt layer:
   signature."), disables Preview, and turns the primary into a gentle
   guide ("Add recipient", "Sign your note"…) that jumps to and focuses the
   right field without red ink; a complete draft reads "One last look."
-  with "Tuck it away" and "Preview as {name}" in the footer (length
+  with "Create gift link" and "Preview as {name}" in the footer (length
   problems still mark the field and explain). The Clues page keeps its
   three object cards (dog/postcard/ribbon stills) and per-card purpose
   line; all three fields stay mounted, the room's default trail fills in
@@ -86,7 +91,7 @@ The same cut also carries the fuller local hunt layer:
   the cover, in the help panel and along the photo path until a link is
   created (demo only — recipients and previews never see it). Enter in a
   name field advances one stage; the textarea keeps its newline.
-  "Tuck it away" publishes a saved snapshot (below); "Preview as {name}"
+  "Create gift link" publishes a saved snapshot (below); "Preview as {name}"
   opens the draft inside a full-window same-origin iframe
   (`./?recipientPreview=1`) — the parent's room, run and keepsakes are
   never replaced. The draft travels by `postMessage` in memory only (no
@@ -97,7 +102,7 @@ The same cut also carries the fuller local hunt layer:
   stage and original session. A short unfold/settle marks stage changes
   (skipped under reduced motion).
 
-- **Saved recipient links.** "Tuck it away" posts the draft to
+- **Saved recipient links.** "Create gift link" posts the draft to
   `/api/room-gifts` on the EnigmaGift API — an immutable edition snapshot,
   saved server-side (no checkout, no email, no account; free). The API
   returns a recipient token; the client builds the two URLs locally: the
@@ -265,6 +270,26 @@ evidence additionally covers strict TypeScript, the room build, the
 390×844/320×568/390×360 viewport bounds, the create freeze/retry, and
 reduced-motion behavior. Real phones and human
 research remain open.
+
+Post-release fixes (pending release): the "Look from here" chip and the
+photo route's ask-the-dog clue now live only while their moment does —
+turning away, inspecting another object, opening the note or finishing
+the gift clears them, and an off-view dog no longer earns a pinned chip;
+"Unfold the slip" appears only while the paper is genuinely on screen
+(the renderer already reports the paper occluded, so the chip never
+offers itself through a wall); return navigation at the dog's height
+("Back to my spot") is unaffected. The composer's primary action was
+renamed from "Tuck it away" to "Create gift link", the writing stage's
+next step reads "Review gift", and the review introduces the sample
+honestly ("Sample hiding place: dining table."). Verified locally in a
+real browser: the full dog → look → table → slip → open → keep-exploring
+path on both the 3D and photo routes, replay resetting every hint, the
+composer refitting inside pinch-zoomed and 360px-tall visual viewports
+with footer actions and starter choices in bounds, Enter/newline behavior, and zero
+running animations under reduced motion. Not yet proven on a real phone
+or its virtual keyboard — emulation only. The pilot still offers the
+fixed sample room (the table hiding place, word-only customization);
+giver-supplied photos remain future work.
 
 Delight/intuitiveness release (source `71911b9`) verified live on
 2026-11-22: `?make=1` served the new assets; empty Review guided "Add

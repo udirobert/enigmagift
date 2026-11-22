@@ -133,7 +133,14 @@ replaces user-edited text, and the giver must finish the line before
 saving. The choices hide while they write and return if the field is
 cleared. Verified live: new assets served, the envelope-first route and
 Enter advance, starter insert/finish guidance, close/resume, preview with
-preserved line breaks, and one create→recipient→revoke fixture. The
-research questions above remain open: no human sessions have been run,
-real phones are unverified, and nothing here claims the delight
-hypothesis is proven.
+preserved line breaks, and one create→recipient→revoke fixture.
+Post-release fixes (pending release) renamed the primary action to
+"Create gift link", moved the optional starters into the footer, made the
+composer follow the visual viewport (compact under short heights, still
+native zoomable), and ended the dog's contextual hints with their moment
+instead of leaving them pinned after the player moves on. The
+research questions above remain open. The creator has supplied
+feedback from people using the pilot; the structured comparison above
+remains outstanding. The new viewport behavior still needs verification
+on the reporting phones, and nothing here claims the delight hypothesis
+is proven.

@@ -169,7 +169,7 @@ export async function createRecipientLink(draft: GiftEdition): Promise<void> {
   }
 
   // freeze the snapshot for the duration of the request
-  const createLabel = createBtn?.textContent || 'Tuck it away';
+  const createLabel = createBtn?.textContent || 'Create gift link';
   const controls = Array.from(form?.querySelectorAll('input, textarea, button') ?? []);
   controls.forEach((c) => ((c as HTMLButtonElement).disabled = true));
   if (createBtn) createBtn.textContent = 'Saving your gift…';
@@ -216,7 +216,7 @@ export async function createRecipientLink(draft: GiftEdition): Promise<void> {
     }
     if (e instanceof RoomLinkError && e.status === 410) {
       writePending(null);
-      say('That earlier link was closed. Choose “Tuck it away” again to make a new one.');
+      say('That earlier link was closed. Choose “Create gift link” again to make a new one.');
       unfreeze();
       return;
     }

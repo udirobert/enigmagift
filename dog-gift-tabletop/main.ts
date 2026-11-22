@@ -83,6 +83,7 @@ let abortCtl: AbortController | null = null;
 let opened = false;
 let autoNudged = false;
 let dogMet = false;
+let dogPromptActive = false; // is the 'Look from here' hint currently earned
 let captionTarget: Target | null = null;
 let captionRaf = 0;
 let misses = 0;
@@ -236,18 +237,14 @@ app.innerHTML = `
       <div class="remix-viewport" id="rmViewport">
         <section class="remix-stage letter-welcome" id="rmStagePeople" data-rm-panel="0">
           <h2 tabindex="-1">A little surprise,<br>just for them.</h2>
-          <p class="remix-intro">Leave a personal note in this room for them to discover.</p>
+          <p class="remix-intro">Try a gift in this sample room.</p>
           <div class="letter-object letter-envelope">
             <div class="letter-stamp" aria-hidden="true"><img src="./room.jpg" alt="" width="72" height="54"><span>A little discovery</span></div>
             <span class="letter-postmark" aria-hidden="true"></span>
             <label for="rmTo" class="letter-addressee">For<input id="rmTo" maxlength="40" required placeholder="Their name or nickname" autocomplete="off" /></label>
-            <p class="letter-envelope-caption">Something only you could leave.</p>
           </div>
         </section>
         <section class="remix-stage" id="rmStageMessage" data-rm-panel="1" hidden>
-          <div class="letter-inspiration"><div id="rmStarterChoices" class="letter-starters" role="group" aria-label="A first line, if you need one">
-            <button type="button" data-rm-starter="evening">An evening together</button><button type="button" data-rm-starter="thanks">A little thank-you</button><button type="button" data-rm-starter="own">My own words</button>
-          </div></div>
           <div class="letter-object letter-paper letter-writing">
             <h2 tabindex="-1"><button type="button" class="letter-recipient" data-rm-step="0" aria-label="Change who this note is for"><span id="rmSalutation">For someone special,</span></button></h2>
             <label class="letter-sr-only" for="rmInvite">Your note</label>
@@ -268,13 +265,13 @@ app.innerHTML = `
           <div id="rmClueMemory" data-rm-clue-panel="memory" hidden><label>The ribbon’s keepsake<textarea id="rmMemory" maxlength="160" rows="3" aria-describedby="rmCluePurpose"></textarea></label></div>
         </section>
         <section class="remix-stage letter-review" id="rmStageReview" data-rm-panel="3" hidden>
-          <h2 tabindex="-1" id="rmReviewTitle">One last look.</h2><p class="remix-intro" id="rmReviewIntro">Your words, waiting to be found.</p>
+          <h2 tabindex="-1" id="rmReviewTitle">One last look.</h2><p class="remix-intro" id="rmReviewIntro">Sample hiding place: dining table.</p>
           <div class="letter-object letter-paper remix-review-letter"><button type="button" class="letter-recipient" id="rmReviewTo" data-rm-step="0" aria-label="Change who this gift is for"></button><blockquote><p id="rmReviewMessage"></p></blockquote><p class="note-sign" id="rmReviewFrom"></p></div>
           <div class="letter-discoveries"><p>The room’s little trail is ready.</p><button class="link" id="rmEditClues" type="button" data-rm-step="2">Add a personal clue <span aria-hidden="true">↗</span></button></div>
         </section>
       </div>
       <p class="remix-status" id="rmLinkStatus" role="status" aria-live="polite"></p>
-      <footer class="remix-footer"><button class="link remix-preview" type="submit" id="rmSubmit" hidden>Preview as your recipient</button><div class="remix-navigation"><button class="link" id="rmPrev" type="button" hidden>Back</button><button class="btn small" id="rmNext" type="button">Write a note</button><button class="btn small" id="rmCreate" type="submit" hidden>Tuck it away</button></div><p class="remix-footnote" id="rmFootnote">Free to make. Share by link.</p></footer>
+      <footer class="remix-footer"><div class="letter-inspiration" id="rmInspiration" hidden><div id="rmStarterChoices" class="letter-starters" role="group" aria-label="Start your note"><button type="button" data-rm-starter="evening">An evening</button><button type="button" data-rm-starter="thanks">Thank you</button><button type="button" data-rm-starter="own">My words</button></div></div><button class="link remix-preview" type="submit" id="rmSubmit" hidden>Preview as your recipient</button><div class="remix-navigation"><button class="link" id="rmPrev" type="button" hidden>Back</button><button class="btn small" id="rmNext" type="button">Write a note</button><button class="btn small" id="rmCreate" type="submit" hidden>Create gift link</button></div><p class="remix-footnote" id="rmFootnote">Free to make. Share by link.</p></footer>
     </form>
   </dialog>
 `;
@@ -367,6 +364,7 @@ let helpOffered = false;
 
 const onTap = (t: Target | null, x: number, y: number) => {
   run.tap(t);
+  clearContextHint();
   tapHadSlip = tableInspected; // onInspect inside this tap must not count
   ripple(x, y, !!t);
   if (t) {
@@ -382,7 +380,7 @@ const onTap = (t: Target | null, x: number, y: number) => {
     if (!rearMentioned && !opened && t !== 'postcard' && t !== 'ribbon' && t !== 'table') {
       rearMentioned = true;
       rearTimer = window.setTimeout(() => {
-        if (!opened) setStatus('There’s a card behind you, too.');
+        if (!opened && !tableInspected) setStatus('There’s a card behind you, too.');
       }, 2600);
     }
     return;
@@ -411,31 +409,35 @@ const clampNoteY = (y: number) => {
   return Math.max(m, Math.min(window.innerHeight - m, y));
 };
 const anchorChips = () => {
-  if (world && !atDog && !dogChip.hidden) {
+  updateDogChip(); // overlay and hunt state gate the chip every frame
+  if (world && !atDog && !seeing && !dogChip.hidden) {
     const p = world.project('dog');
     if (p) {
       dogChip.style.left = `${clampX(p.x)}px`;
-      dogChip.style.top = `${p.y + 44}px`;
+      dogChip.style.top = `${Math.max(44, Math.min(window.innerHeight - 60, p.y + 44))}px`;
       dogChip.style.bottom = '';
     } else {
-      dogChip.style.left = '50%';
-      dogChip.style.top = 'auto';
-      dogChip.style.bottom = '7.5rem';
+      /* off-view means the hint is done — no edge-pinned ghost */
+      dogPromptActive = false;
+      dogChip.hidden = true;
     }
   }
-  if (world && (!unfoldChip.hidden || !paperNote.hidden)) {
-    const p = world.paperScreen();
+  /* the unfold chip exists only while the paper is genuinely visible */
+  const p = world && (paperState === 'folded' || !paperNote.hidden) ? world.paperScreen() : null;
+  const shouldShow = !!world && tableInspected && paperState === 'folded' && !opened && !overlayOpen() && !!p;
+  if (unfoldChip.hidden !== !shouldShow) unfoldChip.hidden = !shouldShow;
+  if (shouldShow && p) {
+    unfoldChip.style.left = `${clampX(p.x)}px`;
+    unfoldChip.style.top = `${Math.max(44, Math.min(window.innerHeight - 60, p.y + 30))}px`;
+    unfoldChip.style.bottom = '';
+  }
+  /* the open letter keeps its readable position even off-view */
+  if (world && !paperNote.hidden) {
     if (p) {
-      unfoldChip.style.left = `${clampX(p.x)}px`;
-      unfoldChip.style.top = `${p.y + 30}px`;
-      unfoldChip.style.bottom = '';
       paperNote.style.left = `${clampNoteX(p.x)}px`;
       paperNote.style.top = `${clampNoteY(p.y - 40)}px`;
       paperNote.style.bottom = '';
     } else {
-      unfoldChip.style.left = '50%';
-      unfoldChip.style.top = 'auto';
-      unfoldChip.style.bottom = '9rem';
       paperNote.style.left = '50%';
       paperNote.style.top = `${clampNoteY(window.innerHeight * 0.22)}px`;
       paperNote.style.bottom = '';
@@ -445,26 +447,35 @@ const anchorChips = () => {
 };
 
 const updateDogChip = () => {
-  if (!world || overlayOpen()) {
-    dogChip.hidden = true;
-    return;
-  }
-  if (atDog || seeing) {
-    dogChip.textContent = 'Back to my spot';
+  const returning = atDog || seeing;
+  const hide = !world || overlayOpen()
+    || (!returning && (!dogPromptActive || tableInspected || opened));
+  if (dogChip.hidden !== hide) dogChip.hidden = hide;
+  if (hide) return;
+  const label = returning ? 'Back to my spot' : 'Look from here';
+  if (dogChip.textContent !== label) dogChip.textContent = label;
+  if (returning) {
     dogChip.style.left = '50%';
     dogChip.style.top = 'auto';
     dogChip.style.bottom = '6.5rem';
-    dogChip.hidden = false;
-  } else {
-    dogChip.textContent = 'Look from here';
-    dogChip.style.bottom = '';
-    dogChip.hidden = !dogMet;
   }
+};
+
+/* every contextual hint is cleared together — captions, collar, dog chip */
+const clearContextHint = () => {
+  dogPromptActive = false;
+  hideCaption();
+  hideCollar();
+  updateDogChip();
+};
+const clearPhotoDogHint = () => {
+  tpClue.hidden = true;
+  ($('#tpLook') as HTMLElement).hidden = true;
 };
 
 const goDog = () => {
   if (!world || atDog) return;
-  hideCaption();
+  clearContextHint();
   if (reduced()) {
     world.visitDog();
     return;
@@ -503,6 +514,8 @@ const fillPaperNote = () => {
   sign.textContent = sig;
 };
 const doUnfold = () => {
+  clearContextHint();
+  clearPhotoDogHint();
   trailBtn.hidden = false;
   previewReveal();
   ($('#tpTrail') as HTMLElement).hidden = false;
@@ -555,10 +568,11 @@ const showCaption = (t: Target, text: string) => {
       line.style.bottom = '';
       line.style.transform = 'translate(-50%, -140%)';
     } else {
-      line.style.left = '50%';
-      line.style.top = '';
-      line.style.bottom = '10rem';
-      line.style.transform = 'translateX(-50%)';
+      /* a context caption ends when its target leaves the view — no pinning */
+      if (captionTarget === 'dog') dogPromptActive = false;
+      hideCaption();
+      updateDogChip();
+      return;
     }
     captionRaf = requestAnimationFrame(track);
   };
@@ -570,9 +584,9 @@ const onInspect = (t: Target) => {
   hideCollar();
   if (t === 'dog' || t === 'postcard' || t === 'ribbon') keepsakes.add(t);
   if (t === 'table') {
+    clearContextHint(); // the dog's errand is done once the table is found
     /* the slip stays in the room: no modal covers the scene on this route */
     if (paperState === 'open') return;
-    hideCaption();
     if (!tableInspected) {
       run.finish(guided ? 'guided' : 'found'); // the envelope is discovered
       setStatus(SUCCESS);
@@ -590,6 +604,7 @@ const onInspect = (t: Target) => {
   }
   if (t === 'dog') {
     dogMet = true;
+    dogPromptActive = !tableInspected && !opened;
     updateDogChip();
   }
   showCaption(t, lineFor(t));
@@ -605,8 +620,8 @@ const openGift = (route?: 'direct') => {
   if (route === 'direct') run.finish('direct'); // a skip never claims a find
   else run.finish(guided ? 'guided' : 'found');
   returnToText = !textpath.hidden;
-  hideCollar();
-  hideCaption();
+  clearContextHint();
+  clearPhotoDogHint();
   helpPanel.hidden = true;
   noteTitle.textContent = TITLE;
   noteBody.textContent = `“${edition.invitation}”`;
@@ -669,6 +684,7 @@ const resetHunt = () => {
   opened = false;
   autoNudged = false;
   dogMet = false;
+  dogPromptActive = false;
   misses = 0;
   atDog = false;
   seeing = false;
@@ -763,8 +779,8 @@ const applyStage = () => {
     /* the viewpoint stays voluntary — the chip is only unlocked, not taken */
     if (textpath.hidden) {
       dogMet = true; // the ladder itself can be the first meeting
+      dogPromptActive = !tableInspected && !opened;
       updateDogChip();
-      dogChip.hidden = false;
     }
   } else if (helpStage === 3) {
     if (textpath.hidden) world?.flashPaper();
@@ -871,6 +887,8 @@ $('#back').addEventListener('click', () => world?.step(-0.5));
 
 /* ---------- text path: progressive, never names the answer ---------- */
 function openTextPath(why: string) {
+  clearContextHint();
+  clearPhotoDogHint();
   tpTitle.textContent = 'Explore in photos';
   tpInfo.textContent = why;
   coverLine.hidden = true;
@@ -892,9 +910,10 @@ $('#tpDog').addEventListener('click', () => {
   dogMet = true;
   tpClue.hidden = false;
   tpClue.textContent = edition.dog;
-  $('#tpLook').hidden = false;
+  ($('#tpLook') as HTMLElement).hidden = tableInspected || opened || textDogView;
 });
 $('#tpLook').addEventListener('click', () => {
+  clearPhotoDogHint(); // the look is consumed as the player takes it
   textDogView = true;
   tpInfo.textContent = 'A little paper edge peeks over the lip of the table.';
 });
@@ -904,6 +923,8 @@ let atlasTarget: Still | null = null;
 const PLACE_NAME = { table: 'Around the table', other: 'On the other side' };
 
 const showAtlasList = () => {
+  clearPhotoDogHint();
+  tpInfo.textContent = '';
   ($('#tpPlaces') as HTMLElement).hidden = true;
   ($('#tpBackPlace') as HTMLElement).textContent = 'Back to the room';
   tpAtlas.hidden = false;
@@ -925,6 +946,7 @@ const showAtlasList = () => {
 };
 let lastArt: HTMLElement | null = null;
 const showArtefact = (st: Still) => {
+  clearPhotoDogHint();
   run.tap(st.t);
   atlasTarget = st;
   ($('#tpBackPlace') as HTMLElement).textContent = `Back to ${PLACE_NAME[st.place]}`;
@@ -972,6 +994,8 @@ textpath.addEventListener('click', (e) => {
   }
 });
 $('#tpBackPlace').addEventListener('click', () => {
+  clearPhotoDogHint();
+  tpInfo.textContent = '';
   /* back out of the still first, then out of the place */
   if (atlasTarget) {
     atlasTarget = null;
@@ -1088,6 +1112,62 @@ const arriveRemix = () => {
 const rmForm = $<HTMLFormElement>('#remixForm');
 const composerBusy = () => rmForm.getAttribute('aria-busy') === 'true';
 
+/* the composer tracks the visual viewport — keyboard shrink, pinch scale and
+   pan all move the usable area without moving the layout viewport */
+let composerFitFrame = 0;
+let revealComposerField = false;
+const fitComposerViewport = (revealField = false) => {
+  if (!remixPanel.open) return;
+  const v = window.visualViewport;
+  const width = v?.width ?? window.innerWidth;
+  const height = v?.height ?? window.innerHeight;
+  const left = v?.offsetLeft ?? 0;
+  const top = v?.offsetTop ?? 0;
+  remixPanel.style.setProperty('--rm-vp-width', `${width}px`);
+  remixPanel.style.setProperty('--rm-vp-height', `${height}px`);
+  remixPanel.style.setProperty('--rm-vp-x', `${left + width / 2}px`);
+  remixPanel.style.setProperty('--rm-vp-y', `${top + height / 2}px`);
+  remixPanel.classList.toggle('is-compact', height < 560);
+  remixPanel.classList.toggle('is-narrow', width < 320);
+  if (!revealField) return;
+  /* scroll only the inner pane — the page itself never jumps while typing */
+  const field = document.activeElement;
+  if (!(field instanceof HTMLInputElement || field instanceof HTMLTextAreaElement)
+    || !rmForm.contains(field) || !field.getClientRects().length) return;
+  const pane = $('#rmViewport');
+  const box = pane.getBoundingClientRect();
+  const rect = field.getBoundingClientRect();
+  const fieldTop = rect.top - box.top + pane.scrollTop;
+  const fieldBottom = fieldTop + rect.height;
+  const start = pane.scrollTop + 4;
+  const end = pane.scrollTop + pane.clientHeight - 4;
+  if (rect.height > pane.clientHeight - 8) {
+    if (fieldTop < start || fieldTop > end) pane.scrollTop = Math.max(0, fieldTop - 4);
+  } else if (fieldTop < start) pane.scrollTop = Math.max(0, fieldTop - 4);
+  else if (fieldBottom > end) pane.scrollTop = fieldBottom - pane.clientHeight + 4;
+};
+const scheduleComposerFit = (revealField = false) => {
+  revealComposerField ||= revealField;
+  if (composerFitFrame) return;
+  composerFitFrame = requestAnimationFrame(() => {
+    composerFitFrame = 0;
+    const reveal = revealComposerField;
+    revealComposerField = false;
+    fitComposerViewport(reveal);
+  });
+};
+const cancelComposerFit = () => {
+  if (composerFitFrame) {
+    cancelAnimationFrame(composerFitFrame);
+    composerFitFrame = 0;
+  }
+  revealComposerField = false;
+};
+window.visualViewport?.addEventListener('resize', () => scheduleComposerFit(true));
+window.visualViewport?.addEventListener('scroll', () => scheduleComposerFit());
+window.addEventListener('resize', () => scheduleComposerFit(true));
+rmForm.addEventListener('focusin', () => scheduleComposerFit(true));
+
 const readDraft = (): GiftEdition => {
   const val = (id: string) => (($(id) as HTMLInputElement | HTMLTextAreaElement).value || '').trim();
   const draft = makeDraft();
@@ -1151,7 +1231,7 @@ const syncRemixReview = () => {
   const customClues = (['dog', 'postcard', 'memory'] as const).some((k) => d[k] !== defaults[k]);
   ($('#rmNext') as HTMLElement).textContent =
     remixStep === 0 ? 'Write a note'
-    : remixStep === 1 ? 'Fold the note'
+    : remixStep === 1 ? 'Review gift'
     : remixStep === 2 ? (customClues ? 'Keep my discoveries' : 'Keep these clues')
     : 'Continue';
   ($('#rmPrev') as HTMLElement).textContent =
@@ -1161,11 +1241,11 @@ const syncRemixReview = () => {
   ($('#rmEditClues') as HTMLElement).textContent = customClues ? 'Edit your discoveries' : 'Add a personal clue ↗';
   const problem = remixProblem(d);
   ($('#rmSubmit') as HTMLButtonElement).disabled = !!problem;
-  ($('#rmCreate') as HTMLElement).textContent = problem?.action ?? 'Tuck it away';
+  ($('#rmCreate') as HTMLElement).textContent = problem?.action ?? 'Create gift link';
   ($('#rmReviewTitle') as HTMLElement).textContent = problem ? 'Make it yours.' : 'One last look.';
   ($('#rmReviewIntro') as HTMLElement).textContent = problem
     ? 'A name, a note, your signature.'
-    : 'Your words, waiting to be found.';
+    : 'Sample hiding place: dining table.';
   ($('#rmFootnote') as HTMLElement).textContent = remixStep === 0
     ? 'Free to make. Share by link.'
     : remixStep === 3
@@ -1174,7 +1254,8 @@ const syncRemixReview = () => {
   // first-line choices only offer themselves on a blank or untouched starter
   const raw = ($('#rmInvite') as HTMLTextAreaElement).value;
   const untouched = !!selectedOpening && raw.trim() === selectedOpening.trim();
-  ($('#rmStarterChoices') as HTMLElement).hidden = !(raw.trim() === '' || untouched);
+  ($('#rmInspiration') as HTMLElement).hidden = remixStep !== 1 || !(raw.trim() === '' || untouched);
+  ($('#rmStarterChoices') as HTMLElement).hidden = false;
   rmForm.querySelectorAll<HTMLElement>('[data-rm-starter]').forEach((b) => {
     const key = b.dataset.rmStarter as keyof typeof LETTER_OPENINGS | 'own';
     const pressed = key !== 'own' && untouched && LETTER_OPENINGS[key] === selectedOpening;
@@ -1265,6 +1346,7 @@ const openRemix = () => {
   app.classList.add('is-composing');
   remixPanel.hidden = false;
   remixPanel.showModal();
+  fitComposerViewport();
   arriveRemix();
   showRemixStep(remixStep);
   selectRemixClue(remixClue);
@@ -1283,6 +1365,7 @@ for (const id of ['paperRemix', 'remixLink', 'coverResume', 'helpResume', 'tpRes
 const closeRemix = () => {
   if (composerBusy()) return;
   lastDraft = readDraft(); // unsaved edits survive a leave-without-submit
+  cancelComposerFit();
   rmArrival?.cancel();
   rmAnim?.cancel();
   app.classList.remove('is-composing'); // the room wakes before focus returns
@@ -1399,6 +1482,7 @@ const onPreviewMessage = (e: MessageEvent) => {
 const openPreview = () => {
   if (previewSheet || isPreview) return; // never nest a preview inside a preview
   previewOpener = document.activeElement as HTMLElement | null;
+  cancelComposerFit();
   rmArrival?.cancel();
   rmAnim?.cancel();
   app.classList.remove('is-composing');
@@ -1441,6 +1525,7 @@ const closePreview = () => {
   app.classList.add('is-composing');
   remixPanel.hidden = false;
   remixPanel.showModal();
+  fitComposerViewport();
   arriveRemix();
   showRemixStep(remixStep, false);
   (previewOpener && document.contains(previewOpener) && previewOpener.getClientRects().length
@@ -1538,9 +1623,9 @@ const enter = async () => {
       onViewChanged: (v) => {
         atDog = v === 'dog';
         seeing = v === 'see';
-        updateDogChip();
+        clearContextHint(); // return navigation survives; the prompt does not
       },
-      onMove: hideCollar,
+      onMove: clearContextHint,
     }, ctl.signal);
   } catch {
     host.hidden = true;

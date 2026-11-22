@@ -584,10 +584,12 @@ body {
 /* ---- remix composer: an envelope and a letter over the dim room ---- */
 .remix {
   margin: 0;
-  width: min(48rem, calc(100vw - 24px));
-  max-width: calc(100vw - 24px);
-  height: min(44rem, calc(100dvh - 24px));
-  max-height: calc(100dvh - 24px);
+  left: var(--rm-vp-x, 50%);
+  top: var(--rm-vp-y, 50%);
+  width: min(48rem, calc(var(--rm-vp-width, 100vw) - 16px));
+  max-width: calc(var(--rm-vp-width, 100vw) - 16px);
+  height: min(44rem, calc(var(--rm-vp-height, 100dvh) - 16px));
+  max-height: calc(var(--rm-vp-height, 100dvh) - 16px);
   padding: 0;
   overflow: hidden;
   border: 0;
@@ -690,7 +692,6 @@ body {
   min-height: 44px;
   width: 100%;
 }
-.letter-envelope-caption { font: 400 0.875rem / 1.4 var(--serif); font-style: italic; margin: 0.8rem 0 0; color: #755338; }
 .letter-paper {
   padding: clamp(1rem, 3vw, 1.8rem);
   border: 1px solid #d8bd96;
@@ -717,13 +718,13 @@ body {
 .letter-writing h2 { font: 400 1.25rem / 1.4 var(--serif); margin: 0 0 0.5rem; }
 .remix .letter-writing textarea {
   display: block;
-  font: 400 1.2rem / 1.9rem var(--serif);
+  font: 400 1.2rem / var(--letter-line, 1.9rem) var(--serif);
   min-height: 8rem;
   width: 100%;
   padding: 0.2rem 0;
   border: 0;
   border-radius: 0;
-  background: repeating-linear-gradient(to bottom, transparent 0, transparent calc(1.9rem - 1px), #b4986b35 calc(1.9rem - 1px), #b4986b35 1.9rem);
+  background: repeating-linear-gradient(to bottom, transparent 0, transparent calc(var(--letter-line, 1.9rem) - 1px), #b4986b35 calc(var(--letter-line, 1.9rem) - 1px), #b4986b35 var(--letter-line, 1.9rem));
   color: #3c2d20;
   resize: none;
 }
@@ -749,10 +750,11 @@ body {
   min-height: 44px;
 }
 .remix .letter-paper .link { color: #755035; }
-.letter-inspiration { min-height: 52px; margin-bottom: 0.75rem; }
+.letter-inspiration { margin: 0 0 0.4rem; }
 .letter-starters { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.4rem; }
 .letter-starters button {
   min-width: 0;
+  overflow-wrap: anywhere;
   min-height: 44px;
   padding: 0.25rem 0.4rem;
   background: #fff5e010;
@@ -774,6 +776,7 @@ body {
 .letter-discoveries p { margin: 0; }
 .remix-footer { flex-shrink: 0; max-width: 36rem; width: 100%; margin: 0 auto; padding: 0 0.5rem 0.25rem; }
 .remix-navigation { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; }
+.remix-navigation > * { min-width: 0; flex-shrink: 1; white-space: normal; overflow-wrap: anywhere; }
 .remix-navigation .btn { margin-left: auto; min-height: 44px; }
 .remix .btn { color: #fff8ef; }
 .remix .btn:hover, .remix .btn:focus-visible { color: #fff8ef; }
@@ -866,6 +869,32 @@ body {
   .remix form { gap: 0.6rem; }
   .letter-welcome > .remix-intro { margin-bottom: 1.1rem; }
 }
+/* small visual viewports: keyboard shrink or a zoomed/panned window — the
+   letter keeps its identity while the chrome steps back. Input text stays at least 16px. */
+.remix.is-compact form { gap: .35rem; }
+.remix.is-compact .remix-viewport { padding: .2rem .5rem .3rem; }
+.remix.is-compact .letter-welcome h2 {
+  font-size: 1.5rem;
+  margin: 0 0 .4rem;
+}
+.remix.is-compact .letter-welcome > .remix-intro { display: none; }
+.remix.is-compact .letter-envelope {
+  min-height: 0;
+  padding: .7rem 1rem;
+}
+.remix.is-compact .letter-stamp,
+.remix.is-compact .letter-postmark { display: none; }
+.remix.is-compact .letter-paper { padding: .65rem 1rem; }
+.remix.is-compact .letter-writing h2 { margin: 0 0 .25rem; }
+.remix.is-compact .letter-writing { --letter-line: 1.6rem; }
+.remix.is-compact .letter-writing textarea {
+  font-size: 1rem;
+  height: 4.8rem;
+  min-height: 4.8rem;
+}
+.remix.is-compact .remix-footnote { display: none; }
+.remix.is-narrow .letter-brand { display: none; }
+.remix.is-narrow .remix-header { justify-content: flex-end; }
 
 /* ---- quiet endings: secondary actions behind one disclosure ---- */
 .gift-options { max-width: 100%; }

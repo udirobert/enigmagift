@@ -554,7 +554,7 @@ export async function enterWorld(
     if (a.r <= 0) return null;
     return projectVec(anchorVec.set(...a.pos).clone());
   };
-  const paperScreen = () => projectVec(PAPER_POS);
+  const paperScreen = () => (paper.visible ? projectVec(PAPER_POS) : null);
 
   /* ---- dog viewpoint: save pose, crouch beside the dog, look at the lip ---- */
   const savedPose = { pos: new THREE.Vector3(), yaw: 0, pitch: 0 };
