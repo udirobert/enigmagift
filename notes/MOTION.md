@@ -152,7 +152,7 @@ movement, never queue a sequence of overdue animations.
   on every keystroke, hover-only cues, decorative looping, or new sound
   or haptic assumptions.
 
-## Implemented (unpublished, local)
+## Implemented and published (2026-11-22)
 
 The first motion pass now exists in `dog-gift-tabletop` and the React
 scenes. What landed, and how it differs from the research above:
@@ -207,6 +207,31 @@ scenes. What landed, and how it differs from the research above:
 
 Timings are prototype values from the design above, not measured optima —
 they still need the genuine-gift comparison below.
+
+Published source: `9c36528` (pilot) and `16968d6` (React).
+Worker version: `cbc94cb0-f94c-487c-9655-9b9c65211324`.
+Pages deployment: `https://2eb2e97f.enigmagift.pages.dev`.
+Production entry points and changed JavaScript/CSS match the reviewed local
+artifacts; the Pages API proxy returned HTTP 200.
+
+Local checks covered rapid pointer/keyboard/assistive activation, focus,
+viewport cancellation, reduced motion switched during a paused animation,
+missing/throwing animation APIs, failed/deferred saves, image-error direct
+opening, cleanup, and 390×844, 320×568 and 320×360 layouts.
+Both builds and strict pilot TypeScript passed.
+
+The independent Kane run reached the correct opened note, but failed its
+generated assertion that the clue must also appear inside the letter. The
+clue intentionally belongs to the hunt screen. This is recorded as a failed
+automated run, not an end-to-end pass; it stopped before checking return to
+the editor. Separate direct browser checks covered that return.
+
+Live verification completed through photo selection, centre placement, clue
+writing, note preview, discovery, exact note text, return with the draft intact,
+creation and saved preview. The ready glyph and actions appeared after saving.
+Saved preview stayed in the management document; its own “Back to your gift”
+control is the return path, rather than a new browser-history entry.
+The disposable gift was revoked; both public metadata and image returned 404.
 
 ## Still open — real-gift validation
 

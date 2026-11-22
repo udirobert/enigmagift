@@ -577,6 +577,26 @@ endpoint errors. Every verified webhook is logged as a `webhook_ok` event
 
 ---
 
+## Motion release — 2026-11-22
+
+- Pilot source `9c36528`; React source `16968d6`.
+- Worker `enigmagift-room`, account `e7383c0c7474c8f61cc06598eeb134a0`,
+  default production environment: version
+  `cbc94cb0-f94c-487c-9655-9b9c65211324`.
+- Pages project `enigmagift`, branch `main`:
+  `https://2eb2e97f.enigmagift.pages.dev`, serving the canonical Pages site.
+- Reviewed artifact bytes match production; Pages `/api/health` returned 200.
+  Public Stripe link mappings were checked before deployment and preserved.
+- No API deployment, schema, payment configuration or secret changes.
+- Prior frontend versions for rollback: Worker
+  `ca3b1aed-3df9-496e-802d-247ddfbc56ae`; Pages
+  `https://c0567b5b.enigmagift.pages.dev`. Reconfirm rollback limitations and
+  the active deployment before rolling back.
+- Motion details and verification limits are in `MOTION.md`.
+- Live creation, discovery, draft return and saved preview verified; the one
+  release fixture was revoked and its metadata and image both returned 404.
+  Task browser sessions were closed and their Chrome profiles confirmed gone.
+
 ## Test trails currently in the DB (for re-verification)
 
 Created live on the Fly backend 2026-11-17 (gift id → trail token → original

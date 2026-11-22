@@ -352,7 +352,7 @@ All four disposable gifts were closed afterward; their public metadata
 (and both photo images) then returned 404. Worker version:
 `ca3b1aed-3df9-496e-802d-247ddfbc56ae`; pilot source: `35986b8`.
 
-A first motion pass (unpublished, `paper-motion.ts` + scoped WAAPI)
+A first motion pass (published 2026-11-22, `paper-motion.ts` + scoped WAAPI)
 landed after that publish — see `notes/MOTION.md` "Implemented" for the
 full account: photo→clue FLIP with a counter-scaled marker, immediate
 marker travel on placement, note-paper arrival, post-save ready glyph,
@@ -364,3 +364,13 @@ a throwing `Element.prototype.animate`, review paper survives a deferred
 POST, ready actions are usable immediately, compact 320/360-landscape
 layouts hold. Not yet checked: real phones, virtual-keyboard motion,
 and the genuine-gift comparison the research asks for.
+
+Release: pilot source `9c36528`, Worker version
+`cbc94cb0-f94c-487c-9655-9b9c65211324`. Production assets match the reviewed
+build. See MOTION.md for the independent automated run's assertion failure
+and the separate direct verification.
+
+The live photo → place → clue → note → preview → return → save → saved-preview
+check passed. The draft retained its exact words after preview. Saved preview
+rendered in place on the private page. The one live release fixture was closed,
+and both metadata and image returned 404 afterward.

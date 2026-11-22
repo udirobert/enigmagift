@@ -137,9 +137,9 @@ plus one live fixture verified; real phones still unverified).
 Motion research and the proposed next design pass are recorded in
 [`MOTION.md`](MOTION.md): keep the photo and letter visually continuous,
 reserve expressive movement for placement and reveal, and keep typing
-and navigation stable. A first pass is implemented locally
+and navigation stable. A first pass was published on 2026-11-22
 (`dog-gift-tabletop/paper-motion.ts` + scoped WAAPI, shorter React
-entrances, synchronous preview send) but not yet published —
+entrances, synchronous preview send) —
 reduced-motion, missing-WAAPI, gesture-cancel and compact-layout checks
 passed; real devices and the usability comparison remain open.
 
