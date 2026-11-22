@@ -29,6 +29,7 @@ Frontend and backend are **not** on the same host. Pages is static-only (+ the
 | `STRIPE_WEBHOOK_SECRET` | Fly app secret | Stripe dashboard → Webhooks → the `whsec_…` for the `/api/stripe/webhook` endpoint |
 | `STRIPE_API_KEY` (optional) | Fly app secret | lets `mark-paid` verify the checkout session server-side. **Without it mark-paid fails closed** — only the signed webhook sets `paid` |
 | `ALLOWED_ORIGINS` (optional) | Fly app secret | comma-separated CORS allowlist; defaults to the deployed Pages/Netlify domains + localhost |
+| `ROOM_PROXY_SECRET` | Fly app secret **and** Cloudflare Worker secret — the same value in both | 32 random bytes as 64 hex; shared edge→API proof so room-gift creates bucket per real client IP. Never committed; `.dev.vars` is gitignored |
 | Gemini key (fallback) | any `Dev/*/.env*` the server scans | — |
 
 Note: `RECRAFT_API_KEY` spends **API units**, which are billed separately
@@ -103,6 +104,14 @@ npm run deploy:room   # from the repo root, after `fly deploy` for the API
 Builds `dog-gift-tabletop/dist`, regenerates Worker types and publishes
 Worker `enigmagift-room`. Generation keys stay out of the Docker image via
 `server/.dockerignore` (`*.env`).
+
+`ROOM_PROXY_SECRET` must be provisioned to **both** providers with the same
+value — Fly via `fly secrets import` (stdin) and the Worker via
+`wrangler secret put` (stdin). Deploy the Fly API **first** (the new server
+code is backward-compatible: unsigned requests fall back to the
+connection-IP bucket), then the Worker last — `wrangler.jsonc` declares the
+secret `required` so deploy validates presence. No secret value lives in
+the repo, config `vars`, or docs.
 
 **First deploy, 2026-11-21** (source `ecc9781`):
 

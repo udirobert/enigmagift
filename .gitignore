@@ -20,3 +20,4 @@ server/uploads/
 # Cloudflare Worker (dog-gift-tabletop)
 dog-gift-tabletop/worker-configuration.d.ts
 .wrangler/
+.dev.vars*

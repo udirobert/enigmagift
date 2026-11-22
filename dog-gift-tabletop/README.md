@@ -87,7 +87,11 @@ The same cut also carries the fuller local hunt layer:
   authoritative; `ROOM.allowRemix` is not. Live since 2026-11-21 on
   Cloudflare Worker `enigmagift-room`
   (`https://enigmagift-room.trustfall.workers.dev`, `?make=1` for the
-  editor), proxying to the Fly API. Not yet proven on a real phone.
+  editor), proxying to the Fly API. Link creation is free — no code or
+  checkout is needed for phone testing — capped at 10 new links per
+  visitor per hour (the Worker signs a pseudonymous client-IP id; a
+  shared household or NAT can still share one bucket). Not yet proven
+  on a real phone.
 - **Still atlas — "Explore in photos".** The flat text fallback is named
   *Explore in photos* (entry link, help button and panel title all read it),
   is available before or without loading 3D, and a failed room open recovers

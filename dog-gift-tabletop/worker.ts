@@ -23,7 +23,34 @@ export default {
     headers.delete('host');
     headers.delete('content-length');
     headers.delete('cookie');
+    // Never forward caller-supplied identity/IP headers — the Worker sets its
+    // own signed visitor id for creations and nothing else may claim one.
+    headers.delete('x-enigmagift-visitor');
+    headers.delete('x-enigmagift-visitor-proof');
+    headers.delete('cf-connecting-ip');
+    headers.delete('cf-connecting-ipv6');
+    headers.delete('x-real-ip');
+    headers.delete('x-forwarded-for');
     try {
+      if (request.method === 'POST' && url.pathname === '/api/room-gifts') {
+        // Cloudflare overwrites CF-Connecting-IP with the connecting client's address.
+        const ip = request.headers.get('CF-Connecting-IP');
+        const secret = env.ROOM_PROXY_SECRET;
+        if (!ip || !/^[0-9a-fA-F:.]{3,45}$/.test(ip)
+          || typeof secret !== 'string' || !/^[a-f0-9]{64}$/i.test(secret)) {
+          console.error(JSON.stringify({ event: 'room_proxy_identity_unavailable' }));
+          return apiError(503, 'api_unavailable');
+        }
+        const enc = new TextEncoder();
+        const key = await crypto.subtle.importKey('raw', enc.encode(secret),
+          { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+        const hex = (bytes: ArrayBuffer) =>
+          Array.from(new Uint8Array(bytes), (b) => b.toString(16).padStart(2, '0')).join('');
+        const id = hex(await crypto.subtle.sign('HMAC', key, enc.encode(`room-client-v1\n${ip}`)));
+        const proof = hex(await crypto.subtle.sign('HMAC', key, enc.encode(`room-create-v1\n${id}`)));
+        headers.set('X-Enigmagift-Visitor', id);
+        headers.set('X-Enigmagift-Visitor-Proof', proof);
+      }
       const upstream = await fetch(API_ORIGIN + url.pathname + url.search, {
         method: request.method,
         headers,

@@ -9,6 +9,7 @@ import crypto from 'node:crypto';
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
 import { stripExif } from '../exif.js';
+import { roomCreateRateKey } from '../room-gifts.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const SERVER = join(HERE, '..', 'index.js');
@@ -17,6 +18,8 @@ const PORT = 8898;
 const BASE = `http://127.0.0.1:${PORT}`;
 // generated per run — no fixed fixture looking like a real whsec_ secret
 const SECRET = crypto.randomBytes(24).toString('hex');
+// same for the edge→API visitor-proof shared secret (generated, never a real value)
+const ROOM_SECRET = crypto.randomBytes(32).toString('hex');
 
 const tmp = mkdtempSync(join(tmpdir(), 'eg-sec-'));
 
@@ -52,6 +55,7 @@ const env = {
   UPLOADS_DIR: join(tmp, 'uploads'),
   STRIPE_WEBHOOK_SECRET: SECRET,
   STRIPE_API_KEY: '', // mark-paid must fail closed; also blocks stripe fetch
+  ROOM_PROXY_SECRET: ROOM_SECRET,
 };
 
 let serverLog = '';
@@ -652,12 +656,19 @@ async function main() {
     invitation: 'Meet me where the table waits.',
     ...over,
   });
-  const rgPost = (body, key) => fetch(`${BASE}${RG}`, {
+  const rgPost = (body, key, extra = {}) => fetch(`${BASE}${RG}`, {
     method: 'POST', headers: {
       'content-type': 'application/json',
       ...(key ? { authorization: `Bearer ${key}` } : {}),
+      ...extra,
     }, body: JSON.stringify(body),
   });
+  // independent Node-crypto replica of the Worker's WebCrypto signing
+  const rgSign = (msg) => crypto.createHmac('sha256', ROOM_SECRET).update(msg).digest('hex');
+  const rgVisitor = (ip) => {
+    const id = rgSign(`room-client-v1\n${ip}`);
+    return { 'x-enigmagift-visitor': id, 'x-enigmagift-visitor-proof': rgSign(`room-create-v1\n${id}`) };
+  };
   const rgGet = (path, key) => fetch(`${BASE}${RG}${path}`,
     key ? { headers: { authorization: `Bearer ${key}` } } : {});
   const rgDel = (key) => fetch(`${BASE}${RG}/manage`, {
@@ -787,6 +798,28 @@ async function main() {
     assert.equal((await mg.json()).recipientToken, token);
   });
 
+  await t('rate key: only a valid edge proof earns a visitor bucket', async () => {
+    const req = (headers = {}, ip = '127.0.0.1') => ({ get: (h) => headers[h.toLowerCase()], ip });
+    const ipKey = 'ip:127.0.0.1';
+    // missing/invalid secret → connection bucket
+    assert.equal(roomCreateRateKey(req(), ''), ipKey);
+    assert.equal(roomCreateRateKey(req(), 'not-hex'), ipKey);
+    assert.equal(roomCreateRateKey(req(), ROOM_SECRET), ipKey);
+    const vis = rgVisitor('198.51.100.7');
+    const id = vis['x-enigmagift-visitor'];
+    // valid id + proof → visitor bucket
+    assert.equal(roomCreateRateKey(req(vis), ROOM_SECRET), `edge:${id}`);
+    // malformed / forged / mismatched proofs all fall back
+    assert.equal(roomCreateRateKey(req({ 'x-enigmagift-visitor': id }), ROOM_SECRET), ipKey, 'missing proof');
+    assert.equal(roomCreateRateKey(req({ 'x-enigmagift-visitor': id, 'x-enigmagift-visitor-proof': 'zz' }), ROOM_SECRET), ipKey, 'malformed proof');
+    assert.equal(roomCreateRateKey(req({ 'x-enigmagift-visitor': id, 'x-enigmagift-visitor-proof': '0'.repeat(64) }), ROOM_SECRET), ipKey, 'forged proof');
+    const otherId = rgSign(`room-client-v1\n203.0.113.9`);
+    assert.equal(roomCreateRateKey(req({ 'x-enigmagift-visitor': otherId, 'x-enigmagift-visitor-proof': vis['x-enigmagift-visitor-proof'] }), ROOM_SECRET), ipKey, 'proof for a different id');
+    assert.equal(roomCreateRateKey(req({ 'x-enigmagift-visitor': 'a'.repeat(64), 'x-enigmagift-visitor-proof': vis['x-enigmagift-visitor-proof'] }), ROOM_SECRET), ipKey, 'replaced id');
+    // raw IP headers alone never mint a visitor bucket
+    assert.equal(roomCreateRateKey(req({ 'x-forwarded-for': '192.0.2.5', 'cf-connecting-ip': '192.0.2.5' }), ROOM_SECRET), ipKey);
+  });
+
   await t('create is rate-limited at 10/IP/hour; idempotent retry still 200', async () => {
     // limiter is in-memory: since the last restart only non-counted posts ran,
     // so the window starts empty here
@@ -801,6 +834,46 @@ async function main() {
     // retrying an already-created edition bypasses the limiter — idempotent
     const retry = await rgPost({ edition: firstEdition }, firstKey);
     assert.equal(retry.status, 200, 'same-token retry must not consume quota');
+  });
+
+  await t('signed edge visitors get their own 10/hour bucket; forgeries share the connection bucket', async () => {
+    // the connection bucket (ip:127.0.0.1) is already exhausted by the test above —
+    // every request below arrives from the same socket address
+    const visA = rgVisitor('198.51.100.7');
+    const keyA1 = rgKey();
+    const edA1 = rgEdition({ invitation: 'Visitor A message 0.' });
+    const a1 = await rgPost({ edition: edA1 }, keyA1, visA);
+    assert.equal(a1.status, 201);
+    assert.equal(a1.headers.get('x-ratelimit-scope'), 'verified-client');
+    const tokA1 = (await a1.json()).recipientToken;
+    for (let i = 1; i < 10; i++) {
+      const r = await rgPost({ edition: rgEdition({ invitation: `Visitor A message ${i}.` }) }, rgKey(), visA);
+      assert.equal(r.status, 201, `A creation ${i}`);
+    }
+    const a11 = await rgPost({ edition: rgEdition() }, rgKey(), visA);
+    assert.equal(a11.status, 429, 'visitor A quota');
+    assert.equal(a11.headers.get('x-ratelimit-scope'), 'verified-client');
+    // a different signed visitor has an independent bucket despite the same socket
+    const visB = rgVisitor('203.0.113.9');
+    const b1 = await rgPost({ edition: rgEdition() }, rgKey(), visB);
+    assert.equal(b1.status, 201, 'visitor B unaffected by A');
+    assert.equal(b1.headers.get('x-ratelimit-scope'), 'verified-client');
+    // idempotent retry under A's exhausted bucket still resolves to the same token
+    const retry = await rgPost({ edition: edA1 }, keyA1, visA);
+    assert.equal(retry.status, 200);
+    assert.equal((await retry.json()).recipientToken, tokA1);
+    // a forged proof on A's id falls back to the exhausted connection bucket
+    const forged = { 'x-enigmagift-visitor': visA['x-enigmagift-visitor'], 'x-enigmagift-visitor-proof': '0'.repeat(64) };
+    const f = await rgPost({ edition: rgEdition() }, rgKey(), forged);
+    assert.equal(f.status, 429);
+    assert.equal(f.headers.get('x-ratelimit-scope'), 'connection');
+    // B's proof presented under A's id is equally invalid
+    const swapped = { 'x-enigmagift-visitor': visA['x-enigmagift-visitor'], 'x-enigmagift-visitor-proof': visB['x-enigmagift-visitor-proof'] };
+    assert.equal((await rgPost({ edition: rgEdition() }, rgKey(), swapped)).status, 429);
+    // spoofed raw IP headers cannot mint a fresh bucket either
+    const spoof = await rgPost({ edition: rgEdition() }, rgKey(), { 'cf-connecting-ip': '192.0.2.77', 'x-forwarded-for': '192.0.2.77' });
+    assert.equal(spoof.status, 429);
+    assert.equal(spoof.headers.get('x-ratelimit-scope'), 'connection');
   });
 
 

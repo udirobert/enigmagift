@@ -26,6 +26,22 @@ function ownerHash(req) {
   return match ? crypto.createHash('sha256').update(match[1].toLowerCase()).digest('hex') : null;
 }
 
+// Per-visitor create quota behind the edge Worker: the Worker signs a
+// pseudonymous HMAC id for the real client IP; we verify the proof in
+// constant time and bucket verified visitors separately. Unsigned or
+// forged requests (direct/local traffic) fall back to the connection IP.
+export function roomCreateRateKey(req, secret = process.env.ROOM_PROXY_SECRET) {
+  const id = req.get('x-enigmagift-visitor');
+  const proof = req.get('x-enigmagift-visitor-proof');
+  if (typeof secret === 'string' && /^[a-f0-9]{64}$/i.test(secret)
+    && typeof id === 'string' && /^[a-f0-9]{64}$/.test(id)
+    && typeof proof === 'string' && /^[a-f0-9]{64}$/.test(proof)) {
+    const expected = crypto.createHmac('sha256', secret).update(`room-create-v1\n${id}`).digest();
+    if (crypto.timingSafeEqual(expected, Buffer.from(proof, 'hex'))) return `edge:${id}`;
+  }
+  return `ip:${req.ip}`;
+}
+
 // limitOr429 is the shared index.js helper: it returns true (having sent a
 // 429) when the caller must stop — same convention as every other route.
 export function mountRoomGiftRoutes(app, { db, limitOr429 }) {
@@ -46,7 +62,9 @@ export function mountRoomGiftRoutes(app, { db, limitOr429 }) {
       if (existing.edition_json !== json) return res.status(409).json({ error: 'edition_already_created' });
       return res.json({ recipientToken: existing.token, createdAt: existing.created_at });
     }
-    if (limitOr429(res, `room-create:${req.ip}`, 10, 60 * 60 * 1000)) return;
+    const rateKey = roomCreateRateKey(req);
+    res.setHeader('X-RateLimit-Scope', rateKey.startsWith('edge:') ? 'verified-client' : 'connection');
+    if (limitOr429(res, `room-create:${rateKey}`, 10, 60 * 60 * 1000)) return;
     const token = crypto.randomBytes(32).toString('base64url');
     const createdAt = new Date().toISOString();
     db.prepare('INSERT INTO room_gifts(token,manage_hash,room_id,room_revision,edition_json,created_at) VALUES (?,?,?,?,?,?)')

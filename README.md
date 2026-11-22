@@ -197,9 +197,14 @@ Room-gift links are a pilot feature: no accounts — the sender's management
 key is a 64-hex bearer in the private `#manage=` URL and only its SHA-256
 hash is stored; revocation removes the message from the stored edition. The approved
 room/revision allowlist lives in `server/room-gifts.js` (currently only the
-dog-dining-room sample), create is rate-limited to 10/IP/hour (pilot caveat:
-shared proxies share the bucket; `trust proxy` is not enabled, so forwarded
-IPs are not honoured), and there is no email, checkout or automatic
+dog-dining-room sample), create is rate-limited to 10 new links per visitor
+per hour: the Cloudflare Worker signs a pseudonymous HMAC id for the real
+client IP (`ROOM_PROXY_SECRET`), which the API verifies in constant time
+(`verified-client` bucket); unsigned or forged requests — including all
+direct/legacy API traffic — share a per-connection-IP bucket (`trust proxy`
+is not enabled, so forwarded IPs are never honoured). A shared household or
+NAT can still share a visitor bucket; no IP or visitor id is persisted —
+only a bounded in-memory rate map. There is no email, checkout or automatic
 delivery — the giver copies the link and sends it themselves.
 
 API-only behaviors not surfaced in the current client: the frontend does not
