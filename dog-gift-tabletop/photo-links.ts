@@ -126,6 +126,26 @@ export const getPublicGift = async (token: string): Promise<PublicGift> =>
   parsePublicGift(await api(`/${encodeURIComponent(token)}`));
 export const publicImageUrl = (token: string) => `/api/photo-gifts/${encodeURIComponent(token)}/image`;
 
+/* The stored photo for an "edit a saved gift" copy — already the normalized
+   JPEG, so no re-encoding. Dimensions come from the validated ManageView. */
+export async function getSavedPhoto(token: string): Promise<Blob> {
+  const ctl = new AbortController();
+  const timer = window.setTimeout(() => ctl.abort(), 60_000);
+  try {
+    const res = await fetch(publicImageUrl(token), {
+      credentials: 'omit', cache: 'no-store', signal: ctl.signal,
+    });
+    if (!res.ok) throw new PhotoLinkError(res.status, 'photo_unavailable');
+    const blob = await res.blob();
+    if (blob.type !== 'image/jpeg' || blob.size === 0 || blob.size > 2 * 1024 * 1024) {
+      throw badBody();
+    }
+    return blob;
+  } finally {
+    window.clearTimeout(timer);
+  }
+}
+
 /* ---------- URLs: same origin + path, ?photo=1, one fragment ---------- */
 export const recipientPhotoUrl = (token: string) =>
   `${location.origin}${location.pathname}?photo=1#gift=${token}`;

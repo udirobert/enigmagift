@@ -3,6 +3,7 @@ import { createRun } from './run';
 import { ROOM, CANONICAL, makeDraft, type GiftEdition } from './edition';
 import {
   linkMode, validateEdition, initializeGiftLink, createRecipientLink, restorePendingDraft,
+  restoreEditedDraft, persistEditedDraft, isEditingSavedGift, editedDraftStorageOkay,
 } from './links';
 
 /**
@@ -272,7 +273,7 @@ app.innerHTML = `
         </section>
       </div>
       <p class="remix-status" id="rmLinkStatus" role="status" aria-live="polite"></p>
-      <footer class="remix-footer"><div class="letter-inspiration" id="rmInspiration" hidden><div id="rmStarterChoices" class="letter-starters" role="group" aria-label="Start your note"><button type="button" data-rm-starter="evening">An evening</button><button type="button" data-rm-starter="thanks">Thank you</button><button type="button" data-rm-starter="own">My words</button></div></div><button class="link remix-preview" type="submit" id="rmSubmit" hidden>Preview as your recipient</button><div class="remix-navigation"><button class="link" id="rmPrev" type="button" hidden>Back</button><button class="btn small" id="rmNext" type="button">Write a note</button><button class="btn small" id="rmCreate" type="submit" hidden>Create gift link</button></div><p class="remix-footnote" id="rmFootnote">Free to make. Share by link.</p></footer>
+      <footer class="remix-footer"><div class="letter-inspiration" id="rmInspiration" hidden><div id="rmStarterChoices" class="letter-starters" role="group" aria-label="Start your note"><button type="button" data-rm-starter="evening">An evening</button><button type="button" data-rm-starter="thanks">Thank you</button><button type="button" data-rm-starter="own">My words</button></div></div><button class="link remix-preview" type="submit" id="rmSubmit" hidden>See what they see</button><div class="remix-navigation"><button class="link" id="rmPrev" type="button" hidden>Back</button><button class="btn small" id="rmNext" type="button">Write a note</button><button class="btn small" id="rmCreate" type="submit" hidden>Create gift link</button></div><p class="remix-footnote" id="rmFootnote">Free to make. Share by link.</p></footer>
     </form>
   </dialog>
 `;
@@ -1182,8 +1183,7 @@ const readDraft = (): GiftEdition => {
 };
 
 const submitLabel = () => {
-  const to = (($('#rmTo') as HTMLInputElement).value || '').trim();
-  ($('#rmSubmit') as HTMLElement).textContent = `Preview as ${to || 'your recipient'}`;
+  ($('#rmSubmit') as HTMLElement).textContent = 'See what they see';
 };
 
 type RemixProblem = {
@@ -1201,7 +1201,7 @@ const LETTER_OPENINGS = {
 let selectedOpening: string | null = null;
 
 const remixProblem = (d: GiftEdition): RemixProblem | null => {
-  if (!d.to) return { field: '#rmTo', stage: 0, say: 'Add their name before previewing or creating a link.', action: 'Add recipient', missing: true };
+  if (!d.to) return { field: '#rmTo', stage: 0, say: 'Add their name before previewing or creating a link.', action: 'Add their name', missing: true };
   if (d.to.length > 40) return { field: '#rmTo', stage: 0, say: 'Keep their name to 40 characters.', action: 'Shorten their name', missing: false };
   if (!d.invitation) return { field: '#rmInvite', stage: 1, say: 'Write the message they will find before continuing.', action: 'Write your note', missing: true };
   if (d.invitation.length > 200) return { field: '#rmInvite', stage: 1, say: 'Keep your message to 200 characters.', action: 'Shorten your note', missing: false };
@@ -1232,17 +1232,18 @@ const syncRemixReview = () => {
   const customClues = (['dog', 'postcard', 'memory'] as const).some((k) => d[k] !== defaults[k]);
   ($('#rmNext') as HTMLElement).textContent =
     remixStep === 0 ? 'Write a note'
-    : remixStep === 1 ? 'Review gift'
-    : remixStep === 2 ? (customClues ? 'Keep my discoveries' : 'Keep these clues')
+    : remixStep === 1 ? 'Look it over'
+    : remixStep === 2 ? 'Keep these clues'
     : 'Continue';
   ($('#rmPrev') as HTMLElement).textContent =
     remixStep === 2 ? 'Back to gift'
     : remixStep === 3 ? 'Back to note'
     : 'Back';
-  ($('#rmEditClues') as HTMLElement).textContent = customClues ? 'Edit your discoveries' : 'Add a personal clue ↗';
+  ($('#rmEditClues') as HTMLElement).textContent = customClues ? 'Edit clues' : 'Add a personal clue ↗';
   const problem = remixProblem(d);
   ($('#rmSubmit') as HTMLButtonElement).disabled = !!problem;
-  ($('#rmCreate') as HTMLElement).textContent = problem?.action ?? 'Create gift link';
+  ($('#rmCreate') as HTMLElement).textContent = problem?.action
+    ?? (isEditingSavedGift() ? 'Save changes' : 'Create gift link');
   ($('#rmReviewTitle') as HTMLElement).textContent = problem ? 'Make it yours.' : 'One last look.';
   ($('#rmReviewIntro') as HTMLElement).textContent = problem
     ? 'A name, a note, your signature.'
@@ -1250,8 +1251,25 @@ const syncRemixReview = () => {
   ($('#rmFootnote') as HTMLElement).textContent = remixStep === 0
     ? 'Free to make. Share by link.'
     : remixStep === 3
-      ? (problem ? 'You can keep changing your gift.' : 'Creates a link for you to send.')
+      ? (problem
+        ? 'You can keep changing your gift.'
+        : (isEditingSavedGift()
+          ? 'You’ll get a new link. Earlier links stay the same.'
+          : 'Creates a link for you to send.'))
       : 'Your draft stays in this tab.';
+  ($('#rmFootnote') as HTMLElement).classList.toggle('rm-copy-note',
+    remixStep === 3 && !problem && isEditingSavedGift());
+  /* editing a saved gift: every field change re-persists the copy; if the
+     store failed, say so honestly without hiding a validation error */
+  if (isEditingSavedGift()) {
+    persistEditedDraft(d);
+    if (!editedDraftStorageOkay()) {
+      const linkStatus = $('#rmLinkStatus') as HTMLElement;
+      if (!linkStatus.textContent?.trim()) {
+        linkStatus.textContent = 'Your changes stay in this tab.';
+      }
+    }
+  }
   // first-line choices only offer themselves on a blank or untouched starter
   const raw = ($('#rmInvite') as HTMLTextAreaElement).value;
   const untouched = !!selectedOpening && raw.trim() === selectedOpening.trim();
@@ -1477,7 +1495,7 @@ const onPreviewMessage = (e: MessageEvent) => {
       location.origin,
     );
   } else if (e.data === 'gift-reveal' && previewBack) {
-    previewBack.textContent = 'Back to my draft';
+    previewBack.textContent = 'Back to your gift';
   }
 };
 
@@ -1496,16 +1514,16 @@ const openPreview = () => {
   bar.className = 'preview-bar';
   const label = document.createElement('span');
   label.className = 'preview-label';
-  label.textContent = 'Recipient preview — stays in this tab';
+  label.textContent = 'A peek at your gift';
   previewBack = document.createElement('button');
   previewBack.type = 'button';
   previewBack.className = 'chip preview-back';
-  previewBack.textContent = 'Back to editing';
+  previewBack.textContent = 'Back to your gift';
   previewBack.addEventListener('click', closePreview);
   previewFrame = document.createElement('iframe');
   previewFrame.src = './?recipientPreview=1';
-  previewFrame.title = 'The room as your recipient will open it';
-  previewFrame.setAttribute('aria-label', 'Recipient preview of your gift');
+  previewFrame.title = 'Your gift preview';
+  previewFrame.setAttribute('aria-label', 'Your gift preview');
   bar.append(label, previewBack);
   previewSheet.append(previewFrame, bar);
   document.body.appendChild(previewSheet);
@@ -1730,10 +1748,14 @@ if (isPreview) {
 enterBtn.addEventListener('click', enter);
 submitLabel();
 if (linkMode === 'demo' && !isPreview) {
-  // an interrupted create left its draft+key in this tab — reopen the editor
+  // an interrupted save or an in-flight "Make changes" copy left a draft in
+  // this tab — reopen the editor. The edited copy wins: it may hold words
+  // typed after the pending save failed.
   const pending = restorePendingDraft();
-  if (pending) {
-    lastDraft = pending;
+  const edited = restoreEditedDraft();
+  const recovered = edited ?? pending;
+  if (recovered) {
+    lastDraft = recovered;
     remixStep = 3; // a recovered save is ready for its retry on Review
     openRemix();
   }
@@ -1748,6 +1770,12 @@ if (!isPreview) void initializeGiftLink(app, (ed) => {
   const card = coverFrame.querySelector('.paper-card') as HTMLElement;
   card.textContent = `For ${ed.to}, from ${ed.from}`;
   card.removeAttribute('aria-hidden');
+}, (ed) => {
+  // "Make changes" on a saved gift — the copy opens on Review for a new link
+  lastDraft = { ...ed };
+  remixStep = 3;
+  openRemix();
+  syncResumeLinks();
 });
 no3dBtn.addEventListener('click', () => {
   abortCtl?.abort();

@@ -13,7 +13,7 @@ import {
 } from './photo-storage';
 import {
   PhotoLinkError, createPhotoGift, getManageView, revokePhotoGift, getPublicGift,
-  publicImageUrl, recipientPhotoUrl, managementPhotoUrl, newManageKey,
+  getSavedPhoto, publicImageUrl, recipientPhotoUrl, managementPhotoUrl, newManageKey,
   GIFT_TOKEN_RE, MANAGE_KEY_RE, type ManageView,
 } from './photo-links';
 import { mountPhotoPlayer } from './photo-player';
@@ -51,7 +51,9 @@ const say = (text: string) => { statusEl.textContent = text; };
 let footnoteDefault = 'Free to make. Share by link.';
 const setFootnote = () => {
   if (storageDenied()) {
-    footnoteEl.textContent = 'Draft stays in this tab.';
+    footnoteEl.textContent = draft.copiedFromSaved && draft.step === 'review'
+      ? 'Draft stays in this tab. Saving makes a new link.'
+      : 'Draft stays in this tab.';
     footnoteEl.classList.add('ph-storage-note');
   } else {
     footnoteEl.textContent = footnoteDefault;
@@ -143,6 +145,30 @@ const staticNotice = (title: string, line: string) => {
   p.className = 'ph-intro';
   p.textContent = line;
   stage.append(h, p);
+  say('');
+  $('#phFooter').hidden = true;
+  $('#phBack').hidden = true;
+  $('#phJump').hidden = true;
+  h.focus();
+};
+
+/* a notice plus a retry control — for transient failures that a refresh
+   would fix, unlike a dead link */
+const retryNotice = (title: string, line: string, retry: () => void) => {
+  stage.innerHTML = '';
+  say('');
+  const h = document.createElement('h2');
+  h.tabIndex = -1;
+  h.textContent = title;
+  const p = document.createElement('p');
+  p.className = 'ph-intro';
+  p.textContent = line;
+  const again = document.createElement('button');
+  again.type = 'button';
+  again.className = 'btn small';
+  again.textContent = 'Try again';
+  again.onclick = retry;
+  stage.append(h, p, again);
   $('#phFooter').hidden = true;
   $('#phBack').hidden = true;
   $('#phJump').hidden = true;
@@ -197,6 +223,7 @@ function renderStep(focus = true) {
   primary.hidden = false;
   primary.onclick = null;
   footnoteDefault = 'Free to make. Share by link.';
+  footnoteEl.classList.remove('ph-copy-note');
   setFootnote();
 
   const h = document.createElement('h2');
@@ -225,10 +252,10 @@ function renderStep(focus = true) {
       const swap = document.createElement('button');
       swap.type = 'button';
       swap.className = 'link';
-      swap.textContent = 'Choose a different photo';
+      swap.textContent = 'Change photo';
       swap.onclick = () => file.click();
       stage.appendChild(swap);
-      primary.textContent = 'Choose the hiding place';
+      primary.textContent = 'Choose a hiding spot';
       primary.onclick = () => { draft.step = 'hide'; touch(); renderStep(); };
     } else {
       /* the gift itself is the first thing they see, not a blank form */
@@ -280,7 +307,7 @@ function renderStep(focus = true) {
     h.textContent = 'Where will they find the note?';
     const intro = document.createElement('p');
     intro.className = 'ph-intro';
-    intro.textContent = 'Tap the photo to tuck the folded note into a spot — they’ll find it right there.';
+    intro.textContent = 'Tap where you’d like them to find the note.';
     stage.appendChild(intro);
     const wrap = document.createElement('div');
     wrap.className = 'ph-photo-wrap ph-place';
@@ -345,7 +372,7 @@ function renderStep(focus = true) {
     secondary.onclick = () => place(0.5, 0.5);
     primary.textContent = 'Hide here';
     primary.onclick = () => {
-      if (!draft.hidingSpot) { say('Tap the photo — or Centre the note — to pick the spot.'); return; }
+      if (!draft.hidingSpot) { say('Tap a spot, or choose the centre.'); return; }
       draft.step = 'clue'; touch(); renderStep();
     };
   } else if (step === 'clue') {
@@ -411,7 +438,7 @@ function renderStep(focus = true) {
     toLabel.textContent = 'To';
     const to = document.createElement('input');
     to.maxLength = PHOTO_LIMITS.to;
-    to.placeholder = 'Their name or nickname';
+    to.placeholder = 'Their name';
     to.value = draft.to;
     to.addEventListener('input', () => { draft.to = to.value; touch(); });
     toLabel.appendChild(to);
@@ -442,7 +469,7 @@ function renderStep(focus = true) {
     fromLabel.appendChild(from);
     paper.append(toLabel, msgLabel, count, fromLabel);
     stage.appendChild(paper);
-    primary.textContent = 'Review the gift';
+    primary.textContent = 'Look it over';
     primary.onclick = () => { draft.step = 'review'; touch(); renderStep(); };
   } else {
     /* ---------- review ---------- */
@@ -452,7 +479,7 @@ function renderStep(focus = true) {
     intro.className = 'ph-intro';
     intro.textContent = problem
       ? 'A photo, a hiding place, a name, a note.'
-      : 'The note hides exactly where the marker sits.';
+      : 'Your note is hidden here.';
     stage.appendChild(intro);
     const wrap = document.createElement('div');
     wrap.className = 'ph-photo-wrap';
@@ -496,21 +523,29 @@ function renderStep(focus = true) {
       b.onclick = () => { draft.step = step; touch(); renderStep(); };
       edits.appendChild(b);
     };
+    mkEdit('Change photo', 'photo');
     mkEdit('Move the note', 'hide');
     mkEdit(draft.clue ? 'Edit clue' : 'Add a clue', 'clue');
     mkEdit('Edit note', 'note');
     const tryBtn = document.createElement('button');
     tryBtn.type = 'button';
     tryBtn.className = 'link';
-    tryBtn.textContent = 'Try the hunt';
+    tryBtn.textContent = 'See what they see';
     tryBtn.onclick = tryHunt;
     edits.appendChild(tryBtn);
     stage.appendChild(edits);
-    primary.textContent = problem ? problem.label : 'Create gift link';
+    primary.textContent = problem
+      ? problem.label
+      : (draft.copiedFromSaved ? 'Save changes' : 'Create gift link');
     primary.onclick = problem
       ? () => { draft.step = problem.step; touch(); renderStep(); }
       : saveGift;
-    if (!problem) footnoteDefault = 'Creates a link for you to send.';
+    if (!problem) {
+      footnoteDefault = draft.copiedFromSaved
+        ? 'You’ll get a new link. Earlier links stay the same.'
+        : 'Creates a link for you to send.';
+    }
+    footnoteEl.classList.toggle('ph-copy-note', draft.copiedFromSaved === true);
     setFootnote();
   }
 
@@ -519,7 +554,7 @@ function renderStep(focus = true) {
 
 const reviewProblem = (): { label: string; step: PhotoDraft['step'] } | null => {
   if (!draft.photo) return { label: 'Choose a photo', step: 'photo' };
-  if (!draft.hidingSpot) return { label: 'Choose the hiding place', step: 'hide' };
+  if (!draft.hidingSpot) return { label: 'Choose a hiding spot', step: 'hide' };
   if (!draft.to.trim() || !draft.from.trim() || !draft.message.trim()) {
     return { label: 'Finish the note', step: 'note' };
   }
@@ -545,7 +580,7 @@ function tryHunt() {
   $('#phFooter').hidden = true;
   const back = $('#phBack');
   back.hidden = false;
-  back.textContent = 'Back to crafting';
+  back.textContent = 'Back to your gift';
   back.onclick = () => { playerCleanup?.(); playerCleanup = null; renderStep(); };
   $('#phJump').hidden = true;
   playerCleanup = mountPhotoPlayer(stage, {
@@ -595,7 +630,7 @@ async function saveGift() {
       const open = document.createElement('a');
       open.className = 'btn small';
       open.href = managementPhotoUrl(draft.pending!.key);
-      open.textContent = 'Open earlier gift';
+      open.textContent = 'See earlier gift';
       const fresh = document.createElement('button');
       fresh.type = 'button';
       fresh.className = 'link';
@@ -616,7 +651,7 @@ async function saveGift() {
     } else if (e instanceof PhotoLinkError && e.status === 413) {
       say('That photo is too large for a link — try a smaller one.');
     } else {
-      say('Saving did not finish — your words and photo are safe in this tab. Try again.');
+      say('Your photo and words are still here. Try saving again.');
     }
   } finally {
     freeze(false);
@@ -624,7 +659,10 @@ async function saveGift() {
 }
 
 /* ---------- management ---------- */
+/* the ready screen leads with seeing and editing the gift — sharing sits
+   below, private controls stay behind their own <details> */
 async function renderManagement(key: string, known?: ManageView) {
+  playerCleanup?.(); playerCleanup = null;
   stage.innerHTML = '';
   $('#phFooter').hidden = true;
   $('#phBack').hidden = true;
@@ -637,15 +675,19 @@ async function renderManagement(key: string, known?: ManageView) {
       staticNotice('Nothing to manage here.', 'This private link does not match a saved gift.');
       return;
     }
-    staticNotice('Couldn’t reach the gift.', 'Your draft stays safe in this tab — try again.');
+    retryNotice('We couldn’t open your gift just now.', 'Try again.',
+      () => void renderManagement(key));
     return;
   }
   say('');
+  const who = document.createElement('p');
+  who.className = 'ph-manage-who';
+  who.textContent = view.revoked ? '' : `For ${view.edition!.to}`;
   const h = document.createElement('h2');
   h.tabIndex = -1;
   h.textContent = view.revoked ? 'This gift link is closed.' : 'Your gift is ready.';
-  stage.appendChild(h);
   if (view.revoked) {
+    stage.appendChild(h);
     const p = document.createElement('p');
     p.className = 'ph-intro';
     p.textContent = 'The photo and note were removed when this gift was closed.';
@@ -657,43 +699,52 @@ async function renderManagement(key: string, known?: ManageView) {
   const priv = managementPhotoUrl(key);
   const intro = document.createElement('p');
   intro.className = 'ph-intro';
-  intro.textContent = 'Send the recipient link however you like — the gift only lives at that address.';
-  stage.appendChild(intro);
+  intro.textContent = 'Take a look before you share.';
+  stage.append(who, h, intro);
   const rows = document.createElement('div');
   rows.className = 'ph-manage';
+  const actionRow = document.createElement('div');
+  actionRow.className = 'ph-ready-row';
+  const peek = document.createElement('button');
+  peek.type = 'button';
+  peek.className = 'btn small';
+  peek.textContent = 'See what they see';
+  peek.onclick = () => showSavedPhotoPreview(key, view);
+  const edit = document.createElement('button');
+  edit.type = 'button';
+  edit.className = 'link';
+  edit.textContent = 'Make changes';
+  edit.onclick = () => {
+    if (saving) return;
+    freeze(true);
+    void editSavedPhoto(key, view)
+      .catch(() => say('We couldn’t open the editor. Try again.'))
+      .finally(() => freeze(false));
+  };
+  actionRow.append(peek, edit);
+  rows.appendChild(actionRow);
+  const pubLabel = document.createElement('label');
+  pubLabel.className = 'ph-field';
+  pubLabel.textContent = 'Link to share';
   const pubRow = document.createElement('div');
   pubRow.className = 'ph-link-row';
   const pubIn = document.createElement('input');
   pubIn.readOnly = true;
   pubIn.value = pub;
-  pubIn.setAttribute('aria-label', 'Recipient link');
+  pubIn.setAttribute('aria-label', 'Link to share');
   const pubBtn = document.createElement('button');
   pubBtn.type = 'button';
   pubBtn.className = 'btn small';
   pubBtn.textContent = 'Copy link';
-  pubBtn.onclick = () => copyOrSelect(pubIn, 'Recipient link copied.');
+  pubBtn.onclick = () => copyOrSelect(pubIn, 'Link copied — ready to send.');
   pubRow.append(pubIn, pubBtn);
-  const privRow = document.createElement('div');
-  privRow.className = 'ph-link-row';
-  const privIn = document.createElement('input');
-  privIn.readOnly = true;
-  privIn.value = priv;
-  privIn.setAttribute('aria-label', 'Private management link — keep it to yourself');
-  const privBtn = document.createElement('button');
-  privBtn.type = 'button';
-  privBtn.className = 'btn small';
-  privBtn.textContent = 'Copy private link';
-  privBtn.onclick = () => copyOrSelect(privIn, 'Private link copied — keep it to yourself.');
-  privRow.append(privIn, privBtn);
-  const warn = document.createElement('p');
-  warn.className = 'ph-intro';
-  warn.textContent = 'The private link is the only way back to these controls — share only the first one.';
-  rows.append(pubRow, privRow, warn);
+  pubLabel.appendChild(pubRow);
+  rows.appendChild(pubLabel);
   if (typeof navigator.canShare === 'function' && navigator.canShare({ url: pub })) {
     const share = document.createElement('button');
     share.type = 'button';
     share.className = 'btn small';
-    share.textContent = 'Share the link';
+    share.textContent = 'Share gift';
     share.onclick = async () => {
       try { await navigator.share({ url: pub }); }
       catch { /* cancelled or unsupported — nothing was sent */ }
@@ -701,11 +752,26 @@ async function renderManagement(key: string, known?: ManageView) {
     rows.appendChild(share);
   }
   const opts = document.createElement('details');
-  opts.className = 'ph-danger';
+  opts.className = 'ph-private';
   const sum = document.createElement('summary');
-  sum.textContent = 'Close this gift link';
-  const p = document.createElement('p');
-  p.textContent = 'Stops new opens and removes the saved photo and note. This cannot be undone.';
+  sum.textContent = 'Your private link';
+  const help = document.createElement('p');
+  help.className = 'ph-intro';
+  help.textContent = 'Keep this to edit or close your gift later.';
+  const privRow = document.createElement('div');
+  privRow.className = 'ph-link-row';
+  const privIn = document.createElement('input');
+  privIn.readOnly = true;
+  privIn.value = priv;
+  privIn.setAttribute('aria-label', 'Your private link — keep it to yourself');
+  const privBtn = document.createElement('button');
+  privBtn.type = 'button';
+  privBtn.className = 'btn small';
+  privBtn.textContent = 'Copy private link';
+  privBtn.onclick = () => copyOrSelect(privIn, 'Private link copied — keep it to yourself.');
+  privRow.append(privIn, privBtn);
+  const closeText = document.createElement('p');
+  closeText.textContent = 'Closing stops new opens and removes the saved photo and note. This cannot be undone.';
   const del = document.createElement('button');
   del.type = 'button';
   del.className = 'btn small';
@@ -722,11 +788,78 @@ async function renderManagement(key: string, known?: ManageView) {
       say('Closing did not finish — try again.');
     }
   };
-  opts.append(sum, p, del);
+  opts.append(sum, help, privRow, closeText, del);
   rows.appendChild(opts);
   rows.appendChild(anotherGift());
   stage.appendChild(rows);
   h.focus();
+}
+
+/* The saved gift played exactly as the recipient will — no writes, the
+   private URL and draft are untouched. Back returns to the live view. */
+function showSavedPhotoPreview(key: string, view: ManageView) {
+  playerCleanup?.(); playerCleanup = null;
+  stage.innerHTML = '';
+  say('');
+  pane.scrollTop = 0;
+  $('#phFooter').hidden = true;
+  const back = $('#phBack');
+  back.hidden = false;
+  back.textContent = 'Back to your gift';
+  back.onclick = () => {
+    playerCleanup?.(); playerCleanup = null;
+    void renderManagement(key);
+  };
+  $('#phJump').hidden = true;
+  playerCleanup = mountPhotoPlayer(stage, {
+    edition: view.edition!,
+    photoUrl: publicImageUrl(view.recipientToken),
+    preview: true,
+  });
+}
+
+/* Copies the saved gift into the ordinary editor — the original link and
+   photo stay as they are; saving later creates a new link. The old private
+   page is kept one Back away via pushState. */
+async function editSavedPhoto(key: string, view: ManageView): Promise<void> {
+  if (!view.edition || !view.image) return;
+  const existing = await loadDraft();
+  if (existing && (existing.photo || existing.message || existing.to
+    || existing.from || existing.clue || existing.pending)) {
+    if (!window.confirm('Replace your unfinished draft with this gift?')) return;
+  }
+  say('Opening your gift…');
+  let blob: Blob;
+  try {
+    blob = await getSavedPhoto(view.recipientToken);
+  } catch {
+    say('The photo couldn’t open. Try again.');
+    return; // the saved gift and any draft are untouched
+  }
+  /* keep the original private page one Back away before anything mutates —
+     if the tab can't hold history the private controls must stay put */
+  try {
+    history.pushState(null, '', `${location.pathname}?photo=1`);
+  } catch {
+    say('We couldn’t open the editor. Try again.');
+    return;
+  }
+  say('');
+  releasePhotoUrl();
+  draft = {
+    ...emptyPhotoDraft(),
+    to: view.edition.to, from: view.edition.from,
+    message: view.edition.message, clue: view.edition.clue,
+    hidingSpot: { ...view.edition.hidingSpot },
+    photo: blob,
+    photoWidth: view.image.width, photoHeight: view.image.height,
+    step: 'review',
+    pending: null,
+    copiedFromSaved: true,
+  };
+  touch();
+  await flushDraft();
+  renderStep();
 }
 
 function renderManagementClosed() {
@@ -744,20 +877,30 @@ function renderManagementClosed() {
 
 /* ---------- recipient ---------- */
 async function renderRecipient(token: string) {
+  playerCleanup?.(); playerCleanup = null;
+  stage.replaceChildren();
+  say('Opening your gift…');
   $('#phFooter').hidden = true;
   $('#phBack').hidden = true;
   $('#phJump').hidden = true;
   try {
     const gift = await getPublicGift(token);
-    mountPhotoPlayer(stage, {
+    say('');
+    playerCleanup = mountPhotoPlayer(stage, {
       edition: gift.edition,
       photoUrl: publicImageUrl(token),
       preview: false,
     });
     document.title = 'EnigmaGift — a little surprise for you';
-  } catch {
-    staticNotice('This gift link is no longer available.',
-      'It may have been closed, or the link is incomplete.');
+  } catch (e) {
+    if (e instanceof PhotoLinkError && e.status === 404) {
+      staticNotice('This gift link is no longer available.',
+        'It may have been closed, or the link is incomplete.');
+    } else {
+      retryNotice('The gift couldn’t open just now.',
+        'Check your connection and try again.',
+        () => void renderRecipient(token));
+    }
   }
 }
 
@@ -849,7 +992,7 @@ function offerResume(saved: PhotoDraft, line?: string) {
   const resume = document.createElement('button');
   resume.type = 'button';
   resume.className = 'btn small';
-  resume.textContent = 'Resume the draft';
+  resume.textContent = 'Keep making it';
   resume.onclick = () => { draft = saved; renderStep(); };
   const discard = document.createElement('button');
   discard.type = 'button';

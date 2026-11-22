@@ -117,6 +117,7 @@ const validStoredDraft = (raw: unknown): raw is PhotoDraft => {
       || typeof p.key !== 'string' || !/^[0-9a-f]{64}$/.test(p.key)
       || typeof p.fingerprint !== 'string' || !/^[0-9a-f]{64}$/.test(p.fingerprint)) return false;
   }
+  if (d.copiedFromSaved !== undefined && typeof d.copiedFromSaved !== 'boolean') return false;
   return true;
 };
 

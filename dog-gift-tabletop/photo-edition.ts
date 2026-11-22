@@ -20,6 +20,9 @@ export interface PhotoDraft {
   photoHeight: number;
   step: 'photo' | 'hide' | 'clue' | 'note' | 'review';
   pending: { key: string; fingerprint: string } | null;
+  /* true when this draft is a copy of an already-saved gift being edited —
+     saved links stay immutable, so the next save mints a new link */
+  copiedFromSaved?: boolean;
 }
 
 export const PHOTO_LIMITS = { to: 40, from: 40, message: 600, clue: 200 };
@@ -27,7 +30,7 @@ export const PHOTO_LIMITS = { to: 40, from: 40, message: 600, clue: 200 };
 export const emptyPhotoDraft = (): PhotoDraft => ({
   to: '', from: '', message: '', clue: '',
   hidingSpot: null, photo: null, photoWidth: 0, photoHeight: 0,
-  step: 'photo', pending: null,
+  step: 'photo', pending: null, copiedFromSaved: false,
 });
 
 /* Normalize in the PhotoEdition field order. Raw strings are rejected

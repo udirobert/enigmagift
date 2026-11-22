@@ -30,7 +30,7 @@ export function mountPhotoPlayer(
   if (preview) {
     const banner = document.createElement('p');
     banner.className = 'ph-preview-banner';
-    banner.textContent = 'Draft preview — nothing is saved yet';
+    banner.textContent = 'A peek at your gift';
     root.appendChild(banner);
   }
 

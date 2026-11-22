@@ -30,7 +30,7 @@ const invalidFragment =
   [...hashParams.keys()].some((k) => k !== 'gift' && k !== 'manage');
 const giftParam = invalidFragment ? null : hashParams.get('gift');
 const manageParam = invalidFragment ? null : hashParams.get('manage');
-export const linkMode: LinkMode =
+export let linkMode: LinkMode =
   giftParam != null ? (TOKEN_SHAPE.test(giftParam) ? 'recipient' : 'invalid')
     : manageParam != null ? (KEY_SHAPE.test(manageParam) ? 'manage' : 'invalid')
       : hashParams.toString() || invalidFragment ? 'invalid'
@@ -156,6 +156,63 @@ export function restorePendingDraft(): GiftEdition | null {
 /* ---------- create ---------- */
 const sameEdition = (a: GiftEdition, b: GiftEdition) => JSON.stringify(a) === JSON.stringify(b);
 
+/* ---------- editing a saved gift ----------
+   A saved link is immutable: "Make changes" copies its contents into a
+   session draft, and saving mints a brand-new link — the original stays. */
+const EDIT_DRAFT_KEY = 'enigmagift.room-edited-draft';
+let editingSaved = false;
+let editedStorageOkay = true;
+export const isEditingSavedGift = () => editingSaved;
+export const editedDraftStorageOkay = () => editedStorageOkay;
+
+/* Looser than validateEdition — a copy being edited may have empty fields
+   while the giver is still working on it. */
+const validatePartialEdition = (value: unknown): GiftEdition | null => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const input = value as Record<string, unknown>;
+  if (input.roomId !== ROOM.id || input.revision !== ROOM.revision) return null;
+  const edition = { roomId: ROOM.id, revision: ROOM.revision } as GiftEdition;
+  for (const field of FIELDS) {
+    const raw = input[field];
+    if (typeof raw !== 'string' || raw.length > LIMITS[field]) return null;
+    (edition as unknown as Record<string, string>)[field] = raw;
+  }
+  return edition;
+};
+
+export function restoreEditedDraft(): GiftEdition | null {
+  try {
+    const raw = sessionStorage.getItem(EDIT_DRAFT_KEY);
+    if (!raw) return null;
+    const edition = validatePartialEdition(JSON.parse(raw));
+    if (!edition) return null;
+    editingSaved = true;
+    return edition;
+  } catch { return null; }
+}
+
+export function persistEditedDraft(edition: GiftEdition): void {
+  editingSaved = true;
+  editedStorageOkay = true;
+  try {
+    sessionStorage.setItem(EDIT_DRAFT_KEY, JSON.stringify(edition));
+  } catch {
+    editedStorageOkay = false; // honest: this copy lives only in this tab
+  }
+}
+
+const storedEditedDraftExists = (): boolean => {
+  if (editingSaved) return true;
+  try { return sessionStorage.getItem(EDIT_DRAFT_KEY) != null; }
+  catch { return false; }
+};
+
+const clearEditedDraft = () => {
+  editingSaved = false;
+  editedStorageOkay = true;
+  try { sessionStorage.removeItem(EDIT_DRAFT_KEY); } catch { /* best effort */ }
+};
+
 export async function createRecipientLink(draft: GiftEdition): Promise<void> {
   const status = document.querySelector<HTMLElement>('#rmLinkStatus');
   const form = document.querySelector<HTMLFormElement>('#remixForm');
@@ -164,7 +221,7 @@ export async function createRecipientLink(draft: GiftEdition): Promise<void> {
 
   const edition = validateEdition(draft);
   if (!edition) {
-    say('Check the names, message and clue lengths before creating a link.');
+    say('Check the names, note and clues, then try again.');
     return;
   }
 
@@ -197,6 +254,7 @@ export async function createRecipientLink(draft: GiftEdition): Promise<void> {
     }
     writePending(null);
     writeNotice(null);
+    clearEditedDraft();
     location.replace(managementUrl(key)); // hashchange reloads into manage mode
   } catch (e) {
     if (e instanceof RoomLinkError && e.status === 409) {
@@ -205,7 +263,8 @@ export async function createRecipientLink(draft: GiftEdition): Promise<void> {
       try {
         await api('/manage', { headers: ownerHeaders(key) });
         writePending(null);
-        writeNotice('This key already holds your earlier message — the link below opens that version. Close it to make a different one.');
+        clearEditedDraft();
+        writeNotice('This link has your earlier note. Take a look or make changes.');
         location.replace(managementUrl(key));
         return;
       } catch {
@@ -302,7 +361,7 @@ async function initRecipient(panel: HTMLElement, app: HTMLElement,
   const fail = (message: string, retry: boolean) => {
     const row = el('div', 'row');
     if (retry) {
-      const again = el('button', 'btn small', 'Retry');
+      const again = el('button', 'btn small', 'Try again');
       again.addEventListener('click', () => void initRecipient(panel, app, applyEdition));
       row.append(again);
     }
@@ -364,7 +423,8 @@ function renderClosed(panel: HTMLElement) {
   focusPanel(panel);
 }
 
-async function initManage(panel: HTMLElement, key: string): Promise<void> {
+async function initManage(panel: HTMLElement, key: string, app: HTMLElement,
+  editSaved?: (edition: GiftEdition) => void): Promise<void> {
   const loading = el('p', 'delivery-status', 'Opening your private controls…');
   loading.setAttribute('role', 'status');
   panel.replaceChildren(heading('Your gift link'), loading);
@@ -377,8 +437,8 @@ async function initManage(panel: HTMLElement, key: string): Promise<void> {
     const gone = e instanceof RoomLinkError && (e.status === 404 || e.status === 410);
     const row = el('div', 'row');
     if (!gone) {
-      const again = el('button', 'btn small', 'Retry');
-      again.addEventListener('click', () => void initManage(panel, key));
+      const again = el('button', 'btn small', 'Try again');
+      again.addEventListener('click', () => void initManage(panel, key, app, editSaved));
       row.append(again);
     }
     const make = el('a', 'link', 'Make a gift');
@@ -407,14 +467,43 @@ async function initManage(panel: HTMLElement, key: string): Promise<void> {
   if (notice) bits.push(el('p', 'delivery-status', notice));
   bits.push(el('p', 'delivery-status', ed ? `For ${ed.to}, from ${ed.from}` : ''));
 
-  const pub = copyField('Recipient link', recipientUrl(view.recipientToken));
-  const copyBtn = el('button', 'btn small', 'Copy recipient link');
+  /* see and change first — sharing and private controls sit below */
+  const see = el('a', 'btn small', 'See what they see');
+  see.href = recipientUrl(view.recipientToken);
+  see.target = '_blank';
+  see.rel = 'noopener noreferrer';
+  see.setAttribute('aria-label', 'See what they see (opens a new tab)');
+  const actionRow = el('div', 'row');
+  actionRow.classList.add('delivery-actions');
+  actionRow.append(see);
+  if (ed && ROOM.allowRemix && editSaved) {
+    const makeChanges = el('button', 'link', 'Make changes');
+    makeChanges.type = 'button';
+    makeChanges.addEventListener('click', () => {
+      if (readPending() || storedEditedDraftExists()) {
+        if (!window.confirm('Replace your unfinished draft with this gift?')) return;
+      }
+      /* keep the original private page one Back away before anything
+         mutates — without it the private controls must stay put */
+      try {
+        history.pushState(null, '', `${location.pathname}?make=1&sample=1`);
+      } catch {
+        err.textContent = 'We couldn’t open the editor. Try again.';
+        return;
+      }
+      writePending(null); // the copied edition replaces the older pending draft
+      persistEditedDraft({ ...ed });
+      linkMode = 'demo';
+      panel.remove();
+      app.inert = false;
+      editSaved({ ...ed });
+    });
+    actionRow.append(makeChanges);
+  }
+  const pub = copyField('Link to share', recipientUrl(view.recipientToken));
+  const copyBtn = el('button', 'btn small', 'Copy link');
   wireCopy(copyBtn, pub.input, pub.status,
     `Copied. Paste it into a message to ${ed?.to || 'them'}.`);
-  const openBtn = el('a', 'link', 'Open recipient link');
-  openBtn.href = pub.input.value;
-  openBtn.target = '_blank';
-  openBtn.rel = 'noopener noreferrer';
   const row1 = el('div', 'row');
   row1.classList.add('delivery-actions');
   // the OS share sheet is a bonus, never the only way — copy always stays
@@ -429,7 +518,7 @@ async function initManage(panel: HTMLElement, key: string): Promise<void> {
       && (typeof navigator.canShare !== 'function' || navigator.canShare(shareData));
   } catch { /* copy stays the primary path */ }
   if (canShare) {
-    const shareBtn = el('button', 'btn small', 'Share gift…');
+    const shareBtn = el('button', 'btn small', 'Share gift');
     shareBtn.type = 'button';
     copyBtn.className = 'link';
     shareBtn.addEventListener('click', async () => {
@@ -449,17 +538,17 @@ async function initManage(panel: HTMLElement, key: string): Promise<void> {
     });
     row1.append(shareBtn);
   }
-  row1.append(copyBtn, openBtn);
-  const hint = el('p', 'hint', 'Anyone with the recipient link can open the gift. Keep this page for yourself.');
+  row1.append(copyBtn);
+  const hint = el('p', 'hint', 'Send the gift link. Keep your private link for yourself.');
 
-  const priv = copyField('Private management link', managementUrl(key));
-  const privBtn = el('button', 'btn small', 'Copy private management link');
+  const priv = copyField('Your private link', managementUrl(key));
+  const privBtn = el('button', 'btn small', 'Copy private link');
   wireCopy(privBtn, priv.input, priv.status,
     'Private link copied. Keep it somewhere only you can access.');
-  const closeBtn = el('button', 'link', 'Close recipient link');
+  const closeBtn = el('button', 'link', 'Close gift link');
   const details = el('details', 'delivery-private');
-  const dsum = el('summary', '', 'Keep your private controls');
-  const dp = el('p', 'hint', 'Save this private link if you may want to close the gift later. Keep it to yourself.');
+  const dsum = el('summary', '', 'Your private link');
+  const dp = el('p', 'hint', 'Keep this to edit or close your gift later.');
   details.append(dsum, priv.wrap, privBtn, dp, closeBtn);
 
   const err = el('p', 'delivery-status');
@@ -471,7 +560,7 @@ async function initManage(panel: HTMLElement, key: string): Promise<void> {
     closeBtn.disabled = true;
     const row = el('div', 'row');
     const keep = el('button', 'btn small ghost', 'Keep link open');
-    const sure = el('button', 'btn small', 'Close link');
+    const sure = el('button', 'btn small', 'Close the link');
     const ask = el('p', 'hint', 'Close it? The recipient link will stop opening your gift.');
     const cleanup = () => {
       ask.remove(); row.remove();
@@ -491,7 +580,7 @@ async function initManage(panel: HTMLElement, key: string): Promise<void> {
         keep.disabled = true;
         err.textContent = 'We couldn’t confirm whether the link closed. Retry to check its status.';
         const check = el('button', 'btn small', 'Check status');
-        check.addEventListener('click', () => void initManage(panel, key));
+        check.addEventListener('click', () => void initManage(panel, key, app, editSaved));
         row.append(check);
         check.focus();
       }
@@ -501,7 +590,7 @@ async function initManage(panel: HTMLElement, key: string): Promise<void> {
     sure.focus();
   });
 
-  panel.replaceChildren(...bits, pub.wrap, row1, hint, details, err);
+  panel.replaceChildren(...bits, actionRow, pub.wrap, row1, hint, details, err);
   focusPanel(panel);
 }
 
@@ -509,6 +598,7 @@ async function initManage(panel: HTMLElement, key: string): Promise<void> {
 export async function initializeGiftLink(
   app: HTMLElement,
   applyEdition: (edition: GiftEdition) => void,
+  editSaved?: (edition: GiftEdition) => void,
 ): Promise<void> {
   if (linkMode === 'demo') return;
   app.inert = true; // nothing behind the sheet is reachable until a real edition lands
@@ -518,7 +608,7 @@ export async function initializeGiftLink(
     return;
   }
   if (linkMode === 'manage') {
-    await initManage(panel, manageKey!);
+    await initManage(panel, manageKey!, app, editSaved);
     return;
   }
   // invalid fragment — show only the closed card, never the canonical gift

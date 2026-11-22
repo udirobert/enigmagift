@@ -893,6 +893,7 @@ body {
   min-height: 4.8rem;
 }
 .remix.is-compact .remix-footnote { display: none; }
+.remix.is-compact .remix-footnote.rm-copy-note { display: block; }
 .remix.is-narrow .letter-brand { display: none; }
 .remix.is-narrow .remix-header { justify-content: flex-end; }
 
@@ -1193,8 +1194,13 @@ body {
 
 /* ---- management sheet ---- */
 .ph-manage { display: flex; flex-direction: column; gap: 0.6rem; }
+.ph-manage-who { font-size: 0.9rem; color: #c8a982; margin: 0 0 0.2rem; overflow-wrap: anywhere; }
+.ph-ready-row { display: flex; gap: 1rem; align-items: center; flex-wrap: wrap; }
+.ph-ready-row .btn, .ph-ready-row .link { min-height: 44px; }
 .ph-link-row { display: flex; gap: 0.5rem; align-items: center; }
-.ph-link-row input { font-size: 16px; min-height: 44px; }
+.ph-link-row input { font-size: 16px; min-height: 44px; min-width: 0; flex: 1; }
+.ph-private { margin-top: 0.5rem; color: #f0d6bd; }
+.ph-private summary { cursor: pointer; min-height: 44px; }
 .ph-danger { margin-top: 0.5rem; color: #f0d6bd; }
 .ph-danger summary { cursor: pointer; min-height: 44px; }
 .ph-resume { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
@@ -1310,6 +1316,7 @@ body {
 .ph-app.is-compact .ph-stage h2 { font-size: 1.3rem; margin-bottom: 0.3rem; }
 .ph-app.is-compact .ph-intro { margin-bottom: 0.5rem; }
 .ph-app.is-compact .ph-footnote:not(.ph-storage-note) { display: none; }
+.ph-app.is-compact .ph-footnote.ph-copy-note { display: block; }
 .ph-app.is-compact .ph-thumb { max-height: 28vh; }
 .ph-app.is-compact .ph-context { display: none; }
 .ph-app.is-compact .ph-stamp { display: none; }
