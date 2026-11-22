@@ -146,6 +146,15 @@ the repo, config `vars`, or docs.
   Worker version `2d92d543-6f15-45fe-81a4-4f38abce6428` (the pre-signing
   code still works via the unsigned fallback; the secret can remain).
 
+**Staged gift editor release, 2026-11-22** (source `67d792d`): Worker version
+`27da1606-9354-4997-8ef2-9a00ca0d2028` — frontend-only update, 3 static
+assets changed (`index.html`, `index-BjtlKqIz.js`, `index-B_khd6nr.css`).
+API and Worker proxy logic unchanged; the shared `ROOM_PROXY_SECRET` stays
+provisioned. Public smoke: staged composer, preview and one
+create→recipient→revoke fixture all verified live. Rollback target: Worker
+version `42ddc732-61b6-407a-96df-dceabc206cf1`; API remains image
+`deployment-01M80C276AHAJGTD2P7HET78KE` (no API redeploy).
+
 ### The world (per-gift 3D model)
 
 Sealing a gift triggers `buildWorld` (`server/world.js`): SandBase **Run API**

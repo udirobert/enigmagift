@@ -190,7 +190,7 @@ checked at 390×844 and 320×568 without horizontal overflow. API regression
 tests additionally verified persistence across a server restart. Those
 were local tests against a temporary database.
 
-Staged-editor checks (local, Ego Browser; not yet deployed): the four-stage
+Staged-editor checks (local, Ego Browser): the four-stage
 composer was exercised at 1450×736, 390×844 and 320×568 — always-clickable
 stage tabs, implicit Enter advancing a single stage without posting,
 Review-only validation focusing the first missing/oversized field, literal
@@ -206,6 +206,13 @@ local fixture, and the recipient link served the personalized edition
 before returning unavailable. Reduced-motion runs produced no stage
 animation. Small-height (~360 px) layout was checked for internal
 scrolling only; real-phone keyboards and touch were not exercised.
+
+The staged editor was then verified live (2026-11-22): all four stages,
+stage-jump persistence, the "Skip clues" default, recipient preview and
+return, and a disposable gift created through the public UI — recipient
+page served the exact personalized edition, and revocation through the
+private controls left the recipient link unavailable. Real phones remain
+unverified.
 
 Live verification (2026-11-21, Cloudflare Worker + Fly API): a disposable
 test gift was created through the real UI, opened in a fresh recipient
