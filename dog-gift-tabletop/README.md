@@ -238,12 +238,23 @@ stage or arrival animation. Small-height (~360 px) layout was checked for
 internal scrolling only; real-phone keyboards, touch and the real OS
 share sheet were not exercised.
 
-The staged editor was then verified live (2026-11-22): all four stages,
-stage-jump persistence, the "Skip clues" default, recipient preview and
-return, and a disposable gift created through the public UI — recipient
-page served the exact personalized edition, and revocation through the
-private controls left the recipient link unavailable. Real phones remain
-unverified.
+First staged release (source `67d792d`) verified live on 2026-11-22: all
+four stages, stage-jump persistence, the then-current "Skip clues"
+default, recipient preview and return, and a disposable gift created
+through the public UI — recipient page served the exact personalized
+edition, and revocation through the private controls left the recipient
+link unavailable.
+
+Delight/intuitiveness release (source `71911b9`) verified live on
+2026-11-22: `?make=1` served the new assets; empty Review guided "Add
+recipient" with Preview disabled; a real Enter keypress advanced a stage
+without posting; Close revealed "Continue your gift" and resumed the
+draft; the recipient preview kept the message's paragraph breaks and
+returned to Review; a disposable gift created through the public UI
+showed "Your gift is ready.", served the exact personalized multiline
+edition on the recipient page, and became unavailable after revocation.
+Real phones and the native OS share sheet remain unverified (share was
+stub-tested locally only).
 
 Live verification (2026-11-21, Cloudflare Worker + Fly API): a disposable
 test gift was created through the real UI, opened in a fresh recipient

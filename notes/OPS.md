@@ -155,6 +155,29 @@ create→recipient→revoke fixture all verified live. Rollback target: Worker
 version `42ddc732-61b6-407a-96df-dceabc206cf1`; API remains image
 `deployment-01M80C276AHAJGTD2P7HET78KE` (no API redeploy).
 
+**Delight/intuitiveness release, 2026-11-22** (source `71911b9`): Worker
+version `7a8638ed-0324-41c0-b877-25a871a0c421` — frontend-only update, 3
+static assets changed (`index.html`, `index-C0QB9sXR.js`,
+`index-a7RnKLxp.css`). API and Worker proxy logic unchanged.
+UI changes: adaptive Review (guided primary, disabled Preview until the
+essentials are complete, ✓ marks only on completed required
+stages), clearer stage-primary labels ("Write the note", "Keep these
+clues"/"Review my gift"), per-clue purpose hints, "Continue your gift"
+draft resume on cover/help/photo paths, preserved line breaks in review
+and both recipient notes (overflowing notes now scroll instead of
+clipping), a large "Your gift is ready." management heading, optional
+native Share for the public recipient link (copy always present), and
+clearer public-vs-private link wording. Enter in a name field explicitly
+advances one stage. Public smoke: `?make=1` served the new assets, empty
+Review guided to the first field, real Enter advanced without a POST,
+Close→resume restored the draft, preview preserved line breaks and
+returned to Review, one disposable create→recipient→revoke fixture
+behaved end-to-end (recipient unavailable after close). Real phones and
+the native OS share sheet remain unverified (share was stub-tested
+locally). Rollback target: Worker version
+`27da1606-9354-4997-8ef2-9a00ca0d2028`; API remains image
+`deployment-01M80C276AHAJGTD2P7HET78KE` (no API redeploy).
+
 ### The world (per-gift 3D model)
 
 Sealing a gift triggers `buildWorld` (`server/world.js`): SandBase **Run API**
