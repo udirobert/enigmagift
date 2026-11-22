@@ -157,26 +157,33 @@ export function Seal({ demo, giftId, kept, tier, mode, onSend, onTier }: SealPro
 
   useEffect(() => {
     const ctx = gsap.context(() => {
-      if (prefersReducedMotion()) {
-        gsap.set('.seal-anim', { opacity: 1, y: 0, scale: 1 });
-        return;
-      }
-      gsap.from('.seal-anim', {
-        opacity: 0,
-        y: 22,
-        duration: 0.9,
-        ease: 'power3.out',
-        stagger: 0.14,
-        clearProps: 'all',
-      });
-      // the seal settles like wax finding paper
+      if (prefersReducedMotion()) return;
+      // the seal settles like wax finding paper — controls never move
       gsap.fromTo(
         sealRef.current,
-        { scale: 1.15, rotate: -6, opacity: 0 },
-        { scale: 1, rotate: 0, opacity: 1, duration: 1.1, ease: 'power2.out', delay: 0.3 },
+        { scale: 0.98, rotate: -3, opacity: 0.9 },
+        { scale: 1, rotate: 0, opacity: 1, duration: 0.32, ease: 'power3.out', clearProps: 'transform,opacity' },
       );
     }, rootRef);
-    return () => ctx.revert();
+    const settle = () => ctx.revert();
+    const el = rootRef.current;
+    const vv = window.visualViewport;
+    const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+    el?.addEventListener('pointerdown', settle, { capture: true });
+    window.addEventListener('keydown', settle, { capture: true });
+    el?.addEventListener('focusin', settle, { capture: true });
+    window.addEventListener('resize', settle);
+    vv?.addEventListener('resize', settle);
+    mq.addEventListener('change', settle);
+    return () => {
+      el?.removeEventListener('pointerdown', settle, { capture: true });
+      window.removeEventListener('keydown', settle, { capture: true });
+      el?.removeEventListener('focusin', settle, { capture: true });
+      window.removeEventListener('resize', settle);
+      vv?.removeEventListener('resize', settle);
+      mq.removeEventListener('change', settle);
+      ctx.revert();
+    };
   }, []);
 
   const token = result?.trailToken ?? null;
@@ -203,21 +210,7 @@ export function Seal({ demo, giftId, kept, tier, mode, onSend, onTier }: SealPro
   const send = () => {
     if (sending || phase === 'working' || phase === 'awaiting') return;
     setSending(true);
-    const go = () => onSend(demo ? null : token);
-    if (prefersReducedMotion() || !sealRef.current) {
-      window.setTimeout(go, 300);
-      return;
-    }
-    // press the seal, then send
-    gsap.to(sealRef.current, {
-      scale: 0.86,
-      rotate: 4,
-      duration: 0.22,
-      ease: 'power2.in',
-      yoyo: true,
-      repeat: 1,
-      onComplete: () => window.setTimeout(go, 350),
-    });
+    onSend(demo ? null : token);
   };
 
   const waiting = phase === 'awaiting' || phase === 'working';

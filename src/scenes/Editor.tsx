@@ -126,29 +126,34 @@ export function Editor({ demo, gift, mode, onSeal }: EditorProps) {
 
   useEffect(() => {
     const ctx = gsap.context(() => {
-      if (prefersReducedMotion()) {
-        gsap.set('.clue-card', { opacity: 1, y: 0 });
-        return;
-      }
+      if (prefersReducedMotion()) return;
       gsap.from('.clue-card', {
-        opacity: 0,
-        y: 26,
-        duration: 0.8,
+        opacity: 0.9,
+        y: 6,
+        duration: 0.22,
         ease: 'power3.out',
-        stagger: 0.14,
-        delay: 0.2,
         clearProps: 'opacity,y',
       });
-      gsap.from('.editor-head > *', {
-        opacity: 0,
-        y: 14,
-        duration: 0.7,
-        ease: 'power3.out',
-        stagger: 0.1,
-        clearProps: 'all',
-      });
     }, rootRef);
-    return () => ctx.revert();
+    const settle = () => ctx.revert();
+    const el = rootRef.current;
+    const vv = window.visualViewport;
+    const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+    el?.addEventListener('pointerdown', settle, { capture: true });
+    window.addEventListener('keydown', settle, { capture: true });
+    el?.addEventListener('focusin', settle, { capture: true });
+    window.addEventListener('resize', settle);
+    vv?.addEventListener('resize', settle);
+    mq.addEventListener('change', settle);
+    return () => {
+      el?.removeEventListener('pointerdown', settle, { capture: true });
+      window.removeEventListener('keydown', settle, { capture: true });
+      el?.removeEventListener('focusin', settle, { capture: true });
+      window.removeEventListener('resize', settle);
+      vv?.removeEventListener('resize', settle);
+      mq.removeEventListener('change', settle);
+      ctx.revert();
+    };
   }, []);
 
   const toggle = (i: number) => {
