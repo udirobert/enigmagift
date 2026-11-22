@@ -120,7 +120,7 @@ the repo, config `vars`, or docs.
   Pre-room-feature rollback image: `deployment-01M7Z9H5XHACZPY9PPB689MNC9`.
 - Worker: `https://enigmagift-room.trustfall.workers.dev`, initial version
   `7aa6dfad-2d85-4da0-8164-2949ff6a8aa8`, account
-  `e7383c0c7474c8f61cc06598eeb134a0`. Current Worker version:
+  `e7383c0c7474c8f61cc06598eeb134a0`. Metadata update version:
   `2d92d543-6f15-45fe-81a4-4f38abce6428` (metadata-only update setting the
   public Open Graph image URL). The initial version remains the rollback
   target.
@@ -129,6 +129,22 @@ the repo, config `vars`, or docs.
   (takes a **version** ID, not a deployment ID). The initial version is the
   only rollback target until a newer one is recorded — there is no prior
   Worker to roll back to. The SQLite database is not rolled back with code.
+
+**Rate-limit deploy, 2026-11-22 ~00:58 UTC** (source `eddfd6a`):
+
+- `ROOM_PROXY_SECRET` provisioned identically to Fly (`fly secrets import`)
+  and the Worker (`wrangler secret put`) before the Worker deploy.
+- Fly: image `registry.fly.io/enigmagift-api:deployment-01M80C276AHAJGTD2P7HET78KE`,
+  `/api/health` 200.
+- Worker: version `42ddc732-61b6-407a-96df-dceabc206cf1` (0 frontend asset
+  changes).
+- Public proof: a disposable fixture verified create 201 with
+  `X-RateLimit-Scope: verified-client`, recipient 200 with the exact
+  edition, idempotent retry 200 same token, close 200, recipient 404 and
+  owner view `revoked:true, edition:null` afterwards.
+- Rollback targets: Fly image `deployment-01M804EX88G88CSZCV9AZ958GF` and
+  Worker version `2d92d543-6f15-45fe-81a4-4f38abce6428` (the pre-signing
+  code still works via the unsigned fallback; the secret can remain).
 
 ### The world (per-gift 3D model)
 

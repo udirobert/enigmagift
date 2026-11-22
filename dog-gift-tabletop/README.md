@@ -187,6 +187,9 @@ iframe ran same-origin unblocked, and management layout was re-checked at
 390×844. HTTP checks confirmed `/api/health` 200 with no-store,
 unauthenticated manage 401, non-room API paths 404, cross-origin POST 403,
 SAMEORIGIN + no-referrer headers, and 404 (not HTML) for missing assets.
+The per-visitor rate limit fix (48 API tests + 10 Worker unit tests covering
+independent signed visitors and forgeries) is deployed and the public
+`X-RateLimit-Scope: verified-client` header was confirmed on a real create.
 Not exercised: real phones, checkout, generation, or sending through an
 external messaging app.
 
