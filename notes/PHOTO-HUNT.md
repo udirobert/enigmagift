@@ -351,3 +351,16 @@ The original photo gift’s private page remained reachable through Back.
 All four disposable gifts were closed afterward; their public metadata
 (and both photo images) then returned 404. Worker version:
 `ca3b1aed-3df9-496e-802d-247ddfbc56ae`; pilot source: `35986b8`.
+
+A first motion pass (unpublished, `paper-motion.ts` + scoped WAAPI)
+landed after that publish — see `notes/MOTION.md` "Implemented" for the
+full account: photo→clue FLIP with a counter-scaled marker, immediate
+marker travel on placement, note-paper arrival, post-save ready glyph,
+player discovery/fold animations, and shorter React Seal/Editor
+entrances with synchronous send. Verified locally: authoritative
+coordinates land before animation, rapid gestures/back cancel cleanly,
+typing and footers stay steady, zero animations under reduced motion or
+a throwing `Element.prototype.animate`, review paper survives a deferred
+POST, ready actions are usable immediately, compact 320/360-landscape
+layouts hold. Not yet checked: real phones, virtual-keyboard motion,
+and the genuine-gift comparison the research asks for.

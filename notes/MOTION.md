@@ -1,7 +1,8 @@
 # Motion for EnigmaGift
 
-Research and design recommendations, 2026-11-22. These are recommendations,
-not implemented behavior or evidence of improved conversion.
+Research and design recommendations, 2026-11-22 — followed by a record of
+the implemented first pass (unpublished, see "Implemented" below). The
+recommendations were design input, not evidence of improved conversion.
 
 ## The request
 
@@ -151,11 +152,68 @@ movement, never queue a sequence of overdue animations.
   on every keystroke, hover-only cues, decorative looping, or new sound
   or haptic assumptions.
 
-## Before implementation
+## Implemented (unpublished, local)
 
-Next, prototype one connected sequence:
-photo → chosen spot → clue → note → ready → recipient reveal.
-Compare it with the current flow using genuine gifts and real phones.
+The first motion pass now exists in `dog-gift-tabletop` and the React
+scenes. What landed, and how it differs from the research above:
+
+- `paper-motion.ts` — one shared WAAPI helper (`createPaperMotion(scope)`)
+  with `PAPER_EASE` `cubic-bezier(.16,1,.3,1)`. A `Set` tracks running
+  animations; `play()` returns null — never throws — when motion is
+  disabled; `settle()` cancels synchronously; `destroy()` unregisters all
+  listeners. Disabled means: OS reduced motion, hidden document, no
+  `Element.prototype.animate`, or `visualViewport.scale ≠ 1` (pinch zoom
+  would corrupt FLIP geometry). Capture-phase pointerdown/keydown/focusin
+  on the scope, window/pagehide/visualViewport/visibilitychange and the
+  media query all settle. Completion callbacks never touch UI state.
+- Chosen over View Transitions deliberately: `renderStep` already swaps
+  the stage synchronously, so a scoped FLIP on the replacement DOM avoids
+  the async capture/render race and keeps every state immediately usable.
+- Photo creator: hide→clue/review FLIP moves the readonly photo from its
+  last on-screen rect to the new one (220ms first visit, 140ms repeat)
+  while the marker counter-scales so it stays pinned to the same pixel.
+  Skipped — settled instantly — when the new image is cropped, has a different
+  src, or the old image was not decoded. The interactive hide-step photo is
+  never
+  transformed; hit geometry stays authoritative. Marker placement writes
+  draft/style first, then animates travel from the previous spot (160ms)
+  or a 3px settle on first placement (220ms). Note paper arrives once at
+  rotateX(-2°)/5px (200ms), revisits get a 2px 120ms nudge. Review letter
+  gets a restrained 140ms arrival, never on save-failure rerenders.
+- Save: after a confirmed POST the review paper stays visible through the
+  management GET (`renderManagement(key, _, newlySaved)`) — the create
+  itself still waits on the server. Once the ready DOM exists, its
+  actions are usable immediately, and the small folded-note glyph beside
+  "For …" animates once (320ms), never replaying on reopen/refresh.
+- Player: discovery marker settle 220ms first / 140ms replay; first hint
+  outline 160ms; misses get a 120ms status nudge (no shake). The note DOM
+  gained `.ph-note-paper` + `.ph-note-corner`: the words fold with the
+  paper while status and controls sit outside the animated layer, so the
+  320ms fold (corner delayed 40ms) never moves anything pressable; later
+  opens are 140ms without the corner replay. Discovery focus lands before
+  `play()` so focusin-settle can't cancel the marker move it started.
+  Image failure/close/replay settle before state changes.
+- Sample room: `arriveRemix` animates the visible stage's letter object
+  once per session (180ms); stage transitions are 200ms first visit /
+  120ms repeats, with heading focus moved before `play()` so the helper's
+  focusin-settle can't cancel its own move. `fitComposerViewport` settles
+  only when the measured visual-viewport geometry actually changed, so a
+  focus-triggered fit never fights a stage move.
+- React: `Seal` dropped its 0.9s staggered entrance and delayed send —
+  `send` now calls `onSend` synchronously; the wax gets a single 0.32s
+  settle cancelled by any interaction/viewport change/reduced-motion
+  change. `Editor` dropped the header stagger; clue cards get a no-delay
+  0.22s y6 entrance with the same cancellation wiring.
+
+Timings are prototype values from the design above, not measured optima —
+they still need the genuine-gift comparison below.
+
+## Still open — real-gift validation
+
+The first pass exists and is wired conservatively (settle on gesture,
+viewport change, reduced motion, zoom, hidden tab; synchronous DOM as the
+fallback). What has not been done: comparing the flow on genuine gifts
+and real phones.
 Observe whether people know what changed, can interrupt/backtrack, keep
 their writing focus, and want to continue. Ask what felt personal and what
 felt slow or distracting. A visually attractive recording alone does not
