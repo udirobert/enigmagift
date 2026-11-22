@@ -17,6 +17,7 @@ import {
   GIFT_TOKEN_RE, MANAGE_KEY_RE, type ManageView,
 } from './photo-links';
 import { mountPhotoPlayer } from './photo-player';
+import { createPaperMotion } from './paper-motion';
 
 const app = document.getElementById('app') as HTMLElement;
 app.className = 'ph-app';
@@ -47,6 +48,7 @@ const pane = $('#phViewport');
 const statusEl = $('#phStatus');
 const footnoteEl = $('#phFootnote');
 const say = (text: string) => { statusEl.textContent = text; };
+const appMotion = createPaperMotion(app);
 
 let footnoteDefault = 'Free to make. Share by link.';
 const setFootnote = () => {
@@ -137,6 +139,7 @@ const freeze = (on: boolean) => {
 
 /* ---------- recipient + management bootstrap ---------- */
 const staticNotice = (title: string, line: string) => {
+  appMotion.settle();
   stage.innerHTML = '';
   const h = document.createElement('h2');
   h.tabIndex = -1;
@@ -155,6 +158,7 @@ const staticNotice = (title: string, line: string) => {
 /* a notice plus a retry control — for transient failures that a refresh
    would fix, unlike a dead link */
 const retryNotice = (title: string, line: string, retry: () => void) => {
+  appMotion.settle();
   stage.innerHTML = '';
   say('');
   const h = document.createElement('h2');
@@ -198,7 +202,100 @@ const copyOrSelect = async (input: HTMLInputElement, okText: string) => {
 const STEPS: PhotoDraft['step'][] = ['photo', 'hide', 'clue', 'note', 'review'];
 let playerCleanup: (() => void) | null = null;
 
+/* renders are synchronous; motion is layered on top after the new step is
+   already in its final, focused state — cancelling it changes nothing */
+let lastRenderedStep: PhotoDraft['step'] | null = null;
+const seenSteps = new Set<PhotoDraft['step']>();
+
 function renderStep(focus = true) {
+  appMotion.settle();
+  /* the photo the giver last saw — captured before the stage clears so the
+     readonly clue/review copy can travel from it (FLIP). Pane bounds are
+     read per call — the new step's footer can change them. */
+  const inside = (r: DOMRect) => {
+    const pb = pane.getBoundingClientRect();
+    return r.width > 0 && r.height > 0
+      && r.top >= pb.top && r.bottom <= pb.bottom
+      && r.left >= pb.left && r.right <= pb.right;
+  };
+  const oldImg = stage.querySelector<HTMLImageElement>(
+    ':scope > .ph-photo-wrap > .ph-photo, :scope > .ph-thumb',
+  );
+  const oldRect = oldImg && oldImg.complete && oldImg.naturalWidth > 0
+    ? oldImg.getBoundingClientRect() : null;
+  const oldShot = oldImg && oldRect && inside(oldRect)
+    ? { src: oldImg.src, rect: oldRect } : null;
+
+  renderStepContent(focus);
+
+  const step = draft.step;
+  const changed = lastRenderedStep !== step;
+  const repeat = seenSteps.has(step);
+  lastRenderedStep = step;
+  seenSteps.add(step);
+
+  /* reserve the true ratio while the image decodes */
+  stage.querySelectorAll<HTMLImageElement>('.ph-photo').forEach((img) => {
+    if (draft.photoWidth > 0 && draft.photoHeight > 0) {
+      img.width = draft.photoWidth;
+      img.height = draft.photoHeight;
+    }
+  });
+  if (!changed) return;
+
+  const newImg = stage.querySelector<HTMLImageElement>(
+    ':scope > .ph-photo-wrap > .ph-photo',
+  );
+  const newWrap = newImg?.closest<HTMLElement>('.ph-photo-wrap') ?? null;
+  if ((step === 'clue' || step === 'review') && oldShot && newImg && newWrap
+    && newImg.src === oldShot.src) {
+    const nr = newImg.getBoundingClientRect();
+    if (inside(nr)) {
+      const dx = oldShot.rect.left - nr.left;
+      const dy = oldShot.rect.top - nr.top;
+      const sx = oldShot.rect.width / nr.width;
+      const sy = oldShot.rect.height / nr.height;
+      newWrap.style.transformOrigin = '0 0';
+      newWrap.style.pointerEvents = 'none';
+      const dur = repeat ? 140 : 220;
+      appMotion.play(newWrap, [
+        { transform: `translate(${dx}px, ${dy}px) scale(${sx}, ${sy})` },
+        { transform: 'none' },
+      ], { duration: dur });
+      const mk = newWrap.querySelector<HTMLElement>('.ph-marker');
+      if (mk) {
+        mk.style.transformOrigin = '50% 50%';
+        appMotion.play(mk, [
+          { transform: `translate(-50%, -50%) scale(${1 / sx}, ${1 / sy})` },
+          { transform: 'translate(-50%, -50%) scale(1)' },
+        ], { duration: dur });
+      }
+    }
+  } else if (step === 'hide' && newImg) {
+    appMotion.play(newImg, [{ opacity: 0.85 }, { opacity: 1 }], { duration: 160 });
+  }
+  if (step === 'note') {
+    const paper = stage.querySelector<HTMLElement>('.ph-paper');
+    if (paper) {
+      paper.style.transformOrigin = '50% 0';
+      appMotion.play(paper, repeat
+        ? [{ transform: 'translateY(2px)' }, { transform: 'none' }]
+        : [{ opacity: 0.9, transform: 'perspective(900px) rotateX(-2deg) translateY(5px)' },
+           { opacity: 1, transform: 'none' }],
+        { duration: repeat ? 120 : 200 });
+    }
+  } else if (step === 'review') {
+    const letter = stage.querySelector<HTMLElement>('.ph-review-letter');
+    if (letter) {
+      appMotion.play(letter, [
+        { opacity: 0.9, transform: 'translateY(3px)' },
+        { opacity: 1, transform: 'none' },
+      ], { duration: 140 });
+    }
+  }
+}
+
+function renderStepContent(focus = true) {
   playerCleanup?.(); playerCleanup = null;
   stage.innerHTML = '';
   say('');
@@ -327,6 +424,10 @@ function renderStep(focus = true) {
     wrap.append(img, mark);
     stage.appendChild(wrap);
     const place = (x: number, y: number) => {
+      /* the draft and style land first; the marker's travel is decorative —
+         the gesture that started it already settled any earlier move */
+      const prev = mark.hidden ? null : mark.getBoundingClientRect();
+      appMotion.settle(); // programmatic moves (assistive clicks) skip gesture settles
       draft.hidingSpot = {
         x: Math.min(1, Math.max(0, x)),
         y: Math.min(1, Math.max(0, y)),
@@ -336,6 +437,20 @@ function renderStep(focus = true) {
       mark.style.top = `${draft.hidingSpot.y * 100}%`;
       say('');
       touch();
+      const next = mark.getBoundingClientRect();
+      if (prev && prev.width && next.width) {
+        const dx = prev.left - next.left;
+        const dy = prev.top - next.top;
+        appMotion.play(mark, [
+          { transform: `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px)) rotate(-3deg) scale(.96)` },
+          { transform: 'translate(-50%, -50%) rotate(0deg) scale(1)' },
+        ], { duration: 160 });
+      } else {
+        appMotion.play(mark, [
+          { transform: 'translate(calc(-50% + 0px), calc(-50% + -3px)) rotate(-3deg) scale(.92)' },
+          { transform: 'translate(-50%, -50%) rotate(0deg) scale(1)' },
+        ], { duration: 220 });
+      }
     };
     if (draft.hidingSpot) {
       mark.style.left = `${draft.hidingSpot.x * 100}%`;
@@ -565,6 +680,7 @@ const reviewProblem = (): { label: string; step: PhotoDraft['step'] } | null => 
    hit geometry and hints the saved link will use. Nothing is published.
    The header owns the way back so the exit is never buried under a tall photo. */
 function tryHunt() {
+  appMotion.settle();
   if (!draft.photo || !draft.hidingSpot) { say('The note needs a hiding place first.'); return; }
   const edition = normalizePhotoEdition({
     version: 1,
@@ -590,6 +706,7 @@ function tryHunt() {
 
 /* ---------- create ---------- */
 async function saveGift() {
+  appMotion.settle();
   if (saving) return;
   const edition = normalizePhotoEdition({
     version: 1, to: draft.to, from: draft.from, message: draft.message,
@@ -620,7 +737,7 @@ async function saveGift() {
     }
     releasePhotoUrl();
     draft = emptyPhotoDraft();
-    renderManagement(key);
+    await renderManagement(key, undefined, true);
   } catch (e) {
     renderStep(false);
     if (e instanceof PhotoLinkError && e.code === 'edition_already_created') {
@@ -661,12 +778,17 @@ async function saveGift() {
 /* ---------- management ---------- */
 /* the ready screen leads with seeing and editing the gift — sharing sits
    below, private controls stay behind their own <details> */
-async function renderManagement(key: string, known?: ManageView) {
+async function renderManagement(key: string, known?: ManageView, newlySaved = false) {
   playerCleanup?.(); playerCleanup = null;
-  stage.innerHTML = '';
-  $('#phFooter').hidden = true;
-  $('#phBack').hidden = true;
-  $('#phJump').hidden = true;
+  appMotion.settle();
+  /* after a confirmed save the review paper stays put until the fresh
+     management view resolves — nothing vanishes mid-flight */
+  if (!newlySaved) {
+    stage.innerHTML = '';
+    $('#phFooter').hidden = true;
+    $('#phBack').hidden = true;
+    $('#phJump').hidden = true;
+  }
   let view;
   try {
     view = known ?? await getManageView(key);
@@ -679,6 +801,10 @@ async function renderManagement(key: string, known?: ManageView) {
       () => void renderManagement(key));
     return;
   }
+  stage.innerHTML = '';
+  $('#phFooter').hidden = true;
+  $('#phBack').hidden = true;
+  $('#phJump').hidden = true;
   say('');
   const who = document.createElement('p');
   who.className = 'ph-manage-who';
@@ -700,6 +826,12 @@ async function renderManagement(key: string, known?: ManageView) {
   const intro = document.createElement('p');
   intro.className = 'ph-intro';
   intro.textContent = 'Take a look before you share.';
+  /* a small folded note beside the "For" line — always present, animated
+     once only when this view follows a confirmed save */
+  const glyph = document.createElement('span');
+  glyph.className = 'ph-marker ph-ready-note';
+  glyph.setAttribute('aria-hidden', 'true');
+  who.prepend(glyph);
   stage.append(who, h, intro);
   const rows = document.createElement('div');
   rows.className = 'ph-manage';
@@ -793,12 +925,19 @@ async function renderManagement(key: string, known?: ManageView) {
   rows.appendChild(anotherGift());
   stage.appendChild(rows);
   h.focus();
+  if (newlySaved) {
+    appMotion.play(glyph, [
+      { opacity: 0.85, transform: 'perspective(240px) rotateX(-16deg) rotate(-3deg) scaleY(1.12)' },
+      { opacity: 1, transform: 'none' },
+    ], { duration: 320 });
+  }
 }
 
 /* The saved gift played exactly as the recipient will — no writes, the
    private URL and draft are untouched. Back returns to the live view. */
 function showSavedPhotoPreview(key: string, view: ManageView) {
   playerCleanup?.(); playerCleanup = null;
+  appMotion.settle();
   stage.innerHTML = '';
   say('');
   pane.scrollTop = 0;
@@ -863,6 +1002,7 @@ async function editSavedPhoto(key: string, view: ManageView): Promise<void> {
 }
 
 function renderManagementClosed() {
+  appMotion.settle();
   stage.innerHTML = '';
   const h = document.createElement('h2');
   h.tabIndex = -1;
@@ -878,6 +1018,7 @@ function renderManagementClosed() {
 /* ---------- recipient ---------- */
 async function renderRecipient(token: string) {
   playerCleanup?.(); playerCleanup = null;
+  appMotion.settle();
   stage.replaceChildren();
   say('Opening your gift…');
   $('#phFooter').hidden = true;
@@ -978,6 +1119,7 @@ async function boot() {
 }
 
 function offerResume(saved: PhotoDraft, line?: string) {
+  appMotion.settle();
   stage.innerHTML = '';
   const h = document.createElement('h2');
   h.tabIndex = -1;

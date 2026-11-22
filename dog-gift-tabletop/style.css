@@ -1016,6 +1016,11 @@ body {
   margin: 0 0 0.5rem;
   overflow-wrap: anywhere;
 }
+.ph-stage h2:focus-visible, .ph-note:focus-visible {
+  outline: 2px solid #d48b5c;
+  outline-offset: 3px;
+  border-radius: 4px;
+}
 .ph-intro { font-size: 0.95rem; line-height: 1.5; margin: 0 0 0.9rem; color: #e6d4bb; }
 .ph-thumb { display: block; max-width: 100%; max-height: 40vh; border-radius: 6px; margin: 0.4rem 0; }
 .ph-photo-wrap {
@@ -1056,10 +1061,6 @@ body {
   border-left: 1px solid var(--rust);
   border-bottom: 1px solid var(--rust);
   border-bottom-left-radius: 3px;
-}
-.ph-place .ph-marker { transition: left 160ms ease-out, top 160ms ease-out; }
-@media (prefers-reduced-motion: reduce) {
-  .ph-place .ph-marker { transition: none; }
 }
 .ph-hint-region {
   position: absolute;
@@ -1169,6 +1170,8 @@ body {
 .ph-areas summary { cursor: pointer; min-height: 44px; font-size: 0.95rem; }
 .ph-area-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.3rem; padding: 0.3rem 0 0.6rem; }
 .ph-area { font-size: 0.9rem; }
+/* the section keeps layout and focus; the paper inside carries the look so
+   the fold animation never moves the controls or the live status */
 .ph-note {
   position: relative;
   display: block;
@@ -1177,19 +1180,35 @@ body {
   width: 100%;
   max-height: none;
   overflow: visible;
+  margin: 0.8rem 0;
+}
+.ph-note-paper {
+  position: relative;
+  transform-origin: 50% 0;
   background: var(--paper);
   color: #3c2d20;
   border-radius: 6px;
   padding: 1.2rem 1.3rem;
-  margin: 0.8rem 0;
   box-shadow: 0 2px 14px #0007;
+}
+.ph-note-corner {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 16px;
+  height: 16px;
+  background: #e3d3b8;
+  border-left: 1px solid var(--rust);
+  border-bottom: 1px solid var(--rust);
+  border-bottom-left-radius: 3px;
+  transform-origin: 100% 0;
 }
 .ph-note-to { font: 500 1.15rem / 1.4 var(--serif); margin: 0 0 0.5rem; }
 .ph-note-body { font: 400 1.15rem / 1.55 var(--serif); white-space: pre-wrap; overflow-wrap: anywhere; margin: 0 0 0.6rem; }
 .ph-note-from { font: 400 1rem / 1.4 var(--serif); margin: 0 0 0.7rem; text-align: right; }
 .ph-note-controls { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
-.ph-note .link { color: #755035; }
-.ph-note .link:hover { color: #4a2f1c; }
+.ph-note .link { color: #f5e7cf; }
+.ph-note .link:hover { color: #fff8ea; }
 .ph-leave { margin-top: 0.4rem; }
 
 /* ---- management sheet ---- */
@@ -1204,7 +1223,7 @@ body {
 .ph-danger { margin-top: 0.5rem; color: #f0d6bd; }
 .ph-danger summary { cursor: pointer; min-height: 44px; }
 .ph-resume { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
-.ph-note-status { font-size: 0.9rem; color: #705539; margin: 0 0 0.5rem; min-height: 1.3em; }
+.ph-note-status { font-size: 0.9rem; color: #e6d4bb; margin: 0 0 0.5rem; min-height: 1.3em; }
 .ph-note-status:empty { visibility: hidden; }
 
 /* ---- first screen: the gift is visible before any photo is chosen ---- */
@@ -1268,6 +1287,23 @@ body {
 .ph-context {
   width: min(100%, calc(10rem * var(--photo-ratio, 1.5)));
   margin: 0.3rem 0 0.8rem;
+  pointer-events: none;
+}
+/* fields and counters paint above the photo while it travels to its
+   smaller clue position */
+.ph-stage .ph-field, .ph-stage .ph-count { position: relative; z-index: 1; }
+/* the small folded note beside "For …" on the ready screen — the same
+   paper as the hiding-place marker, resting instead of absolute */
+.ph-marker.ph-ready-note {
+  position: relative;
+  display: inline-block;
+  left: auto;
+  top: auto;
+  width: 36px;
+  height: 28px;
+  transform: none;
+  vertical-align: middle;
+  margin-right: 0.6rem;
 }
 
 /* ---- note step: the photo as a stamp, words on ruled paper ---- */

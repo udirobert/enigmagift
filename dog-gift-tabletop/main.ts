@@ -5,6 +5,7 @@ import {
   linkMode, validateEdition, initializeGiftLink, createRecipientLink, restorePendingDraft,
   restoreEditedDraft, persistEditedDraft, isEditingSavedGift, editedDraftStorageOkay,
 } from './links';
+import { createPaperMotion } from './paper-motion';
 
 /**
  * Silent canonical v2. Unmarked photograph under a folded paper corner;
@@ -305,6 +306,7 @@ const paperNote = $('#paperNote');
 const recapPanel = $('#recapPanel');
 const recapList = $('#recapList');
 const remixPanel = $<HTMLDialogElement>('#remixPanel');
+const rmMotion = createPaperMotion(remixPanel);
 const helpNext = $('#helpNext');
 const tpAtlas = $('#tpAtlas');
 const tpArtList = $('#tpArtList');
@@ -1102,14 +1104,21 @@ let remixOpener: HTMLElement | null = null;
 let remixReturn: 'paper' | 'note' | 'text' | null = null;
 let rmAnim: Animation | null = null;
 let rmArrival: Animation | null = null;
+let rmHasArrived = false;
 const arriveRemix = () => {
   rmArrival?.cancel();
-  if (reduced()) return;
-  rmArrival = remixPanel.animate(
-    [{ opacity: 0.7, transform: 'translate(-50%, calc(-50% + 6px)) scale(.985)' },
-     { opacity: 1, transform: 'translate(-50%, -50%) scale(1)' }],
-    { duration: 200, easing: 'cubic-bezier(.2,.7,.2,1)' },
+  rmArrival = null;
+  /* the panel frame itself never moves; the letter settles once on the
+     first opening only — resuming or returning from preview stays still */
+  if (rmHasArrived) return;
+  rmHasArrived = true;
+  const object = remixPanel.querySelector<HTMLElement>(
+    `[data-rm-panel="${remixStep}"] .letter-object`,
   );
+  rmArrival = rmMotion.play(object, [
+    { opacity: 0.9, transform: 'translateY(4px)' },
+    { opacity: 1, transform: 'translateY(0)' },
+  ], { duration: 180 });
 };
 const rmForm = $<HTMLFormElement>('#remixForm');
 const composerBusy = () => rmForm.getAttribute('aria-busy') === 'true';
@@ -1118,6 +1127,7 @@ const composerBusy = () => rmForm.getAttribute('aria-busy') === 'true';
    pan all move the usable area without moving the layout viewport */
 let composerFitFrame = 0;
 let revealComposerField = false;
+let lastComposerGeometry = '';
 const fitComposerViewport = (revealField = false) => {
   if (!remixPanel.open) return;
   const v = window.visualViewport;
@@ -1125,6 +1135,13 @@ const fitComposerViewport = (revealField = false) => {
   const height = v?.height ?? window.innerHeight;
   const left = v?.offsetLeft ?? 0;
   const top = v?.offsetTop ?? 0;
+  /* only a real geometry change settles motion — a focus-triggered fit with
+     the same numbers must not cancel the stage move it just started */
+  const geometry = [width, height, left, top, v?.scale ?? 1].join(':');
+  if (geometry !== lastComposerGeometry) {
+    rmMotion.settle();
+    lastComposerGeometry = geometry;
+  }
   remixPanel.style.setProperty('--rm-vp-width', `${width}px`);
   remixPanel.style.setProperty('--rm-vp-height', `${height}px`);
   remixPanel.style.setProperty('--rm-vp-x', `${left + width / 2}px`);
@@ -1303,25 +1320,22 @@ const showRemixStep = (next: number, focus = true) => {
   syncRemixReview();
   ($('#rmViewport') as HTMLElement).scrollTop = 0;
   const panel = $(`[data-rm-panel="${remixStep}"]`) as HTMLElement;
-  if (remixStep !== previous && !reduced()) {
-    const object = (panel.querySelector('.letter-object') ?? panel) as HTMLElement;
-    if (remixStep === 1) {
-      object.style.transformOrigin = '50% 0';
-      rmAnim = object.animate(
-        [{ opacity: 0.65, transform: 'perspective(900px) rotateX(-8deg) translateY(8px)' },
-         { opacity: 1, transform: 'perspective(900px) rotateX(0deg) translateY(0)' }],
-        { duration: 220, easing: 'cubic-bezier(.2,.7,.2,1)' },
-      );
-    } else {
-      rmAnim = object.animate(
-        [{ opacity: 0.65, transform: 'translateY(8px) rotate(-.5deg)' },
-         { opacity: 1, transform: 'translateY(0) rotate(0deg)' }],
-        { duration: 200, easing: 'cubic-bezier(.2,.7,.2,1)' },
-      );
-    }
-  }
+  /* focus first — the motion helper settles on focusin, so a heading focus
+     after play() would cancel the move it just started */
   if (focus && remixPanel.open) stageHeading().focus();
+  if (remixStep !== previous) {
+    const object = (panel.querySelector('.letter-object') ?? panel) as HTMLElement;
+    const seen = rmSeenStages.has(remixStep);
+    rmSeenStages.add(remixStep);
+    object.style.transformOrigin = '50% 0';
+    rmAnim = rmMotion.play(object, seen
+      ? [{ transform: 'translateY(2px)' }, { transform: 'translateY(0)' }]
+      : [{ transform: 'perspective(900px) rotateX(-3deg) translateY(5px)' },
+         { transform: 'none' }],
+      { duration: seen ? 120 : 200 });
+  }
 };
+const rmSeenStages = new Set<number>();
 
 const CLUE_PURPOSE = {
   dog: 'Let the dog nudge them towards the note on the table.',

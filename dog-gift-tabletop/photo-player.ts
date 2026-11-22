@@ -4,6 +4,7 @@
    the edition and never revokes the caller's photo URL. */
 
 import type { PhotoEdition } from './photo-edition';
+import { createPaperMotion } from './paper-motion';
 
 const REGION_NAMES = [
   'top left', 'top centre', 'top right',
@@ -26,6 +27,7 @@ export function mountPhotoPlayer(
 
   const root = document.createElement('div');
   root.className = 'ph-player';
+  const motion = createPaperMotion(root);
 
   if (preview) {
     const banner = document.createElement('p');
@@ -113,12 +115,20 @@ export function mountPhotoPlayer(
   const note = document.createElement('section');
   note.className = 'ph-note';
   note.hidden = true;
+  /* the paper carries the words; status and controls live beside it so the
+     fold animation never moves anything the reader might press */
+  const notePaper = document.createElement('div');
+  notePaper.className = 'ph-note-paper';
+  const corner = document.createElement('span');
+  corner.className = 'ph-note-corner';
+  corner.setAttribute('aria-hidden', 'true');
   const noteTo = document.createElement('p');
   noteTo.className = 'ph-note-to';
   const body = document.createElement('p');
   body.className = 'ph-note-body';
   const sign = document.createElement('p');
   sign.className = 'ph-note-from';
+  notePaper.append(corner, noteTo, body, sign);
   const noteStatus = document.createElement('p');
   noteStatus.className = 'ph-note-status';
   noteStatus.setAttribute('role', 'status');
@@ -138,7 +148,7 @@ export function mountPhotoPlayer(
   copyBtn.className = 'btn small';
   copyBtn.textContent = 'Copy note';
   noteControls.append(backBtn, replayBtn, copyBtn);
-  note.append(noteTo, body, sign, noteStatus, noteControls);
+  note.append(notePaper, noteStatus, noteControls);
   root.appendChild(note);
 
   if (onBack) {
@@ -157,6 +167,8 @@ export function mountPhotoPlayer(
   let noteOpen = false;
   let hintLevel = 0; // 0 none · 1 region outlined · 2 marker revealed
   let imageFailed = false;
+  let hasDiscovered = false;
+  let hasOpened = false;
   const spot = edition.hidingSpot;
 
   const placeMarker = () => {
@@ -190,15 +202,25 @@ export function mountPhotoPlayer(
 
   const discover = (how: 'tap' | 'region' | 'hint' | 'direct') => {
     if (found) return;
+    motion.settle();
     found = true;
+    const firstFind = !hasDiscovered;
+    hasDiscovered = true;
     status.textContent = (how === 'tap' || how === 'region')
       ? 'You found it — a little folded note.'
       : 'The note is right here.';
     sync();
-    if (how === 'tap' || how === 'region') openBtn.focus();
+    /* focus before play — the scope settles on focusin, so moving focus
+       afterwards would cancel the marker move it just started */
+    if (how === 'tap' || how === 'region' || how === 'hint') openBtn.focus();
+    motion.play(marker, [
+      { transform: 'translate(-50%, calc(-50% - 4px)) rotate(-4deg) scale(.92)' },
+      { transform: 'translate(-50%, -50%) rotate(0deg) scale(1)' },
+    ], { duration: firstFind ? 220 : 140 });
   };
 
   const openNote = () => {
+    motion.settle();
     noteTo.textContent = edition.to ? `For ${edition.to}` : '';
     noteTo.hidden = !edition.to;
     body.textContent = edition.message || '— a note is still being written —';
@@ -209,9 +231,27 @@ export function mountPhotoPlayer(
     sync();
     note.focus();
     note.scrollIntoView({ block: 'start', behavior: 'auto' });
+    const firstOpen = !hasOpened;
+    hasOpened = true;
+    if (firstOpen) {
+      motion.play(notePaper, [
+        { opacity: 0.9, transform: 'perspective(900px) rotateX(-3deg) translateY(6px)' },
+        { opacity: 1, transform: 'none' },
+      ], { duration: 320 });
+      motion.play(corner, [
+        { transform: 'rotate(-14deg) scale(.92)' },
+        { transform: 'none' },
+      ], { duration: 280, delay: 40 });
+    } else {
+      motion.play(notePaper, [
+        { transform: 'translateY(2px)' },
+        { transform: 'none' },
+      ], { duration: 140 });
+    }
   };
 
   const closeNote = (focusBack = true) => {
+    motion.settle();
     noteOpen = false;
     sync();
     if (focusBack) openBtn.focus();
@@ -220,6 +260,7 @@ export function mountPhotoPlayer(
   /* image failure is honest: the photo is gone, but the note is in the
      edition and can still be opened directly */
   on(img, 'error', () => {
+    motion.settle();
     imageFailed = true;
     found = false;
     hintLevel = 0;
@@ -261,7 +302,13 @@ export function mountPhotoPlayer(
     const dx = px - spot.x * box.width;
     const dy = py - spot.y * box.height;
     if (Math.hypot(dx, dy) > radius) {
-      if (!found) status.textContent = 'Not quite there — keep looking.';
+      if (!found) {
+        status.textContent = 'Not quite there — keep looking.';
+        motion.play(status, [
+          { opacity: 0.8, transform: 'translateY(2px)' },
+          { opacity: 1, transform: 'none' },
+        ], { duration: 120 });
+      }
       return;
     }
     if (found) { openNote(); return; }
@@ -269,22 +316,32 @@ export function mountPhotoPlayer(
   });
 
   on(hintBtn, 'click', () => {
+    motion.settle();
     if (hintLevel === 0) {
       hintLevel = 1;
       placeHintRegion();
       status.textContent = `Somewhere in the ${REGION_NAMES[regionOf(spot.x, spot.y)]} of the photo.`;
       sync();
+      motion.play(hintRegion, [
+        { opacity: 0.65, transform: 'scale(.98)' },
+        { opacity: 1, transform: 'scale(1)' },
+      ], { duration: 160 });
       return;
     }
     hintLevel = 2;
     discover('hint');
-    openBtn.focus();
   });
 
   regionBtns.forEach((b, i) => on(b, 'click', () => {
     if (found || imageFailed) return;
     if (i === regionOf(spot.x, spot.y)) discover('region');
-    else status.textContent = `Nothing in the ${REGION_NAMES[i]} — look again.`;
+    else {
+      status.textContent = `Nothing in the ${REGION_NAMES[i]} — look again.`;
+      motion.play(status, [
+        { opacity: 0.8, transform: 'translateY(2px)' },
+        { opacity: 1, transform: 'none' },
+      ], { duration: 120 });
+    }
   }));
 
   on(directBtn, 'click', () => {
@@ -294,6 +351,7 @@ export function mountPhotoPlayer(
   on(openBtn, 'click', openNote);
   on(backBtn, 'click', () => closeNote());
   on(replayBtn, 'click', () => {
+    motion.settle();
     found = false;
     noteOpen = false;
     hintLevel = 0;
@@ -316,6 +374,7 @@ export function mountPhotoPlayer(
   sync();
 
   return () => {
+    motion.destroy();
     ctl.abort();
     root.remove();
   };
