@@ -139,14 +139,14 @@ Motion research and the proposed next design pass are recorded in
 reserve expressive movement for placement and reveal, and keep typing
 and navigation stable. The proposals are not yet implemented.
 
-A ready-screen batch is implemented locally but unpublished: both the
+A ready-screen batch was published and verified live on 2026-11-22: both the
 photo and sample-room ready screens put "See what they see" and
 "Make changes" first — saved links stay immutable, so "Make changes"
 copies the gift into the editor and "Save changes" mints a new link
 without touching or revoking the original. The same plain language
 ("link to share", "Your private link", "close gift link") now applies
 across the pilot and the React app's Dash/Editor/Seal copy. Verified
-locally in-browser on both flows (Editor/Seal checked by direct demo
+locally and live in-browser on both pilot flows (Editor/Seal checked by direct demo
 component render, not the full reading pipeline); native OS share sheet
 and real phones remain untested.
 

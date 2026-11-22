@@ -215,6 +215,43 @@ only disable photo links, not delete stored gifts — favour roll-forward);
 API → prior image. Real phones, virtual keyboards and production retry
 races unverified.
 
+### Ready-screen and language release, 2026-11-22
+
+Pilot source `35986b8`, React wording source `7112bac`, research/documentation
+`c379161`. Worker version `ca3b1aed-3df9-496e-802d-247ddfbc56ae` serves
+`index-Di-8O9f8.js`, `photo-app-nUnd3Zlr.js`, `main-UYRZBahY.js` and
+`index-CaFGvmvy.css`. Previous Worker version:
+`a7f7442f-538f-4726-ac7d-8f524b97c301`.
+
+The main Pages site also published at
+`https://c0567b5b.enigmagift.pages.dev`, with production
+`https://enigmagift.pages.dev` serving `index-DCrthbMf.js` and
+`index-UhriMBEY.css`. This brings the earlier landing/mobile changes
+(`33bfcff`) and giver dashboard (`5387d02`) onto Pages too; those were not
+in its previous production source `bceba03` (deployment
+`e35897d7-2f2d-4c49-8e0b-f0f254c111ae`).
+
+Strict pilot TypeScript and both builds passed. Public asset bytes matched
+the local builds, and the Pages `/api/health` proxy returned 200. Both pilot
+flows passed live create → preview → edit a copy → new recipient link;
+original editions remained unchanged. All four fixtures were closed and
+public access checked afterward. Local checks also covered draft recovery,
+failed requests, denied storage, failed history navigation and short mobile
+viewports. React Editor/Seal were checked by rendering their demo components,
+not by completing the paid pipeline. Real phones, native share sheets and
+live payment/generation remain unverified. No Fly redeploy was needed.
+
+**Manual Pages builds:** retain the three production `VITE_STRIPE_LINK_*`
+public values when running `npm run build`. `wrangler pages deploy` uploads
+already-built assets; it does not inject the dashboard’s build variables
+into that local build. The first local build omitted these values, so it
+was rebuilt with the existing production mapping before publication.
+The final bundle’s trail/hide/set links were checked against the previous
+production bundle. No checkout URLs or prices were changed.
+
+The motion proposals and sources are in [`MOTION.md`](MOTION.md). This
+release changes language and the ready/editing flows, not animation timing.
+
 ### The world (per-gift 3D model)
 
 Sealing a gift triggers `buildWorld` (`server/world.js`): SandBase **Run API**

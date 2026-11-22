@@ -122,6 +122,12 @@ movement, never queue a sequence of overdue animations.
 - **Respect repetition.** First discovery can receive a slightly fuller
   gesture; replay, corrections and Back should use shorter motion or
   the settled state. Keep a still, accessible equivalent for every cue.
+- **Keep clues contextual.** A clue can appear beside the object it
+  refers to and leave when that interaction ends. Motion should not
+  resurrect a spent clue or pin it somewhere unrelated.
+- **Make misses gentle.** A short nudge is enough when someone tries the
+  wrong spot. Avoid a shaking error treatment that makes exploring feel
+  like a failed form submission.
 
 ## Implementation considerations
 

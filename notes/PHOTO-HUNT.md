@@ -323,7 +323,7 @@ honest message with a working retry and direct note access. Remaining
 gaps: real phones, their virtual keyboards and retry races against
 production are still open.
 
-A ready-screen/copy batch is implemented locally but unpublished: the
+A ready-screen/copy batch was published on 2026-11-22: the
 ready screen above ("See what they see" / "Make changes" / "Link to
 share" / "Your private link"), immutable copy-editing with `Save
 changes` minting a new link, the shared ready layout for the sample
@@ -342,3 +342,12 @@ URL); on refresh the newest copied draft wins over an older pending save.
 React Editor and Seal were rendered in demo mode via a direct component
 mount on the dev server — component proof, not full pipeline coverage.
 Native OS share sheet and real phones remain unverified.
+
+Live verification of this batch: both photo and sample-room gifts were
+created, previewed and copied for editing. Saving each revision produced a
+new token while the original edition stayed unchanged. The photo revision
+also moved the hiding spot; a fresh recipient found the note there.
+The original photo gift’s private page remained reachable through Back.
+All four disposable gifts were closed afterward; their public metadata
+(and both photo images) then returned 404. Worker version:
+`ca3b1aed-3df9-496e-802d-247ddfbc56ae`; pilot source: `35986b8`.
