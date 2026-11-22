@@ -287,6 +287,11 @@ Public pages: `/privacy` and `/terms` (`public/privacy.html`, `public/terms.html
   drafts older than 7 days are purged (files included) on a timer.
 - The giver can `DELETE /api/gifts/:id` (draft or whole gift + link + photos)
   and revoke the recipient link at any time.
+- Photo-gift browser suite (Kane CLI): `spec/` holds the requirements and
+  fixtures; `.testmuai/tests/` the assurance-designed `_test.md` suite.
+  `npm run deploy:room` refuses to deploy unless `npm run verify:room` passes
+  — the gate replays the suite against the build about to ship and writes an
+  agent-readable failure digest. See `spec/README.md`.
 - Security regression tests: `cd server && node test/security.test.mjs`
   (webhook signature + payment-amount matrix, fail-closed mark-paid,
   answer-key stripping, unlock rate limit, revoke/expiry, scheduled

@@ -1,0 +1,15 @@
+{
+  "jpegPhoto": "dog-gift-tabletop/public/room.jpg",
+  "nonJpegPhoto": "spec/fixtures/not-jpeg.png",
+  "validGiftToken": "EI6vsiVmHpOrUPzEn0aWFLd4FxlS9l4YnnLrDDTjk2c",
+  "revokedGiftToken": "3122SmjCkTpzLUiJ2d7K94mGPEuSlNdazoP05LyhFAo",
+  "unknownGiftToken": "rukzkiLjziJm2WJbZA9eEGttcYqRjYYUZF9nx44l23q8",
+  "gift": {
+    "to": "Kane",
+    "from": "EnigmaGift",
+    "message": "A little note for the Kane suite.",
+    "clue": "Try the bottom right."
+  },
+  "hidingSpotLocation": "the bottom right of the photo",
+  "outsideSpotLocation": "the middle left of the photo"
+}

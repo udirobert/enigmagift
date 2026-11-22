@@ -21,3 +21,13 @@ server/uploads/
 dog-gift-tabletop/worker-configuration.d.ts
 .wrangler/
 .dev.vars*
+# kane-cli context store: shared through a location, never merged with git
+.context/
+
+# kane-cli run artifacts (tests + spec are committed; these are machine-local)
+.testmuai/variables/
+.testmuai/evidence/
+.testmuai/tests/output-*/
+.testmuai/testruns/
+.testmuai/verify*.json
+.testmuai/verify.ndjson
