@@ -114,7 +114,7 @@ export function Dash({ giftId, onHome }: DashProps) {
   };
 
   const revoke = async () => {
-    if (!window.confirm('revoke the recipient link? it stops opening immediately — this cannot be undone.')) return;
+    if (!window.confirm('Close this gift link? It will stop opening immediately. This cannot be undone.')) return;
     setRevoking(true);
     try {
       await revokeTrail(giftId);
@@ -180,14 +180,14 @@ export function Dash({ giftId, onHome }: DashProps) {
             {/* the recipient link */}
             {link ? (
               <div className="dash-card">
-                <p className="kicker">recipient link — live</p>
+                <p className="kicker">link to share</p>
                 <div className="dash-link-row">
                   <span className="dash-link mono">{link}</span>
                   <button className="seal-copy" onClick={() => void copy(link)}>
                     {copied ? 'copied' : 'copy'}
                   </button>
                   <a className="demo-link" href={ov.trail!.url} target="_blank" rel="noreferrer">
-                    open →
+                    see what they see →
                   </a>
                 </div>
                 <div className="dash-qr">
@@ -205,7 +205,7 @@ export function Dash({ giftId, onHome }: DashProps) {
               </div>
             ) : sealed ? (
               <div className="dash-card">
-                <p className="kicker">recipient link — revoked</p>
+                <p className="kicker">gift link closed</p>
                 <p className="lede">the trail no longer opens for anyone.</p>
               </div>
             ) : (
@@ -213,7 +213,7 @@ export function Dash({ giftId, onHome }: DashProps) {
                 <p className="kicker">not sealed yet</p>
                 <p className="lede">finish building it and this page becomes the live link.</p>
                 <button className="btn btn-primary" onClick={resume}>
-                  continue building →
+                  keep making it →
                 </button>
               </div>
             )}
@@ -265,7 +265,7 @@ export function Dash({ giftId, onHome }: DashProps) {
               <span className="seal-manage-actions">
                 {ov.trail && (
                   <button className="demo-link" onClick={() => void revoke()} disabled={revoking}>
-                    {revoking ? 'revoking…' : 'revoke link'}
+                    {revoking ? 'closing…' : 'close gift link'}
                   </button>
                 )}
                 <button className="demo-link seal-danger" onClick={() => void remove()}>

@@ -326,7 +326,7 @@ export default function App() {
     go('seal');
   }, [go, giftId]);
 
-  // Seal sent — a real token means a real trail to preview
+  // Open the giver’s preview; this does not send the gift.
   const handleSend = useCallback(
     async (token: string | null) => {
       if (token) {
@@ -335,13 +335,12 @@ export default function App() {
         } catch {
           setTrail(null); // preview falls back to the scripted rounds
         }
-        if (giftId) logGiftEvent(giftId, 'sent', { tier });
       } else {
         setTrail(null);
       }
       go('r1');
     },
-    [go, giftId, tier],
+    [go],
   );
 
   // the recipient opened a real link (live=false for them) — real trail, not the mock

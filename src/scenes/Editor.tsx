@@ -86,7 +86,7 @@ export function Editor({ demo, gift, mode, onSeal }: EditorProps) {
   const [error, setError] = useState<string | null>(null);
   // which photo becomes the 3D world of the place
   const [worldSrc, setWorldSrc] = useState<number>(g?.worldSource ?? 0);
-  // re-derive the clues with buyer notes (bounded server-side pre-payment)
+  // Update the clues with buyer notes (bounded server-side pre-payment)
   const [reclueOpen, setReclueOpen] = useState(false);
   const [notes, setNotes] = useState('');
   const [recluing, setRecluing] = useState(false);
@@ -116,9 +116,9 @@ export function Editor({ demo, gift, mode, onSeal }: EditorProps) {
       setEdits({});
       setReclueOpen(false);
       setNotes('');
-      setReclueMsg('re-derived — approve the new clues');
+      setReclueMsg('Your new clues are ready to look over.');
     } catch (e: any) {
-      setReclueMsg(e.message || 'couldn’t re-derive — try again');
+      setReclueMsg(e.message || 'We couldn’t update the clues. Try again.');
     } finally {
       setRecluing(false);
     }
@@ -188,12 +188,10 @@ export function Editor({ demo, gift, mode, onSeal }: EditorProps) {
     <section className="scene scene-editor" ref={rootRef}>
       <div className="scene-inner">
         <header className="editor-head">
-          <p className="kicker">step three — you are the editor</p>
-          <h2 className="scene-title">the agent proposes. you approve.</h2>
+          <p className="kicker">make it yours</p>
+          <h2 className="scene-title">a few clues, made personal.</h2>
           <p className="lede small">
-            {clues.length} thing{clues.length === 1 ? '' : 's'} it noticed in your
-            photographs. keep what feels true — cut what doesn’t. nothing
-            reaches them unreviewed.
+            {clues.length} clue{clues.length === 1 ? '' : 's'} from these photos. Keep what fits, and change what doesn’t.
           </p>
         </header>
 
@@ -291,7 +289,7 @@ export function Editor({ demo, gift, mode, onSeal }: EditorProps) {
           <div className="reclue clue-card" style={{ rotate: '0.3deg' }}>
             <div className="clue-body">
               <button className="demo-link" onClick={() => setReclueOpen((v) => !v)}>
-                {reclueOpen ? 'close' : 'something isn’t right? tell the agent →'}
+                {reclueOpen ? 'close' : 'something not quite right? →'}
               </button>
               {reclueOpen && (
                 <>
@@ -301,14 +299,14 @@ export function Editor({ demo, gift, mode, onSeal }: EditorProps) {
                     value={notes}
                     onChange={(e) => setNotes(e.target.value)}
                     placeholder="e.g. the door is green, not blue — the bench faces the water…"
-                    aria-label="corrections for the agent"
+                    aria-label="Changes to the clues"
                   />
                   <button
                     className="btn btn-secondary"
                     onClick={doReclue}
                     disabled={recluing || !notes.trim()}
                   >
-                    {recluing ? 're-reading your photos…' : 're-derive the clues'}
+                    {recluing ? 'Looking again…' : 'Update the clues'}
                   </button>
                 </>
               )}
@@ -358,7 +356,7 @@ export function Editor({ demo, gift, mode, onSeal }: EditorProps) {
                 : `${kept} clue${kept === 1 ? '' : 's'} kept · ${mode === 'physical' ? 'now go hide it' : 'ready to seal'}`)}
           </p>
           <button className="btn btn-primary" onClick={seal} disabled={kept === 0 || sealing}>
-            {sealing ? 'sealing…' : 'seal it →'}
+            {sealing ? 'Saving…' : 'Continue'}
           </button>
         </div>
       </div>

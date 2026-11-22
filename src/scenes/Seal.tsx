@@ -28,8 +28,8 @@ const STRIPE_LINKS: Record<Tier, string | undefined> = {
 const PRICES: Record<Tier, string> = { trail: '£4.99', hide: '£9.99', set: '£19' };
 const TIER_NAMES: Record<Tier, string> = { trail: 'the trail', hide: 'the hide', set: 'the set' };
 const TIER_INCLUDES: Record<Tier, string> = {
-  trail: 'one recipient link — opens the keepsake directly',
-  hide: 'one recipient link + a code you write into the hidden thing',
+  trail: 'one gift link — opens the keepsake directly',
+  hide: 'one gift link + a code you write into the hidden thing',
   set: 'a pack of three hunts — this one, plus two more',
 };
 
@@ -117,7 +117,7 @@ export function Seal({ demo, giftId, kept, tier, mode, onSend, onTier }: SealPro
 
   const revoke = async () => {
     if (!giftId || revoked) return;
-    if (!window.confirm('revoke the recipient link? anyone holding it will no longer be able to open the gift.')) return;
+    if (!window.confirm('Close this gift link? It will stop opening immediately. This cannot be undone.')) return;
     try {
       await revokeTrail(giftId);
       setRevoked(true);
@@ -234,27 +234,25 @@ export function Seal({ demo, giftId, kept, tier, mode, onSend, onTier }: SealPro
         <h2 className="scene-title seal-anim">
           {waiting
             ? phase === 'awaiting'
-              ? 'waiting on the till'
-              : 'sealing…'
+              ? 'waiting for payment'
+              : 'getting your gift ready…'
             : error
-              ? 'the seal jammed'
-              : 'the gift is sealed'}
+              ? 'your gift couldn’t be saved'
+              : sealed ? 'your gift is ready' : 'finish your gift'}
         </h2>
         <p className="lede seal-anim">
-          {kept} clue{kept === 1 ? '' : 's'} inside, nothing else. one link, one
-          person — send it however you like.
+          {kept} clue{kept === 1 ? '' : 's'}, ready for them to discover.
         </p>
         {phase === 'awaiting' && (
           <p className="foot-note seal-anim">
-            finish the payment in the other tab — this page wakes up when you’re
-            back. or tell it yourself:
+            Finish payment in the other tab, then come back here.
           </p>
         )}
         {error && <p className="foot-note seal-anim">{error}</p>}
 
         <div className={`seal-link seal-anim ${waiting && !sealed ? 'is-waiting' : ''}`}>
           <span className="seal-link-url">
-            {deleted ? 'deleted — gone for good' : revoked ? 'link revoked — this trail no longer opens' : waiting && !sealed ? 'wax is setting…' : displayLink}
+            {deleted ? 'deleted — gone for good' : revoked ? 'gift link closed — the link no longer opens' : waiting && !sealed ? 'creating your link…' : displayLink}
           </span>
           {sealed && !revoked && !deleted && (
             <button className="seal-copy" onClick={copy}>
@@ -267,17 +265,17 @@ export function Seal({ demo, giftId, kept, tier, mode, onSend, onTier }: SealPro
         {sealed && live && !deleted && (
           <div className="seal-manage seal-anim">
             <span className="seal-manage-label">
-              {revoked ? 'link revoked — the trail no longer opens' : 'live — the link opens for anyone who has it'}
+              {revoked ? 'gift link closed — the link no longer opens' : 'Anyone with this link can open your gift.'}
             </span>
             <span className="seal-manage-actions">
               {!revoked && (
                 <button className="demo-link" onClick={() => void revoke()}>
-                  revoke link
+                  close gift link
                 </button>
               )}
               {giftId && (
                 <a className="demo-link" href={`/?g=${giftId}`}>
-                  giver dashboard →
+                  your gift controls →
                 </a>
               )}
               <button className="demo-link seal-danger" onClick={() => void remove()}>
@@ -380,7 +378,7 @@ export function Seal({ demo, giftId, kept, tier, mode, onSend, onTier }: SealPro
             </div>
             {STRIPE_LINK ? (
               <button className="btn btn-primary" onClick={pay} disabled={waiting}>
-                {phase === 'awaiting' ? 'waiting for payment…' : `seal & send — ${PRICE}`}
+                {phase === 'awaiting' ? 'waiting for payment…' : `finish your gift — ${PRICE}`}
               </button>
             ) : (
               <button className="btn btn-primary" disabled>
@@ -415,11 +413,7 @@ export function Seal({ demo, giftId, kept, tier, mode, onSend, onTier }: SealPro
             onClick={phase === 'error' ? () => void finalize(false) : send}
             disabled={sending || waiting}
           >
-            {phase === 'error'
-              ? 'try again'
-              : demo
-                ? 'watch what they see →'
-                : 'send it →'}
+            {phase === 'error' ? 'try again' : 'see what they see →'}
           </button>
         )}
 

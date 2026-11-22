@@ -406,7 +406,7 @@ export default function MarbleStudio() {
           </ol>
 
           <button type="button" className="wg-btn" disabled={!canPreview} onClick={enterPlay}>
-            Preview as the recipient
+            See what they see
           </button>
           {!canPreview && ready && (
             <p className="wg-fineprint">
@@ -416,7 +416,7 @@ export default function MarbleStudio() {
           )}
         </section>
       ) : (
-        <section className="ms-play" aria-label="Recipient preview">
+        <section className="ms-play" aria-label="Your gift preview">
           <div className="ms-row">
             {VIEW_LABELS.map((label, i) => (
               <button
