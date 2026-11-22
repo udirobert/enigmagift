@@ -581,25 +581,28 @@ body {
   flex: 0 0 auto;
 }
 
-/* ---- remix editor: a stationery sheet in four small stages ---- */
+/* ---- remix composer: an envelope and a letter over the dim room ---- */
 .remix {
   margin: 0;
-  width: min(36rem, calc(100vw - 24px));
+  width: min(48rem, calc(100vw - 24px));
   max-width: calc(100vw - 24px);
-  height: min(40rem, calc(100dvh - 24px));
+  height: min(44rem, calc(100dvh - 24px));
   max-height: calc(100dvh - 24px);
-  padding: clamp(1rem, 3vw, 1.75rem);
+  padding: 0;
   overflow: hidden;
-  border: 1px solid #b08c5a55;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--paper);
   text-align: left;
 }
-.remix::backdrop { background: rgba(20, 15, 10, 0.5); }
-/* the once-folded crease would cut straight through the fields */
+.remix::backdrop { background: rgba(24, 19, 13, 0.78); }
 .remix::before { display: none; }
 .remix form {
-  display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr) auto auto;
-  gap: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
   min-height: 0;
   height: 100%;
   width: 100%;
@@ -610,62 +613,177 @@ body {
   align-items: center;
   justify-content: space-between;
   gap: 0.75rem;
+  flex-shrink: 0;
+  padding: 0 0.25rem;
 }
-.remix-header .note-kicker { margin: 0; font-size: 0.75rem; line-height: 1.5; letter-spacing: 0.1em; }
+.letter-brand { font: 500 1.25rem / 1.2 var(--serif); margin: 0; color: var(--paper); }
+.letter-header-actions { display: flex; gap: 0.4rem; align-items: center; }
+.remix .link { color: #f5e7cf; }
+.remix .link:focus-visible, .remix .btn:focus-visible, .remix button:focus-visible { outline: 2px solid #d48b5c; outline-offset: 3px; }
+.remix .link:hover { color: #fff8ea; }
 .remix-viewport {
+  flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
   scrollbar-gutter: stable;
-  padding: 0.25rem 0.15rem 0.5rem;
+  padding: 0.5rem 0.5rem 1rem;
 }
-.remix-progress ol {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 0.25rem;
+.remix-stage { max-width: 36rem; margin: 0 auto; }
+.remix-stage h2 { font: 500 clamp(1.6rem, 4vw, 2rem) / 1.15 var(--serif); margin: 0 0 0.6rem; overflow-wrap: anywhere; }
+.letter-welcome h2 { font-size: clamp(2rem, 5vw, 2.8rem); line-height: 1.08; text-align: center; margin: 0.5rem 0 0.75rem; }
+.remix-intro { font-size: 0.95rem; line-height: 1.5; margin: 0 0 1.25rem; color: #e6d4bb; }
+.letter-welcome > .remix-intro { text-align: center; max-width: 27rem; margin: 0 auto 1.5rem; }
+.letter-object { position: relative; }
+.letter-envelope {
+  min-height: 14rem;
+  padding: 5rem 1.6rem 1.3rem;
+  border: 1px solid #c7a779;
+  border-radius: 2px;
+  background: linear-gradient(115deg, #f1dfbf, #fff2d9);
+  color: #3c2d20;
+  box-shadow: 0 5px 0 -2px #cfb38a, 0 14px 28px #0b080430;
 }
-.remix-progress button {
-  width: 100%;
-  min-height: 48px;
-  padding: 0.3rem 0.2rem;
+.letter-stamp {
+  position: absolute;
+  right: 1.1rem;
+  top: 1rem;
+  width: 86px;
+  padding: 4px;
+  border: 2px dotted #9b7951;
+  background: #fff7e4;
+  transform: rotate(3deg);
+  text-align: center;
+}
+.letter-stamp img { display: block; width: 100%; height: 54px; object-fit: cover; }
+.letter-stamp span { display: block; margin-top: 3px; font: 500 0.62rem / 1.2 var(--sans); color: #694b30; }
+.letter-postmark {
+  position: absolute;
+  right: 6.5rem;
+  top: 1.8rem;
+  width: 3.2rem;
+  height: 3.2rem;
+  border: 1px solid #9a795650;
+  border-radius: 50%;
+  transform: rotate(-12deg);
+  pointer-events: none;
+}
+.letter-postmark::after {
+  content: '';
+  position: absolute;
+  left: 1.5rem;
+  top: 1rem;
+  width: 3rem;
+  height: 1rem;
+  border-top: 3px double #9a795650;
+  border-bottom: 3px double #9a795650;
+}
+.remix .letter-addressee { display: flex; flex-direction: column; gap: 0.3rem; font: 400 0.9rem / 1.5 var(--sans); color: #65482f; }
+.remix .letter-envelope input {
+  font: 400 clamp(1.25rem, 3.5vw, 1.65rem) / 1.4 var(--serif);
   border: 0;
-  border-bottom: 1px solid #b08c5a55;
+  border-bottom: 1px solid #98784e99;
+  border-radius: 0;
+  background: transparent;
+  color: #3c2d20;
+  padding: 0.2rem 0;
+  min-height: 44px;
+  width: 100%;
+}
+.letter-envelope-caption { font: 400 0.875rem / 1.4 var(--serif); font-style: italic; margin: 0.8rem 0 0; color: #755338; }
+.letter-paper {
+  padding: clamp(1rem, 3vw, 1.8rem);
+  border: 1px solid #d8bd96;
+  border-radius: 2px 2px 8px 2px;
+  background: linear-gradient(105deg, #f4e5ca, #fff7e5 60%, #f6e9d0);
+  color: #3c2d20;
+  box-shadow: 0 10px 25px #0b08042a;
+}
+.letter-paper .remix-intro { color: #6d5139; }
+.remix .letter-recipient {
+  padding: 0;
   background: none;
+  border: 0;
+  border-bottom: 1px dotted #9a795680;
+  border-radius: 0;
+  color: #60412b;
   font: inherit;
-  font-size: 0.9rem;
-  color: #7a5a38;
+  text-align: left;
+  overflow-wrap: anywhere;
+  max-width: 100%;
+  min-height: 44px;
   cursor: pointer;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.1rem;
 }
-.remix-progress button span {
-  font-size: 0.75rem;
-  line-height: 1.4;
-  letter-spacing: 0.14em;
-  color: #a9895e;
+.letter-writing h2 { font: 400 1.25rem / 1.4 var(--serif); margin: 0 0 0.5rem; }
+.remix .letter-writing textarea {
+  display: block;
+  font: 400 1.2rem / 1.9rem var(--serif);
+  min-height: 8rem;
+  width: 100%;
+  padding: 0.2rem 0;
+  border: 0;
+  border-radius: 0;
+  background: repeating-linear-gradient(to bottom, transparent 0, transparent calc(1.9rem - 1px), #b4986b35 calc(1.9rem - 1px), #b4986b35 1.9rem);
+  color: #3c2d20;
+  resize: none;
 }
-.remix-progress button[data-complete='true'] span { color: #7a4d1e; font-weight: 600; }
-.remix-progress button[aria-current='step'] {
-  color: #9c4a2c;
-  border-bottom-color: #9c4a2c;
-  background: rgba(191, 95, 46, 0.07);
+.remix input::placeholder, .remix textarea::placeholder { color: #80674e; opacity: 1; }
+.remix .letter-signature {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.75rem;
+  align-items: baseline;
+  margin-top: 0.5rem;
+  font: 400 1rem / 1.4 var(--serif);
+  color: #60412b;
 }
-.remix-progress button:focus-visible { outline: 2px solid #9c4a2c; outline-offset: 1px; }
-.remix-stage h2 {
-  font: 500 clamp(1.65rem, 4vw, 2rem) / 1.15 var(--serif);
-  margin: 0 0 0.65rem;
+.remix .letter-signature input {
+  font: 400 1.2rem / 1.4 var(--serif);
+  border: 0;
+  border-bottom: 1px solid #98784e88;
+  border-radius: 0;
+  background: transparent;
+  color: #3c2d20;
+  padding: 0.2rem 0;
+  width: 100%;
+  min-height: 44px;
 }
-.remix-intro {
-  font-size: 0.95rem;
-  line-height: 1.55;
-  margin: 0 0 1.25rem;
-  color: #6d5139;
+.remix .letter-paper .link { color: #755035; }
+.letter-inspiration { min-height: 52px; margin-bottom: 0.75rem; }
+.letter-starters { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.4rem; }
+.letter-starters button {
+  min-width: 0;
+  min-height: 44px;
+  padding: 0.25rem 0.4rem;
+  background: #fff5e010;
+  border: 1px solid #d1b79066;
+  border-radius: 3px;
+  color: #f2e3cb;
+  font: 400 0.875rem / 1.3 var(--sans);
+  cursor: pointer;
 }
+.letter-starters button[aria-pressed='true'] { background: #b86b3540; border-color: #d48b5c; }
+.remix .remix-count { font: 400 0.875rem / 1.4 var(--sans); text-align: right; color: #755338; margin: 0.3rem 0; }
+.remix-review-letter { border-left: 0; margin: 0 0 1.2rem; padding: clamp(1rem, 3vw, 1.8rem); overflow-wrap: anywhere; }
+.remix-review-letter blockquote { margin: 0.8rem 0; max-width: none; }
+.remix-review-letter blockquote p { font: 400 1.2rem / 1.5 var(--serif); }
+.remix-review-letter .note-sign { margin: 0.8rem 0 0; }
+.remix-review-letter > .letter-recipient,
+.remix-review-letter > .note-sign { font-family: var(--serif); font-size: 1.2rem; line-height: 1.4; }
+.letter-discoveries { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; flex-wrap: wrap; font-size: 0.875rem; color: #e6d4bb; }
+.letter-discoveries p { margin: 0; }
+.remix-footer { flex-shrink: 0; max-width: 36rem; width: 100%; margin: 0 auto; padding: 0 0.5rem 0.25rem; }
+.remix-navigation { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; }
+.remix-navigation .btn { margin-left: auto; min-height: 44px; }
+.remix .btn { color: #fff8ef; }
+.remix .btn:hover, .remix .btn:focus-visible { color: #fff8ef; }
+.remix-preview { display: block; width: 100%; max-width: 100%; overflow-wrap: anywhere; margin: 0 0 0.3rem; }
+.remix .remix-footnote { font-size: 0.875rem; line-height: 1.4; color: #dbc7ad; margin: 0.4rem 0 0; }
+.remix .remix-status { flex-shrink: 0; width: 100%; max-width: 36rem; align-self: center; margin: 0; padding: 0 0.5rem; font-size: 0.875rem; line-height: 1.5; color: #ffe0bd; }
+.letter-sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
+
+/* retained from the paper-form pass: clue fields, label defaults, recipient
+   note scroll rules, and the shared button/press affordances */
 .remix label {
   display: flex;
   flex-direction: column;
@@ -674,7 +792,6 @@ body {
   color: #5a4025;
 }
 .remix input, .remix textarea { font-size: 1rem; min-height: 44px; width: 100%; resize: none; }
-.remix-names { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
 .remix-objects {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -709,13 +826,6 @@ body {
   box-shadow: 0 0 0 1px #9c4a2c;
 }
 .remix-objects button:focus-visible { outline: 2px solid #9c4a2c; outline-offset: 1px; }
-.remix-review-letter {
-  border-left: 2px solid #bf5f2e77;
-  padding: 0.25rem 0 0.25rem 1rem;
-  margin-bottom: 1rem;
-  overflow-wrap: anywhere;
-}
-.remix-review-letter > p:first-child { margin: 0 0 0.6rem; }
 /* the giver's line breaks are part of the letter — keep them everywhere */
 #rmReviewMessage, #noteBody, #paperBody { white-space: pre-wrap; overflow-wrap: anywhere; }
 /* long personal notes must scroll, never push the title above the fold */
@@ -732,21 +842,6 @@ body {
 #note > :last-child, #paperNote > :last-child { margin-bottom: auto; }
 /* pre-unfold the options row is hidden, so the visible row takes the auto margin */
 #note[data-stage='slip'] > .row { margin-bottom: auto; }
-.remix-review-letter blockquote p { font-size: 1.05rem; }
-.remix-preview {
-  display: block;
-  width: 100%;
-  max-width: 100%;
-  overflow-wrap: anywhere;
-  margin: 0 0 0.4rem;
-}
-.remix-navigation {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-}
-.remix-navigation .btn { margin-left: auto; min-height: 44px; }
 .remix button { min-height: 44px; }
 .remix button:disabled { opacity: 0.55; cursor: default; }
 .remix button, .delivery-actions button {
@@ -759,18 +854,17 @@ body {
   .remix button, .delivery-actions button { transition: none; }
   .remix button:not(:disabled):active, .delivery-actions button:not(:disabled):active { transform: none; }
 }
-.remix-footnote, .remix-count {
-  font-size: 0.875rem;
-  line-height: 1.4;
-  color: #6d5139;
-  margin: 0.5rem 0 0;
-}
 .remix-status:empty { display: none; }
 /* the gift-editor link only exists once the gift is actually open */
 #note:not([data-stage='open']) > .remix-entry { display: none; }
+/* the room dims to a backdrop while composing — its UI sleeps visually only */
+#app.is-composing .cover-line, #app.is-composing .hud, #app.is-composing .textpath,
+#app.is-composing .help, #app.is-composing .note:not(#remixPanel),
+#app.is-composing .chip, #app.is-composing .status, #app.is-composing .cover-frame > .paper-card { visibility: hidden; }
 @media (max-width: 440px) {
-  .remix-names { grid-template-columns: 1fr; }
-  .remix form { gap: 0.75rem; }
+  .letter-envelope { min-height: 12.5rem; padding: 5rem 1rem 1rem; }
+  .remix form { gap: 0.6rem; }
+  .letter-welcome > .remix-intro { margin-bottom: 1.1rem; }
 }
 
 /* ---- quiet endings: secondary actions behind one disclosure ---- */
@@ -836,13 +930,6 @@ body {
 .delivery-panel .hint { font-size: 0.875rem; line-height: 1.5; }
 .delivery-private { border-top: 1px solid #b08c5a66; padding-top: 1rem; }
 .delivery-private summary { cursor: pointer; min-height: 44px; display: list-item; font-size: 0.9rem; color: inherit; }
-.remix-status {
-  margin: 0;
-  font-family: var(--sans);
-  font-size: 0.875rem;
-  line-height: 1.5;
-  color: #5a4025;
-}
 .preview-wait {
   position: fixed;
   inset: 0;

@@ -229,23 +229,34 @@ app.innerHTML = `
 
   <dialog class="note paper-note remix" id="remixPanel" hidden aria-labelledby="rmDialogTitle">
     <form id="remixForm" novalidate>
-      <header class="remix-header"><p class="note-kicker" id="rmDialogTitle">Make a gift in this room</p><button class="link remix-close" id="remixCancel" type="button">Close</button></header>
-      <nav class="remix-progress" aria-label="Gift stages"><ol>
-        <li><button type="button" data-rm-step="0" aria-controls="rmStagePeople"><span aria-hidden="true">01</span>People</button></li>
-        <li><button type="button" data-rm-step="1" aria-controls="rmStageMessage"><span aria-hidden="true">02</span>Message</button></li>
-        <li><button type="button" data-rm-step="2" aria-controls="rmStageClues"><span aria-hidden="true">03</span>Clues</button></li>
-        <li><button type="button" data-rm-step="3" aria-controls="rmStageReview"><span aria-hidden="true">04</span>Review</button></li>
-      </ol></nav>
+      <header class="remix-header">
+        <p class="letter-brand">EnigmaGift</p><h1 class="letter-sr-only" id="rmDialogTitle">Make a little gift</h1>
+        <div class="letter-header-actions"><button class="link" type="button" id="rmJumpGift" data-rm-step="3">Your gift</button><button class="link remix-close" id="remixCancel" type="button" aria-label="Close, keeping your draft in this tab">Close</button></div>
+      </header>
       <div class="remix-viewport" id="rmViewport">
-        <section class="remix-stage" id="rmStagePeople" data-rm-panel="0">
-          <h2 tabindex="-1">Who’s it for?</h2><p class="remix-intro">A small surprise, from you to them.</p>
-          <div class="remix-names"><label>To<input id="rmTo" maxlength="40" required placeholder="Their name" autocomplete="off" /></label><label>From<input id="rmFrom" maxlength="40" required placeholder="Your name" autocomplete="off" /></label></div>
+        <section class="remix-stage letter-welcome" id="rmStagePeople" data-rm-panel="0">
+          <h2 tabindex="-1">A little surprise,<br>just for them.</h2>
+          <p class="remix-intro">Leave a personal note in this room for them to discover.</p>
+          <div class="letter-object letter-envelope">
+            <div class="letter-stamp" aria-hidden="true"><img src="./room.jpg" alt="" width="72" height="54"><span>A little discovery</span></div>
+            <span class="letter-postmark" aria-hidden="true"></span>
+            <label for="rmTo" class="letter-addressee">For<input id="rmTo" maxlength="40" required placeholder="Their name or nickname" autocomplete="off" /></label>
+            <p class="letter-envelope-caption">Something only you could leave.</p>
+          </div>
         </section>
         <section class="remix-stage" id="rmStageMessage" data-rm-panel="1" hidden>
-          <h2 tabindex="-1">What will they find?</h2><p class="remix-intro">A plan, a memory, a reason they matter.</p>
-          <label>The note they’ll find<textarea id="rmInvite" maxlength="200" required rows="4" placeholder="Friday evening, your favourite pasta, and no phones. I’d love some time that’s just ours." aria-describedby="rmInviteCount"></textarea></label><p class="remix-count" id="rmInviteCount"></p>
+          <div class="letter-inspiration"><div id="rmStarterChoices" class="letter-starters" role="group" aria-label="A first line, if you need one">
+            <button type="button" data-rm-starter="evening">An evening together</button><button type="button" data-rm-starter="thanks">A little thank-you</button><button type="button" data-rm-starter="own">My own words</button>
+          </div></div>
+          <div class="letter-object letter-paper letter-writing">
+            <h2 tabindex="-1"><button type="button" class="letter-recipient" data-rm-step="0" aria-label="Change who this note is for"><span id="rmSalutation">For someone special,</span></button></h2>
+            <label class="letter-sr-only" for="rmInvite">Your note</label>
+            <textarea id="rmInvite" maxlength="200" required rows="4" placeholder="A plan, a memory, a reason they matter…" aria-describedby="rmInviteCount"></textarea>
+            <p class="remix-count" id="rmInviteCount"></p>
+            <label class="letter-signature" for="rmFrom"><span>From</span><input id="rmFrom" maxlength="40" required placeholder="Your name" autocomplete="off" /></label>
+          </div>
         </section>
-        <section class="remix-stage" id="rmStageClues" data-rm-panel="2" hidden>
+        <section class="remix-stage letter-paper" id="rmStageClues" data-rm-panel="2" hidden>
           <h2 tabindex="-1">Little discoveries</h2><p class="remix-intro" id="rmCluePurpose">Let the dog nudge them towards the note on the table.</p>
           <div class="remix-objects" role="group" aria-label="Choose a clue to edit">
             <button type="button" data-rm-clue="dog" aria-pressed="true" aria-controls="rmClueDog"><img src="./stills/dog.webp" alt="" width="44" height="36" />Dog</button>
@@ -256,13 +267,14 @@ app.innerHTML = `
           <div id="rmCluePostcard" data-rm-clue-panel="postcard" hidden><label>The postcard’s clue<textarea id="rmPostcard" maxlength="160" rows="3" aria-describedby="rmCluePurpose"></textarea></label></div>
           <div id="rmClueMemory" data-rm-clue-panel="memory" hidden><label>The ribbon’s keepsake<textarea id="rmMemory" maxlength="160" rows="3" aria-describedby="rmCluePurpose"></textarea></label></div>
         </section>
-        <section class="remix-stage" id="rmStageReview" data-rm-panel="3" hidden>
-          <h2 tabindex="-1" id="rmReviewTitle">Ready to share?</h2><p class="remix-intro" id="rmReviewIntro">A note, tucked into the room.</p>
-          <div class="remix-review-letter"><p id="rmReviewTo"></p><blockquote><p id="rmReviewMessage"></p></blockquote><p class="note-sign" id="rmReviewFrom"></p></div>
+        <section class="remix-stage letter-review" id="rmStageReview" data-rm-panel="3" hidden>
+          <h2 tabindex="-1" id="rmReviewTitle">One last look.</h2><p class="remix-intro" id="rmReviewIntro">Your words, waiting to be found.</p>
+          <div class="letter-object letter-paper remix-review-letter"><button type="button" class="letter-recipient" id="rmReviewTo" data-rm-step="0" aria-label="Change who this gift is for"></button><blockquote><p id="rmReviewMessage"></p></blockquote><p class="note-sign" id="rmReviewFrom"></p></div>
+          <div class="letter-discoveries"><p>The room’s little trail is ready.</p><button class="link" id="rmEditClues" type="button" data-rm-step="2">Add a personal clue <span aria-hidden="true">↗</span></button></div>
         </section>
       </div>
       <p class="remix-status" id="rmLinkStatus" role="status" aria-live="polite"></p>
-      <footer class="remix-footer"><button class="link remix-preview" type="submit" id="rmSubmit" hidden>Preview as your recipient</button><div class="remix-navigation"><button class="link" id="rmPrev" type="button" hidden>Back</button><button class="btn small" id="rmNext" type="button">Write the note</button><button class="btn small" id="rmCreate" type="submit" hidden>Create recipient link</button></div><p class="remix-footnote" id="rmFootnote">Your draft stays in this tab.</p></footer>
+      <footer class="remix-footer"><button class="link remix-preview" type="submit" id="rmSubmit" hidden>Preview as your recipient</button><div class="remix-navigation"><button class="link" id="rmPrev" type="button" hidden>Back</button><button class="btn small" id="rmNext" type="button">Write a note</button><button class="btn small" id="rmCreate" type="submit" hidden>Tuck it away</button></div><p class="remix-footnote" id="rmFootnote">Free to make. Share by link.</p></footer>
     </form>
   </dialog>
 `;
@@ -1101,13 +1113,22 @@ type RemixProblem = {
   action: string;
   missing: boolean;
 };
+const LETTER_OPENINGS = {
+  evening: 'I’d love an evening together. How about ',
+  thanks: 'I’ve been meaning to thank you for ',
+} as const;
+let selectedOpening: string | null = null;
+
 const remixProblem = (d: GiftEdition): RemixProblem | null => {
   if (!d.to) return { field: '#rmTo', stage: 0, say: 'Add their name before previewing or creating a link.', action: 'Add recipient', missing: true };
   if (d.to.length > 40) return { field: '#rmTo', stage: 0, say: 'Keep their name to 40 characters.', action: 'Shorten their name', missing: false };
-  if (!d.from) return { field: '#rmFrom', stage: 0, say: 'Add your name before previewing or creating a link.', action: 'Add your name', missing: true };
-  if (d.from.length > 40) return { field: '#rmFrom', stage: 0, say: 'Keep your name to 40 characters.', action: 'Shorten your name', missing: false };
   if (!d.invitation) return { field: '#rmInvite', stage: 1, say: 'Write the message they will find before continuing.', action: 'Write your note', missing: true };
   if (d.invitation.length > 200) return { field: '#rmInvite', stage: 1, say: 'Keep your message to 200 characters.', action: 'Shorten your note', missing: false };
+  if (Object.values(LETTER_OPENINGS).some((o) => o.trim() === d.invitation)) {
+    return { field: '#rmInvite', stage: 1, say: 'Add your own detail to finish this first line.', action: 'Finish your note', missing: true };
+  }
+  if (!d.from) return { field: '#rmFrom', stage: 1, say: 'Add your name to sign the note before sharing.', action: 'Sign your note', missing: true };
+  if (d.from.length > 40) return { field: '#rmFrom', stage: 1, say: 'Keep your name to 40 characters.', action: 'Shorten your name', missing: false };
   for (const [clue, field] of [['dog', '#rmDog'], ['postcard', '#rmPostcard'], ['memory', '#rmMemory']] as const) {
     if (d[clue].length > 160) return { field, stage: 2, clue, say: 'That clue is a little long — trim it to fit.', action: 'Shorten the clue', missing: false };
   }
@@ -1120,48 +1141,44 @@ const syncRemixReview = () => {
   $('#rmReviewTo').textContent = d.to ? `For ${d.to}` : 'For someone special';
   $('#rmReviewMessage').textContent = d.invitation || 'Your message will appear here.';
   $('#rmReviewFrom').textContent = d.from ? `— ${d.from}` : 'From you';
+  ($('#rmSalutation') as HTMLElement).textContent = d.to ? `For ${d.to},` : 'For someone special,';
+  const recipientLabel = d.to ? `Change recipient, currently ${d.to}` : 'Add a recipient';
+  ($('#rmReviewTo') as HTMLElement).setAttribute('aria-label', recipientLabel);
+  ($('#rmSalutation').closest('button')!).setAttribute('aria-label', recipientLabel);
   ($('#rmInviteCount') as HTMLElement).textContent =
     `${Math.max(0, 200 - ($('#rmInvite') as HTMLTextAreaElement).value.length)} characters left`;
   const defaults = makeDraft();
   const customClues = (['dog', 'postcard', 'memory'] as const).some((k) => d[k] !== defaults[k]);
   ($('#rmNext') as HTMLElement).textContent =
-    remixStep === 0 ? 'Write the note'
-    : remixStep === 1 ? 'Choose the clues'
-    : remixStep === 2 ? (customClues ? 'Review my gift' : 'Keep these clues')
+    remixStep === 0 ? 'Write a note'
+    : remixStep === 1 ? 'Fold the note'
+    : remixStep === 2 ? (customClues ? 'Keep my discoveries' : 'Keep these clues')
     : 'Continue';
+  ($('#rmPrev') as HTMLElement).textContent =
+    remixStep === 2 ? 'Back to gift'
+    : remixStep === 3 ? 'Back to note'
+    : 'Back';
+  ($('#rmEditClues') as HTMLElement).textContent = customClues ? 'Edit your discoveries' : 'Add a personal clue ↗';
   const problem = remixProblem(d);
   ($('#rmSubmit') as HTMLButtonElement).disabled = !!problem;
-  ($('#rmCreate') as HTMLElement).textContent = problem?.action ?? 'Create recipient link';
-  ($('#rmReviewTitle') as HTMLElement).textContent = problem ? 'Make it yours' : 'Ready to share?';
+  ($('#rmCreate') as HTMLElement).textContent = problem?.action ?? 'Tuck it away';
+  ($('#rmReviewTitle') as HTMLElement).textContent = problem ? 'Make it yours.' : 'One last look.';
   ($('#rmReviewIntro') as HTMLElement).textContent = problem
-    ? 'Add the names and note before sharing.'
-    : 'A note, tucked into the room.';
-  ($('#rmFootnote') as HTMLElement).textContent = remixStep === 3
-    ? (problem ? 'You can revisit any step above.' : 'Creates a link you can send.')
-    : 'Your draft stays in this tab.';
-  // gentle completion marks — only the two truly required stages count
-  const complete: Record<number, { done: boolean; aria: string }> = {
-    0: { done: d.to.length > 0 && d.to.length <= 40 && d.from.length > 0 && d.from.length <= 40, aria: 'People, complete' },
-    1: { done: d.invitation.length > 0 && d.invitation.length <= 200, aria: 'Message, complete' },
-  };
-  rmForm.querySelectorAll<HTMLElement>('[data-rm-step]').forEach((b) => {
-    const n = Number(b.dataset.rmStep);
-    const span = b.querySelector('span') as HTMLElement;
-    if (n === 2) {
-      span.textContent = 'Optional';
-      b.setAttribute('aria-label', 'Clues, optional');
-      b.removeAttribute('data-complete');
-    } else if (n === 3) {
-      span.textContent = '04';
-      b.setAttribute('aria-label', 'Review');
-      b.removeAttribute('data-complete');
-    } else {
-      const c = complete[n];
-      span.textContent = c.done ? '✓' : `0${n + 1}`;
-      b.setAttribute('aria-label', c.done ? c.aria : n === 0 ? 'People' : 'Message');
-      if (c.done) b.setAttribute('data-complete', 'true');
-      else b.removeAttribute('data-complete');
-    }
+    ? 'A name, a note, your signature.'
+    : 'Your words, waiting to be found.';
+  ($('#rmFootnote') as HTMLElement).textContent = remixStep === 0
+    ? 'Free to make. Share by link.'
+    : remixStep === 3
+      ? (problem ? 'You can keep changing your gift.' : 'Creates a link for you to send.')
+      : 'Your draft stays in this tab.';
+  // first-line choices only offer themselves on a blank or untouched starter
+  const raw = ($('#rmInvite') as HTMLTextAreaElement).value;
+  const untouched = !!selectedOpening && raw.trim() === selectedOpening.trim();
+  ($('#rmStarterChoices') as HTMLElement).hidden = !(raw.trim() === '' || untouched);
+  rmForm.querySelectorAll<HTMLElement>('[data-rm-starter]').forEach((b) => {
+    const key = b.dataset.rmStarter as keyof typeof LETTER_OPENINGS | 'own';
+    const pressed = key !== 'own' && untouched && LETTER_OPENINGS[key] === selectedOpening;
+    b.setAttribute('aria-pressed', String(pressed));
   });
   submitLabel();
 };
@@ -1171,15 +1188,14 @@ const stageHeading = () =>
 
 const showRemixStep = (next: number, focus = true) => {
   if (composerBusy()) return;
+  rmAnim?.cancel();
+  rmAnim = null;
   const previous = remixStep;
   remixStep = Math.max(0, Math.min(3, next));
   rmForm.querySelectorAll<HTMLElement>('[data-rm-panel]').forEach((p) => {
     p.hidden = Number(p.dataset.rmPanel) !== remixStep;
   });
-  rmForm.querySelectorAll<HTMLElement>('[data-rm-step]').forEach((b) => {
-    if (Number(b.dataset.rmStep) === remixStep) b.setAttribute('aria-current', 'step');
-    else b.removeAttribute('aria-current');
-  });
+  ($('#rmJumpGift') as HTMLElement).hidden = remixStep === 3;
   ($('#rmPrev') as HTMLElement).hidden = remixStep === 0;
   ($('#rmNext') as HTMLElement).hidden = remixStep === 3;
   ($('#rmCreate') as HTMLElement).hidden = remixStep !== 3;
@@ -1188,12 +1204,21 @@ const showRemixStep = (next: number, focus = true) => {
   ($('#rmViewport') as HTMLElement).scrollTop = 0;
   const panel = $(`[data-rm-panel="${remixStep}"]`) as HTMLElement;
   if (remixStep !== previous && !reduced()) {
-    rmAnim?.cancel();
-    rmAnim = panel.animate(
-      [{ opacity: 0.65, transform: `translateX(${next < previous ? -12 : 12}px)` },
-       { opacity: 1, transform: 'translateX(0)' }],
-      { duration: 180, easing: 'cubic-bezier(.2,.7,.2,1)' },
-    );
+    const object = (panel.querySelector('.letter-object') ?? panel) as HTMLElement;
+    if (remixStep === 1) {
+      object.style.transformOrigin = '50% 0';
+      rmAnim = object.animate(
+        [{ opacity: 0.65, transform: 'perspective(900px) rotateX(-8deg) translateY(8px)' },
+         { opacity: 1, transform: 'perspective(900px) rotateX(0deg) translateY(0)' }],
+        { duration: 220, easing: 'cubic-bezier(.2,.7,.2,1)' },
+      );
+    } else {
+      rmAnim = object.animate(
+        [{ opacity: 0.65, transform: 'translateY(8px) rotate(-.5deg)' },
+         { opacity: 1, transform: 'translateY(0) rotate(0deg)' }],
+        { duration: 200, easing: 'cubic-bezier(.2,.7,.2,1)' },
+      );
+    }
   }
   if (focus && remixPanel.open) stageHeading().focus();
 };
@@ -1237,6 +1262,7 @@ const openRemix = () => {
   ($('#rmPostcard') as HTMLTextAreaElement).value = base.postcard;
   ($('#rmMemory') as HTMLTextAreaElement).value = base.memory;
   ($('#rmInvite') as HTMLTextAreaElement).value = base.invitation;
+  app.classList.add('is-composing');
   remixPanel.hidden = false;
   remixPanel.showModal();
   arriveRemix();
@@ -1259,6 +1285,7 @@ const closeRemix = () => {
   lastDraft = readDraft(); // unsaved edits survive a leave-without-submit
   rmArrival?.cancel();
   rmAnim?.cancel();
+  app.classList.remove('is-composing'); // the room wakes before focus returns
   remixPanel.close();
   remixPanel.hidden = true;
   syncResumeLinks();
@@ -1296,8 +1323,39 @@ rmForm.querySelectorAll<HTMLElement>('[data-rm-step]').forEach((b) => {
 rmForm.querySelectorAll<HTMLElement>('[data-rm-clue]').forEach((b) => {
   b.addEventListener('click', () => selectRemixClue(b.dataset.rmClue as 'dog' | 'postcard' | 'memory'));
 });
-$('#rmNext').addEventListener('click', () => showRemixStep(remixStep + 1));
-$('#rmPrev').addEventListener('click', () => showRemixStep(remixStep - 1));
+/* the primary route never visits Clues: envelope → letter → gift;
+   Clues is an optional detour out of — and straight back to — the gift */
+const nextRemixStep = () => (remixStep === 0 ? 1 : 3);
+const previousRemixStep = () => (remixStep === 1 ? 0 : remixStep === 2 ? 3 : 1);
+$('#rmNext').addEventListener('click', () => showRemixStep(nextRemixStep()));
+$('#rmPrev').addEventListener('click', () => showRemixStep(previousRemixStep()));
+
+/* a first line, borrowed only while it stays untouched — typing is sacred */
+rmForm.querySelectorAll<HTMLElement>('[data-rm-starter]').forEach((b) => {
+  b.addEventListener('click', () => {
+    if (composerBusy()) return;
+    const field = $('#rmInvite') as HTMLTextAreaElement;
+    const untouched = !!selectedOpening && field.value.trim() === selectedOpening.trim();
+    if (!(field.value.trim() === '' || untouched)) return; // never overwrite their words
+    const key = b.dataset.rmStarter as keyof typeof LETTER_OPENINGS | 'own';
+    const status = $('#rmLinkStatus') as HTMLElement;
+    status.textContent = '';
+    field.removeAttribute('aria-invalid');
+    field.removeAttribute('aria-errormessage');
+    if (key === 'own') {
+      if (untouched) field.value = '';
+      selectedOpening = null;
+      syncRemixReview();
+      field.focus();
+      return;
+    }
+    field.value = LETTER_OPENINGS[key];
+    selectedOpening = field.value;
+    syncRemixReview();
+    field.focus();
+    field.setSelectionRange(field.value.length, field.value.length);
+  });
+});
 // Enter in a single-line name field moves one stage on — the first submit
 // button may be disabled, so implicit submission can't be relied on
 rmForm.addEventListener('keydown', (e: KeyboardEvent) => {
@@ -1305,7 +1363,7 @@ rmForm.addEventListener('keydown', (e: KeyboardEvent) => {
     || e.ctrlKey || e.altKey || e.metaKey
     || !(e.target instanceof HTMLInputElement) || remixStep === 3) return;
   e.preventDefault();
-  if (!composerBusy()) showRemixStep(remixStep + 1);
+  if (!composerBusy()) showRemixStep(nextRemixStep());
 });
 for (const id of ['#rmTo', '#rmFrom', '#rmInvite', '#rmDog', '#rmPostcard', '#rmMemory']) {
   ($(id) as HTMLElement).addEventListener('input', (e) => {
@@ -1343,6 +1401,7 @@ const openPreview = () => {
   previewOpener = document.activeElement as HTMLElement | null;
   rmArrival?.cancel();
   rmAnim?.cancel();
+  app.classList.remove('is-composing');
   remixPanel.close(); // an open modal would sit above the full-window frame
   remixPanel.hidden = true;
   previewSheet = document.createElement('div');
@@ -1379,6 +1438,7 @@ const closePreview = () => {
   previewBack = null;
   app.removeAttribute('inert');
   // the form kept every field — nothing was applied; return to the same stage
+  app.classList.add('is-composing');
   remixPanel.hidden = false;
   remixPanel.showModal();
   arriveRemix();
@@ -1396,7 +1456,7 @@ rmForm.addEventListener('submit', (e) => {
   // navigation never validates or loses values — only an explicit action on
   // the Review stage may preview or publish
   if (remixStep !== 3) {
-    showRemixStep(remixStep + 1);
+    showRemixStep(nextRemixStep());
     return;
   }
   const draft = readDraft();

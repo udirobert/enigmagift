@@ -51,46 +51,53 @@ The same cut also carries the fuller local hunt layer:
   "Walk me through it" spells out dog → sightline → table → Unfold and marks
   the run guided; "Just open my gift" is always present.
 - **Remix → recipient preview.** `ROOM.allowRemix` gates a post-reveal "Make a
-  gift in this room" editor: a native `dialog` styled like the room's
-  stationery, written in four small stages — People (To/From), Message (the
-  invitation, with a live "characters left" count), Clues and Review. The numbered stage tabs
-  along the top are always clickable — jumping forward or back never
-  validates and never loses text, so the only gate is the explicit action on
-  Review. The Review stage adapts to the draft: with essentials missing it
-  reads "Make it yours", disables Preview, and turns the primary into a
-  gentle guide ("Add recipient", "Write your note"…) that jumps to and
-  focuses the right field without red ink; a complete draft reads "Ready to
-  share?" with "Create recipient link" and "Preview as {name}" together in the footer
-  (length problems still mark the field and explain). The stage tabs carry
-  quiet completion marks — a ✓ on People and Message once their required
-  fields are in range, "Optional" over Clues — and the primary is labelled
-  for where it leads ("Write the note", "Choose the clues"). The Clues
-  stage is optional: three small object cards (dog/postcard/ribbon stills)
-  pick which one textarea is shown, each with a one-line hint about what
-  that clue does in the trail; all three fields stay mounted and keep
-  their text, the room's default trail fills in anything left cleared, and
-  the primary reads "Keep these clues" until a clue is edited (then
-  "Review my gift") — either way it lands on Review. The Review letter
-  preserves the giver's own line breaks, as does the note the recipient
-  unfolds. `?make=1` opens a clean editor without playing
-  the demo — a fresh composer keeps the room's default clues but starts the
-  invitation blank; a reopened composer restores the last draft, the same
-  stage and the selected clue (drafts stay in the tab until a link is
-  created). Backing out — Close or Escape — preserves everything in memory,
-  and a quiet "Continue your gift" link appears on the cover, in the help
-  panel and along the photo path until a link is created (demo only —
-  recipients and previews never see it).
-  "Create recipient link" publishes a saved snapshot (below); "Preview as
-  {name}" sits beside it in the footer and opens the draft inside a
-  full-window same-origin iframe (`./?recipientPreview=1`) — the parent's
-  room, run and keepsakes are never replaced. The draft travels by
-  `postMessage` in memory only (no URL, no storage); the child validates
-  source/origin/room revision/field lengths, signs its cover
-  `For {to}, from {from}` via `textContent`, runs a fresh independent run,
-  and offers no remix CTA. "Back to editing"/"Back to my draft" removes the
-  frame and restores the form, stage and original session. A short
-  180 ms settle marks stage changes (skipped under reduced motion).
-- **Saved recipient links.** "Create recipient link" posts the draft to
+  gift in this room" composer: a transparent native `dialog` over the dimmed
+  room (its UI hidden only visually), built around two stationery objects —
+  a cream envelope that asks only "For ___" and a lined letter for the note
+  and signature. The main route is envelope → letter →
+  gift, with the room's clue trail as an optional detour out of — and
+  straight back to — the final look ("Add a personal clue" / "Edit your
+  discoveries", "Back to gift"). A quiet "Your gift" header link jumps to
+  the review at any time; Close keeps the draft in the tab. The letter
+  offers two optional first-line openings ("An evening together", "A little
+  thank-you") and a "My own words" choice while the field is blank or the starter
+  is untouched — typing hides them without stealing focus, clearing shows
+  them again, and an untouched starter can't be tucked away until it's
+  finished ("Finish your note" guides back to the field). The recipient's
+  name appears on the writing and review pages and links back to the
+  envelope; the sender signs in the
+  writing page's From field. The giver's own line breaks survive into
+  the recipient's note. The Review stage adapts like before:
+  essentials missing reads "Make it yours." ("A name, a note, your
+  signature."), disables Preview, and turns the primary into a gentle
+  guide ("Add recipient", "Sign your note"…) that jumps to and focuses the
+  right field without red ink; a complete draft reads "One last look."
+  with "Tuck it away" and "Preview as {name}" in the footer (length
+  problems still mark the field and explain). The Clues page keeps its
+  three object cards (dog/postcard/ribbon stills) and per-card purpose
+  line; all three fields stay mounted, the room's default trail fills in
+  anything left cleared, and the primary reads "Keep these clues" until a
+  clue is edited (then "Keep my discoveries"). `?make=1` opens the
+  composer without playing the demo — a fresh composer keeps the room's
+  default clues but starts the letter blank; a reopened composer restores
+  the last draft, the same stage and the selected clue (drafts stay in the
+  tab until a link is created). Backing out — Close or Escape — preserves
+  everything in memory, and a quiet "Continue your gift" link appears on
+  the cover, in the help panel and along the photo path until a link is
+  created (demo only — recipients and previews never see it). Enter in a
+  name field advances one stage; the textarea keeps its newline.
+  "Tuck it away" publishes a saved snapshot (below); "Preview as {name}"
+  opens the draft inside a full-window same-origin iframe
+  (`./?recipientPreview=1`) — the parent's room, run and keepsakes are
+  never replaced. The draft travels by `postMessage` in memory only (no
+  URL, no storage); the child validates source/origin/room revision/field
+  lengths, signs its cover `For {to}, from {from}` via `textContent`, runs
+  a fresh independent run, and offers no remix CTA. "Back to
+  editing"/"Back to my draft" removes the frame and restores the form,
+  stage and original session. A short unfold/settle marks stage changes
+  (skipped under reduced motion).
+
+- **Saved recipient links.** "Tuck it away" posts the draft to
   `/api/room-gifts` on the EnigmaGift API — an immutable edition snapshot,
   saved server-side (no checkout, no email, no account; free). The API
   returns a recipient token; the client builds the two URLs locally: the

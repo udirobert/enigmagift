@@ -120,3 +120,17 @@ Observe whether people understand the gift, willingly begin personalizing it,
 can revise their choices, and feel ownership of the result. Follow with real
 giver–recipient sessions to learn what the room adds to receiving the message.
 Small sessions provide qualitative direction, not conversion-rate evidence.
+
+## Implemented (2026-11-22, verified locally — not yet live)
+
+The letter-led composer described above now exists in `dog-gift-tabletop`
+(source changes under review at time of writing): a transparent dialog over
+the dimmed room holds an envelope (the recipient's name) and a lined letter
+(note + signature), routed envelope → letter → gift with the clue trail as
+an optional detour. Selecting an optional starter inserts an unfinished first
+line.
+It never replaces user-edited text, and the giver must finish the line
+before saving. The choices hide while they write and return if the field
+is cleared. The research questions above remain open: no human sessions have
+been run, and nothing
+here claims the delight hypothesis is proven.
