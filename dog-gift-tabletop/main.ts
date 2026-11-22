@@ -113,6 +113,7 @@ app.innerHTML = `
       <p class="lead">I hid a gift in this room.</p>
       <button class="btn" id="enter">Step inside</button>
       <button class="link" id="no3d" type="button">Explore in photos</button>
+      <button class="link resume-gift" id="coverResume" type="button" hidden>Continue your gift</button>
     </div>
     <p class="status" id="status" role="status" aria-live="polite"></p>
   </section>
@@ -162,6 +163,7 @@ app.innerHTML = `
       <button class="btn small" id="walkthrough" hidden>Walk me through it</button>
       <button class="btn small" id="motionless">Explore in photos</button>
       <button class="btn small ghost" id="directOpen">Just open my gift</button>
+      <button class="link resume-gift" id="helpResume" type="button" hidden>Continue your gift</button>
       <button class="link" id="closeHelp">Back</button>
     </div>
   </section>
@@ -196,6 +198,7 @@ app.innerHTML = `
       <button class="link" id="tpOpen">Open the note</button>
       <button class="link" id="tpReturn" hidden>Return to the room</button>
       <button class="link" id="tpTrail" hidden>My trail</button>
+      <button class="link resume-gift" id="tpResume" type="button" hidden>Continue your gift</button>
     </div>
     <div class="atlas" id="tpAtlas" hidden>
       <p class="hint" id="tpPlaceName"></p>
@@ -239,27 +242,27 @@ app.innerHTML = `
           <div class="remix-names"><label>To<input id="rmTo" maxlength="40" required placeholder="Their name" autocomplete="off" /></label><label>From<input id="rmFrom" maxlength="40" required placeholder="Your name" autocomplete="off" /></label></div>
         </section>
         <section class="remix-stage" id="rmStageMessage" data-rm-panel="1" hidden>
-          <h2 tabindex="-1">What will they find?</h2><p class="remix-intro">An invitation, a thank-you, or something only you could say.</p>
-          <label>Your message<textarea id="rmInvite" maxlength="200" required rows="4" placeholder="Dinner for two. You choose the evening…" aria-describedby="rmInviteCount"></textarea></label><p class="remix-count" id="rmInviteCount"></p>
+          <h2 tabindex="-1">What will they find?</h2><p class="remix-intro">A plan, a memory, a reason they matter.</p>
+          <label>The note they’ll find<textarea id="rmInvite" maxlength="200" required rows="4" placeholder="Friday evening, your favourite pasta, and no phones. I’d love some time that’s just ours." aria-describedby="rmInviteCount"></textarea></label><p class="remix-count" id="rmInviteCount"></p>
         </section>
         <section class="remix-stage" id="rmStageClues" data-rm-panel="2" hidden>
-          <h2 tabindex="-1">Little discoveries</h2><p class="remix-intro">Optional. Keep the room’s trail, or add a familiar detail.</p>
+          <h2 tabindex="-1">Little discoveries</h2><p class="remix-intro" id="rmCluePurpose">Let the dog nudge them towards the note on the table.</p>
           <div class="remix-objects" role="group" aria-label="Choose a clue to edit">
             <button type="button" data-rm-clue="dog" aria-pressed="true" aria-controls="rmClueDog"><img src="./stills/dog.webp" alt="" width="44" height="36" />Dog</button>
             <button type="button" data-rm-clue="postcard" aria-pressed="false" aria-controls="rmCluePostcard"><img src="./stills/postcard.webp" alt="" width="44" height="36" />Postcard</button>
             <button type="button" data-rm-clue="memory" aria-pressed="false" aria-controls="rmClueMemory"><img src="./stills/ribbon.webp" alt="" width="44" height="36" />Keepsake</button>
           </div>
-          <div id="rmClueDog" data-rm-clue-panel="dog"><label>The dog’s hint<textarea id="rmDog" maxlength="160" rows="3"></textarea></label></div>
-          <div id="rmCluePostcard" data-rm-clue-panel="postcard" hidden><label>The postcard’s clue<textarea id="rmPostcard" maxlength="160" rows="3"></textarea></label></div>
-          <div id="rmClueMemory" data-rm-clue-panel="memory" hidden><label>The ribbon’s keepsake<textarea id="rmMemory" maxlength="160" rows="3"></textarea></label></div>
+          <div id="rmClueDog" data-rm-clue-panel="dog"><label>The dog’s hint<textarea id="rmDog" maxlength="160" rows="3" aria-describedby="rmCluePurpose"></textarea></label></div>
+          <div id="rmCluePostcard" data-rm-clue-panel="postcard" hidden><label>The postcard’s clue<textarea id="rmPostcard" maxlength="160" rows="3" aria-describedby="rmCluePurpose"></textarea></label></div>
+          <div id="rmClueMemory" data-rm-clue-panel="memory" hidden><label>The ribbon’s keepsake<textarea id="rmMemory" maxlength="160" rows="3" aria-describedby="rmCluePurpose"></textarea></label></div>
         </section>
         <section class="remix-stage" id="rmStageReview" data-rm-panel="3" hidden>
-          <h2 tabindex="-1">Ready to share?</h2><p class="remix-intro">A note, tucked into the room.</p>
+          <h2 tabindex="-1" id="rmReviewTitle">Ready to share?</h2><p class="remix-intro" id="rmReviewIntro">A note, tucked into the room.</p>
           <div class="remix-review-letter"><p id="rmReviewTo"></p><blockquote><p id="rmReviewMessage"></p></blockquote><p class="note-sign" id="rmReviewFrom"></p></div>
         </section>
       </div>
       <p class="remix-status" id="rmLinkStatus" role="status" aria-live="polite"></p>
-      <footer class="remix-footer"><button class="link remix-preview" type="submit" id="rmSubmit" hidden>Preview as your recipient</button><div class="remix-navigation"><button class="link" id="rmPrev" type="button" hidden>Back</button><button class="btn small" id="rmNext" type="button">Continue</button><button class="btn small" id="rmCreate" type="submit" hidden>Create recipient link</button></div><p class="remix-footnote" id="rmFootnote">Your draft stays in this tab.</p></footer>
+      <footer class="remix-footer"><button class="link remix-preview" type="submit" id="rmSubmit" hidden>Preview as your recipient</button><div class="remix-navigation"><button class="link" id="rmPrev" type="button" hidden>Back</button><button class="btn small" id="rmNext" type="button">Write the note</button><button class="btn small" id="rmCreate" type="submit" hidden>Create recipient link</button></div><p class="remix-footnote" id="rmFootnote">Your draft stays in this tab.</p></footer>
     </form>
   </dialog>
 `;
@@ -422,7 +425,7 @@ const anchorChips = () => {
       unfoldChip.style.top = 'auto';
       unfoldChip.style.bottom = '9rem';
       paperNote.style.left = '50%';
-      paperNote.style.top = '22%';
+      paperNote.style.top = `${clampNoteY(window.innerHeight * 0.22)}px`;
       paperNote.style.bottom = '';
     }
   }
@@ -1060,6 +1063,16 @@ let remixClue: 'dog' | 'postcard' | 'memory' = 'dog';
 let remixOpener: HTMLElement | null = null;
 let remixReturn: 'paper' | 'note' | 'text' | null = null;
 let rmAnim: Animation | null = null;
+let rmArrival: Animation | null = null;
+const arriveRemix = () => {
+  rmArrival?.cancel();
+  if (reduced()) return;
+  rmArrival = remixPanel.animate(
+    [{ opacity: 0.7, transform: 'translate(-50%, calc(-50% + 6px)) scale(.985)' },
+     { opacity: 1, transform: 'translate(-50%, -50%) scale(1)' }],
+    { duration: 200, easing: 'cubic-bezier(.2,.7,.2,1)' },
+  );
+};
 const rmForm = $<HTMLFormElement>('#remixForm');
 const composerBusy = () => rmForm.getAttribute('aria-busy') === 'true';
 
@@ -1080,17 +1093,76 @@ const submitLabel = () => {
   ($('#rmSubmit') as HTMLElement).textContent = `Preview as ${to || 'your recipient'}`;
 };
 
+type RemixProblem = {
+  field: string;
+  stage: 0 | 1 | 2;
+  clue?: 'dog' | 'postcard' | 'memory';
+  say: string;
+  action: string;
+  missing: boolean;
+};
+const remixProblem = (d: GiftEdition): RemixProblem | null => {
+  if (!d.to) return { field: '#rmTo', stage: 0, say: 'Add their name before previewing or creating a link.', action: 'Add recipient', missing: true };
+  if (d.to.length > 40) return { field: '#rmTo', stage: 0, say: 'Keep their name to 40 characters.', action: 'Shorten their name', missing: false };
+  if (!d.from) return { field: '#rmFrom', stage: 0, say: 'Add your name before previewing or creating a link.', action: 'Add your name', missing: true };
+  if (d.from.length > 40) return { field: '#rmFrom', stage: 0, say: 'Keep your name to 40 characters.', action: 'Shorten your name', missing: false };
+  if (!d.invitation) return { field: '#rmInvite', stage: 1, say: 'Write the message they will find before continuing.', action: 'Write your note', missing: true };
+  if (d.invitation.length > 200) return { field: '#rmInvite', stage: 1, say: 'Keep your message to 200 characters.', action: 'Shorten your note', missing: false };
+  for (const [clue, field] of [['dog', '#rmDog'], ['postcard', '#rmPostcard'], ['memory', '#rmMemory']] as const) {
+    if (d[clue].length > 160) return { field, stage: 2, clue, say: 'That clue is a little long — trim it to fit.', action: 'Shorten the clue', missing: false };
+  }
+  return null;
+};
+
 const syncRemixReview = () => {
+  if (composerBusy()) return; // a create in flight keeps every control frozen
   const d = readDraft();
   $('#rmReviewTo').textContent = d.to ? `For ${d.to}` : 'For someone special';
   $('#rmReviewMessage').textContent = d.invitation || 'Your message will appear here.';
   $('#rmReviewFrom').textContent = d.from ? `— ${d.from}` : 'From you';
   ($('#rmInviteCount') as HTMLElement).textContent =
-    `${($('#rmInvite') as HTMLTextAreaElement).value.length} / 200`;
+    `${Math.max(0, 200 - ($('#rmInvite') as HTMLTextAreaElement).value.length)} characters left`;
   const defaults = makeDraft();
   const customClues = (['dog', 'postcard', 'memory'] as const).some((k) => d[k] !== defaults[k]);
   ($('#rmNext') as HTMLElement).textContent =
-    remixStep === 2 ? (customClues ? 'Review gift' : 'Skip clues') : 'Continue';
+    remixStep === 0 ? 'Write the note'
+    : remixStep === 1 ? 'Choose the clues'
+    : remixStep === 2 ? (customClues ? 'Review my gift' : 'Keep these clues')
+    : 'Continue';
+  const problem = remixProblem(d);
+  ($('#rmSubmit') as HTMLButtonElement).disabled = !!problem;
+  ($('#rmCreate') as HTMLElement).textContent = problem?.action ?? 'Create recipient link';
+  ($('#rmReviewTitle') as HTMLElement).textContent = problem ? 'Make it yours' : 'Ready to share?';
+  ($('#rmReviewIntro') as HTMLElement).textContent = problem
+    ? 'Add the names and note before sharing.'
+    : 'A note, tucked into the room.';
+  ($('#rmFootnote') as HTMLElement).textContent = remixStep === 3
+    ? (problem ? 'You can revisit any step above.' : 'Creates a link you can send.')
+    : 'Your draft stays in this tab.';
+  // gentle completion marks — only the two truly required stages count
+  const complete: Record<number, { done: boolean; aria: string }> = {
+    0: { done: d.to.length > 0 && d.to.length <= 40 && d.from.length > 0 && d.from.length <= 40, aria: 'People, complete' },
+    1: { done: d.invitation.length > 0 && d.invitation.length <= 200, aria: 'Message, complete' },
+  };
+  rmForm.querySelectorAll<HTMLElement>('[data-rm-step]').forEach((b) => {
+    const n = Number(b.dataset.rmStep);
+    const span = b.querySelector('span') as HTMLElement;
+    if (n === 2) {
+      span.textContent = 'Optional';
+      b.setAttribute('aria-label', 'Clues, optional');
+      b.removeAttribute('data-complete');
+    } else if (n === 3) {
+      span.textContent = '04';
+      b.setAttribute('aria-label', 'Review');
+      b.removeAttribute('data-complete');
+    } else {
+      const c = complete[n];
+      span.textContent = c.done ? '✓' : `0${n + 1}`;
+      b.setAttribute('aria-label', c.done ? c.aria : n === 0 ? 'People' : 'Message');
+      if (c.done) b.setAttribute('data-complete', 'true');
+      else b.removeAttribute('data-complete');
+    }
+  });
   submitLabel();
 };
 
@@ -1112,25 +1184,30 @@ const showRemixStep = (next: number, focus = true) => {
   ($('#rmNext') as HTMLElement).hidden = remixStep === 3;
   ($('#rmCreate') as HTMLElement).hidden = remixStep !== 3;
   ($('#rmSubmit') as HTMLElement).hidden = remixStep !== 3;
-  ($('#rmFootnote') as HTMLElement).textContent = remixStep === 3
-    ? 'Creates a saved link. You’ll choose where to send it.'
-    : 'Your draft stays in this tab.';
   syncRemixReview();
   ($('#rmViewport') as HTMLElement).scrollTop = 0;
   const panel = $(`[data-rm-panel="${remixStep}"]`) as HTMLElement;
   if (remixStep !== previous && !reduced()) {
     rmAnim?.cancel();
     rmAnim = panel.animate(
-      [{ opacity: 0, transform: `translateY(${next < previous ? -8 : 8}px)` },
-       { opacity: 1, transform: 'translateY(0)' }],
+      [{ opacity: 0.65, transform: `translateX(${next < previous ? -12 : 12}px)` },
+       { opacity: 1, transform: 'translateX(0)' }],
       { duration: 180, easing: 'cubic-bezier(.2,.7,.2,1)' },
     );
   }
   if (focus && remixPanel.open) stageHeading().focus();
 };
 
+const CLUE_PURPOSE = {
+  dog: 'Let the dog nudge them towards the note on the table.',
+  postcard: 'Point them towards the dog, their very good guide.',
+  memory: 'A memory or an inside joke, just for stopping to look.',
+} as const;
+
 const selectRemixClue = (kind: 'dog' | 'postcard' | 'memory', focus = false) => {
+  if (composerBusy()) return;
   remixClue = kind;
+  ($('#rmCluePurpose') as HTMLElement).textContent = CLUE_PURPOSE[kind];
   rmForm.querySelectorAll<HTMLElement>('[data-rm-clue-panel]').forEach((p) => {
     p.hidden = p.dataset.rmCluePanel !== kind;
   });
@@ -1162,18 +1239,29 @@ const openRemix = () => {
   ($('#rmInvite') as HTMLTextAreaElement).value = base.invitation;
   remixPanel.hidden = false;
   remixPanel.showModal();
+  arriveRemix();
   showRemixStep(remixStep);
   selectRemixClue(remixClue);
 };
-for (const id of ['paperRemix', 'remixLink']) {
+const syncResumeLinks = () => {
+  // a draft in memory earns a quiet way back — demo only, never on links
+  const show = !!lastDraft && ROOM.allowRemix && !isPreview && linkMode === 'demo';
+  for (const id of ['#coverResume', '#helpResume', '#tpResume']) {
+    ($(id) as HTMLElement).hidden = !show;
+  }
+};
+for (const id of ['paperRemix', 'remixLink', 'coverResume', 'helpResume', 'tpResume']) {
   ($(`#${id}`) as HTMLElement).addEventListener('click', openRemix);
 }
 
 const closeRemix = () => {
   if (composerBusy()) return;
   lastDraft = readDraft(); // unsaved edits survive a leave-without-submit
+  rmArrival?.cancel();
+  rmAnim?.cancel();
   remixPanel.close();
   remixPanel.hidden = true;
+  syncResumeLinks();
   // measured after the return view is revealed — a hidden opener has no rect
   const restoreFocus = (fallback: HTMLElement) => {
     const openerVisible = remixOpener && document.contains(remixOpener) && remixOpener.getClientRects().length > 0;
@@ -1191,7 +1279,8 @@ const closeRemix = () => {
   } else if (!hud.hidden) {
     restoreFocus($('#help') as HTMLElement);
   } else {
-    restoreFocus($('#enter') as HTMLElement);
+    const resume = $('#coverResume') as HTMLElement;
+    restoreFocus(!resume.hidden ? resume : ($('#enter') as HTMLElement));
   }
   remixOpener = null;
   remixReturn = null;
@@ -1209,8 +1298,18 @@ rmForm.querySelectorAll<HTMLElement>('[data-rm-clue]').forEach((b) => {
 });
 $('#rmNext').addEventListener('click', () => showRemixStep(remixStep + 1));
 $('#rmPrev').addEventListener('click', () => showRemixStep(remixStep - 1));
+// Enter in a single-line name field moves one stage on — the first submit
+// button may be disabled, so implicit submission can't be relied on
+rmForm.addEventListener('keydown', (e: KeyboardEvent) => {
+  if (e.key !== 'Enter' || e.isComposing || e.keyCode === 229 || e.shiftKey
+    || e.ctrlKey || e.altKey || e.metaKey
+    || !(e.target instanceof HTMLInputElement) || remixStep === 3) return;
+  e.preventDefault();
+  if (!composerBusy()) showRemixStep(remixStep + 1);
+});
 for (const id of ['#rmTo', '#rmFrom', '#rmInvite', '#rmDog', '#rmPostcard', '#rmMemory']) {
   ($(id) as HTMLElement).addEventListener('input', (e) => {
+    if (composerBusy()) return;
     const field = e.target as HTMLElement;
     field.removeAttribute('aria-invalid');
     field.removeAttribute('aria-errormessage');
@@ -1242,6 +1341,8 @@ const onPreviewMessage = (e: MessageEvent) => {
 const openPreview = () => {
   if (previewSheet || isPreview) return; // never nest a preview inside a preview
   previewOpener = document.activeElement as HTMLElement | null;
+  rmArrival?.cancel();
+  rmAnim?.cancel();
   remixPanel.close(); // an open modal would sit above the full-window frame
   remixPanel.hidden = true;
   previewSheet = document.createElement('div');
@@ -1280,6 +1381,7 @@ const closePreview = () => {
   // the form kept every field — nothing was applied; return to the same stage
   remixPanel.hidden = false;
   remixPanel.showModal();
+  arriveRemix();
   showRemixStep(remixStep, false);
   (previewOpener && document.contains(previewOpener) && previewOpener.getClientRects().length
     ? previewOpener
@@ -1298,34 +1400,32 @@ rmForm.addEventListener('submit', (e) => {
     return;
   }
   const draft = readDraft();
+  const submitter = (e as SubmitEvent).submitter as HTMLElement | null;
   const status = $('#rmLinkStatus') as HTMLElement;
-  const problems: { field: string; stage: number; clue?: 'dog' | 'postcard' | 'memory'; say: string }[] = [];
-  if (!draft.to) problems.push({ field: '#rmTo', stage: 0, say: 'Add their name before previewing or creating a link.' });
-  else if (draft.to.length > 40) problems.push({ field: '#rmTo', stage: 0, say: 'Keep their name to 40 characters.' });
-  if (!draft.from) problems.push({ field: '#rmFrom', stage: 0, say: 'Add your name before previewing or creating a link.' });
-  else if (draft.from.length > 40) problems.push({ field: '#rmFrom', stage: 0, say: 'Keep your name to 40 characters.' });
-  if (!draft.invitation) problems.push({ field: '#rmInvite', stage: 1, say: 'Write the message they will find before continuing.' });
-  else if (draft.invitation.length > 200) problems.push({ field: '#rmInvite', stage: 1, say: 'Keep your message to 200 characters.' });
-  for (const [clue, field] of [['dog', '#rmDog'], ['postcard', '#rmPostcard'], ['memory', '#rmMemory']] as const) {
-    if (draft[clue].length > 160) {
-      problems.push({ field, stage: 2, clue, say: 'That clue is a little long — trim it to fit.' });
-    }
-  }
-  const first = problems[0];
-  if (first || !validateEdition(draft)) {
-    status.textContent = first?.say ?? 'Check the names, message and clue lengths before continuing.';
-    if (first) {
-      showRemixStep(first.stage, false);
-      if (first.clue) selectRemixClue(first.clue);
-      const field = $(first.field) as HTMLElement;
+  const problem = remixProblem(draft);
+  if (problem) {
+    // the relabelled primary is a gentle guide when something's simply
+    // missing — jump and focus without red ink; real errors still mark it
+    const guided = submitter?.id === 'rmCreate' && problem.missing;
+    status.textContent = guided ? '' : problem.say;
+    showRemixStep(problem.stage, false);
+    if (problem.clue) selectRemixClue(problem.clue);
+    const field = $(problem.field) as HTMLElement;
+    if (guided) {
+      field.removeAttribute('aria-invalid');
+      field.removeAttribute('aria-errormessage');
+    } else {
       field.setAttribute('aria-invalid', 'true');
       field.setAttribute('aria-errormessage', 'rmLinkStatus');
-      field.focus();
     }
+    field.focus();
+    return;
+  }
+  if (!validateEdition(draft)) {
+    status.textContent = 'Check the names, message and clue lengths before continuing.';
     return;
   }
   lastDraft = draft; // memory only — the parent's room is never replaced
-  const submitter = (e as SubmitEvent).submitter as HTMLElement | null;
   if (submitter?.id === 'rmCreate') void createRecipientLink(draft);
   else if (submitter?.id === 'rmSubmit') openPreview();
 });

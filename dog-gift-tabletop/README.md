@@ -53,22 +53,33 @@ The same cut also carries the fuller local hunt layer:
 - **Remix → recipient preview.** `ROOM.allowRemix` gates a post-reveal "Make a
   gift in this room" editor: a native `dialog` styled like the room's
   stationery, written in four small stages — People (To/From), Message (the
-  invitation, with a 0/200 count), Clues and Review. The numbered stage tabs
+  invitation, with a live "characters left" count), Clues and Review. The numbered stage tabs
   along the top are always clickable — jumping forward or back never
   validates and never loses text, so the only gate is the explicit action on
-  Review ("Create recipient link" or "Preview as …"; both
-  validate names + message and focus the first gap). The Clues stage is
-  optional: three small object cards (dog/postcard/ribbon stills) pick which
-  one textarea is shown; all three fields stay mounted and keep their text,
-  the room's default trail fills in anything left cleared, and the primary
-  button reads "Skip clues" until a clue is edited (then "Review gift") —
-  either way it lands on Review. The Review stage shows the note as the
-  recipient will read it, with gentle placeholders ("For someone special"…);
-  jumping back to fix anything uses the same stage tabs. `?make=1` opens a clean editor without playing
+  Review. The Review stage adapts to the draft: with essentials missing it
+  reads "Make it yours", disables Preview, and turns the primary into a
+  gentle guide ("Add recipient", "Write your note"…) that jumps to and
+  focuses the right field without red ink; a complete draft reads "Ready to
+  share?" with "Create recipient link" and "Preview as {name}" together in the footer
+  (length problems still mark the field and explain). The stage tabs carry
+  quiet completion marks — a ✓ on People and Message once their required
+  fields are in range, "Optional" over Clues — and the primary is labelled
+  for where it leads ("Write the note", "Choose the clues"). The Clues
+  stage is optional: three small object cards (dog/postcard/ribbon stills)
+  pick which one textarea is shown, each with a one-line hint about what
+  that clue does in the trail; all three fields stay mounted and keep
+  their text, the room's default trail fills in anything left cleared, and
+  the primary reads "Keep these clues" until a clue is edited (then
+  "Review my gift") — either way it lands on Review. The Review letter
+  preserves the giver's own line breaks, as does the note the recipient
+  unfolds. `?make=1` opens a clean editor without playing
   the demo — a fresh composer keeps the room's default clues but starts the
   invitation blank; a reopened composer restores the last draft, the same
   stage and the selected clue (drafts stay in the tab until a link is
-  created). Backing out — Close or Escape — preserves everything in memory.
+  created). Backing out — Close or Escape — preserves everything in memory,
+  and a quiet "Continue your gift" link appears on the cover, in the help
+  panel and along the photo path until a link is created (demo only —
+  recipients and previews never see it).
   "Create recipient link" publishes a saved snapshot (below); "Preview as
   {name}" sits beside it in the footer and opens the draft inside a
   full-window same-origin iframe (`./?recipientPreview=1`) — the parent's
@@ -84,8 +95,11 @@ The same cut also carries the fuller local hunt layer:
   saved server-side (no checkout, no email, no account; free). The API
   returns a recipient token; the client builds the two URLs locally: the
   recipient link `…#gift=<token>` to share, and a private management link
-  `…#manage=<key>` that opens the owner view (copy/open the recipient link,
-  and behind "Private controls" a copyable management URL and a confirmed
+  `…#manage=<key>` that opens the owner view ("Your gift is ready." — a
+  copyable recipient link and, where the OS supports it, a native
+  "Share gift…" that only ever carries the public `#gift` URL, with copy
+  always present as fallback and cancel leaving copy available; and behind
+  "Keep your private controls" a copyable management URL and a confirmed
   "Close recipient link" that revokes it). Anyone holding the recipient
   link can open the gift; revoking removes the message from the stored
   edition and the link stops working — a closed or failed link shows an
@@ -191,21 +205,38 @@ tests additionally verified persistence across a server restart. Those
 were local tests against a temporary database.
 
 Staged-editor checks (local, Ego Browser): the four-stage
-composer was exercised at 1450×736, 390×844 and 320×568 — always-clickable
-stage tabs, implicit Enter advancing a single stage without posting,
-Review-only validation focusing the first missing/oversized field, literal
-HTML names rendered as text, the "Skip clues"/"Review gift" primary label
-flipping when a clue differs from the room defaults, and clue-card
-selection plus all draft text surviving Close/Escape and reopen. The
-recipient preview closed the dialog, ran inert-gated in its iframe and
-returned to the same stage; the entry link stayed hidden until the note was
-open. A deferred local create froze every composer control (Escape
-included) and its rejection restored them with the draft intact; reload
-restored the pending draft on Review, a real retry created and revoked one
-local fixture, and the recipient link served the personalized edition
-before returning unavailable. Reduced-motion runs produced no stage
-animation. Small-height (~360 px) layout was checked for internal
-scrolling only; real-phone keyboards and touch were not exercised.
+composer was exercised at 1450×736, 390×844, 320×568 and a 360 px
+short-height pass — always-clickable stage tabs with required-field
+completion marks, a real Enter keypress in a name field advancing one
+stage without posting (handled explicitly, since a disabled Preview can
+block implicit submission; the textarea keeps its newline and synthetic
+composing events were ignored — real IME input was not tested), adaptive
+Review ("Make it yours" with a guided primary and disabled Preview vs
+"Ready to share?"), per-field errors for missing and oversized content,
+literal HTML names rendered as text, the "Keep these clues"/"Review my
+gift" primary label flipping when a clue differs from the room defaults,
+per-card clue-purpose hints, and clue selection plus all draft text
+surviving Close/Escape and reopen. The recipient preview closed the
+dialog, ran inert-gated in its iframe and returned to the same stage with
+the giver's paragraph breaks intact; a 12-line invitation scrolls inside
+the recipient note surfaces with the first line and the close controls
+reachable rather than pushed off-screen — the photo note was exercised
+through its reveal; the tabletop paper was checked in a rendered DOM
+fixture, without rerunning the 3D journey. The entry link stayed hidden
+until the note was open, and "Continue your gift" resumed the draft from
+cover/help/photo paths (never on recipient or preview pages). A deferred
+local create froze every composer control (Escape included) and its
+rejection restored them — Preview re-enabled, the Create label back —
+before a real retry created and revoked one local fixture; the management
+view showed the large "Your gift is ready." title and, against a mocked
+manage view with stubbed `navigator.share`/`canShare`, copy stayed the
+primary action when sharing was absent, declined or threw, and when
+supported the share button offered only the public `#gift` URL (no key,
+no `#manage`), stayed quiet on cancel, pointed back at copy on failure,
+and never claimed anything was sent. Reduced-motion runs produced no
+stage or arrival animation. Small-height (~360 px) layout was checked for
+internal scrolling only; real-phone keyboards, touch and the real OS
+share sheet were not exercised.
 
 The staged editor was then verified live (2026-11-22): all four stages,
 stage-jump persistence, the "Skip clues" default, recipient preview and

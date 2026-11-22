@@ -276,11 +276,12 @@ function copyField(labelText: string, value: string): { wrap: HTMLElement; input
   return { wrap, input, status };
 }
 
-function wireCopy(button: HTMLButtonElement, input: HTMLInputElement, status: HTMLElement) {
+function wireCopy(button: HTMLButtonElement, input: HTMLInputElement, status: HTMLElement,
+  copiedMessage = 'Link copied') {
   button.addEventListener('click', async () => {
     try {
       await navigator.clipboard.writeText(input.value);
-      status.textContent = 'Link copied';
+      status.textContent = copiedMessage;
     } catch {
       input.focus();
       input.select();
@@ -399,28 +400,65 @@ async function initManage(panel: HTMLElement, key: string): Promise<void> {
   }
 
   const ed = view.edition;
-  const bits: (HTMLElement | Text)[] = [heading('Your gift link is ready')];
+  const title = heading('Your gift is ready.');
+  title.classList.add('delivery-ready-title');
+  const bits: (HTMLElement | Text)[] = [title];
   if (notice) bits.push(el('p', 'delivery-status', notice));
   bits.push(el('p', 'delivery-status', ed ? `For ${ed.to}, from ${ed.from}` : ''));
 
   const pub = copyField('Recipient link', recipientUrl(view.recipientToken));
   const copyBtn = el('button', 'btn small', 'Copy recipient link');
-  wireCopy(copyBtn, pub.input, pub.status);
+  wireCopy(copyBtn, pub.input, pub.status,
+    `Copied. Paste it into a message to ${ed?.to || 'them'}.`);
   const openBtn = el('a', 'link', 'Open recipient link');
   openBtn.href = pub.input.value;
   openBtn.target = '_blank';
   openBtn.rel = 'noopener noreferrer';
   const row1 = el('div', 'row');
+  row1.classList.add('delivery-actions');
+  // the OS share sheet is a bonus, never the only way — copy always stays
+  const shareData: ShareData = {
+    title: `A little surprise for ${ed?.to || 'them'}`,
+    text: 'I hid a little surprise for you in this room.',
+    url: pub.input.value, // the public #gift link — never #manage or a key
+  };
+  let canShare = false;
+  try {
+    canShare = typeof navigator.share === 'function'
+      && (typeof navigator.canShare !== 'function' || navigator.canShare(shareData));
+  } catch { /* copy stays the primary path */ }
+  if (canShare) {
+    const shareBtn = el('button', 'btn small', 'Share gift…');
+    shareBtn.type = 'button';
+    copyBtn.className = 'link';
+    shareBtn.addEventListener('click', async () => {
+      if (shareBtn.disabled) return;
+      shareBtn.disabled = true;
+      pub.status.textContent = '';
+      try {
+        await navigator.share(shareData);
+      } catch (e) {
+        // a cancel is a shrug, not an error; anything else points back at copy
+        if ((e as { name?: unknown })?.name !== 'AbortError') {
+          pub.status.textContent = 'Sharing didn’t open. Copy the recipient link instead.';
+        }
+      } finally {
+        shareBtn.disabled = false;
+      }
+    });
+    row1.append(shareBtn);
+  }
   row1.append(copyBtn, openBtn);
-  const hint = el('p', 'hint', 'Anyone with this link can open the gift. Send it in your own message.');
+  const hint = el('p', 'hint', 'Anyone with the recipient link can open the gift. Keep this page for yourself.');
 
   const priv = copyField('Private management link', managementUrl(key));
   const privBtn = el('button', 'btn small', 'Copy private management link');
-  wireCopy(privBtn, priv.input, priv.status);
+  wireCopy(privBtn, priv.input, priv.status,
+    'Private link copied. Keep it somewhere only you can access.');
   const closeBtn = el('button', 'link', 'Close recipient link');
   const details = el('details', 'delivery-private');
-  const dsum = el('summary', '', 'Private controls');
-  const dp = el('p', 'hint', 'Keep this link for yourself. It lets you close the recipient link.');
+  const dsum = el('summary', '', 'Keep your private controls');
+  const dp = el('p', 'hint', 'Save this private link if you may want to close the gift later. Keep it to yourself.');
   details.append(dsum, priv.wrap, privBtn, dp, closeBtn);
 
   const err = el('p', 'delivery-status');

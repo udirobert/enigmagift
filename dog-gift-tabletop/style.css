@@ -644,10 +644,12 @@ body {
   gap: 0.1rem;
 }
 .remix-progress button span {
-  font-size: 0.68rem;
+  font-size: 0.75rem;
+  line-height: 1.4;
   letter-spacing: 0.14em;
   color: #a9895e;
 }
+.remix-progress button[data-complete='true'] span { color: #7a4d1e; font-weight: 600; }
 .remix-progress button[aria-current='step'] {
   color: #9c4a2c;
   border-bottom-color: #9c4a2c;
@@ -713,6 +715,23 @@ body {
   margin-bottom: 1rem;
   overflow-wrap: anywhere;
 }
+.remix-review-letter > p:first-child { margin: 0 0 0.6rem; }
+/* the giver's line breaks are part of the letter — keep them everywhere */
+#rmReviewMessage, #noteBody, #paperBody { white-space: pre-wrap; overflow-wrap: anywhere; }
+/* long personal notes must scroll, never push the title above the fold */
+#note, #paperNote {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  justify-content: flex-start; /* readable fallback in older browsers */
+  justify-content: safe center; /* center short notes, start at top on overflow */
+}
+#note > *, #paperNote > * { flex-shrink: 0; }
+/* auto main-axis margins centre short notes and start-align overflowing ones,
+   where engines that lack safe-alignment would clip the top */
+#note > :first-child, #paperNote > :first-child { margin-top: auto; }
+#note > :last-child, #paperNote > :last-child { margin-bottom: auto; }
+/* pre-unfold the options row is hidden, so the visible row takes the auto margin */
+#note[data-stage='slip'] > .row { margin-bottom: auto; }
 .remix-review-letter blockquote p { font-size: 1.05rem; }
 .remix-preview {
   display: block;
@@ -729,6 +748,17 @@ body {
 }
 .remix-navigation .btn { margin-left: auto; min-height: 44px; }
 .remix button { min-height: 44px; }
+.remix button:disabled { opacity: 0.55; cursor: default; }
+.remix button, .delivery-actions button {
+  transition: transform 0.12s ease-out, background-color 0.12s ease-out;
+}
+.remix button:not(:disabled):active, .delivery-actions button:not(:disabled):active {
+  transform: translateY(1px);
+}
+@media (prefers-reduced-motion: reduce) {
+  .remix button, .delivery-actions button { transition: none; }
+  .remix button:not(:disabled):active, .delivery-actions button:not(:disabled):active { transform: none; }
+}
 .remix-footnote, .remix-count {
   font-size: 0.875rem;
   line-height: 1.4;
@@ -796,6 +826,14 @@ body {
   overflow-x: auto;
 }
 .delivery-panel .btn, .delivery-panel .link { min-height: 44px; }
+.delivery-panel .delivery-ready-title {
+  font: 500 clamp(1.8rem, 4vw, 2.2rem) / 1.15 var(--serif);
+  text-transform: none;
+  letter-spacing: normal;
+  color: #34271c;
+  margin: 0;
+}
+.delivery-panel .hint { font-size: 0.875rem; line-height: 1.5; }
 .delivery-private { border-top: 1px solid #b08c5a66; padding-top: 1rem; }
 .delivery-private summary { cursor: pointer; min-height: 44px; display: list-item; font-size: 0.9rem; color: inherit; }
 .remix-status {
