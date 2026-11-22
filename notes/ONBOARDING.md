@@ -131,7 +131,8 @@ actions reachable, onboarding copy was shortened, and "Tuck it away"
 became "Create gift link". Verified locally and by public asset smoke;
 real-phone keyboard checks remain open. The personal-photo hunt that
 grew from the same feedback is specified in `PHOTO-HUNT.md` and
-implemented behind `?photo=1` (local verification only, not deployed).
+implemented behind `?photo=1` and live since 2026-11-22 (local gates
+plus one live fixture verified; real phones still unverified).
 
 
 The letter-led composer described above now exists in `dog-gift-tabletop`,

@@ -295,6 +295,8 @@ giver-supplied photos now have their own path below.
 
 A second, separate route — `/?photo=1` — lets a sender hide a folded
 note inside one of their own photographs instead of the sample room.
+`?photo=1` is the canonical start (plain `?make=1` also lands on the
+photo chooser; `?make=1&sample=1` stays the sample-room editor).
 The flow is five views: choose a photo (JPEG, PNG or WebP, normalized
 in the browser to a JPEG before upload), tap or arrow-key the hiding
 spot, write an optional clue, write the note (To / message / From),
@@ -338,9 +340,13 @@ draft resume/discard, failed-save pending recovery, corrupt-upload
 rejection keeping the prior draft, legacy `?make=1&sample=1` and cover
 routes untouched, and a fresh recipient link playing the exact note
 before revocation removed both image and metadata. `tsc --strict`
-clean, `npm run build:room` green, 55/55 server security tests and
-14/14 Worker tests pass. Not yet proven on real phones or their
-virtual keyboards — emulation only; production deployment is pending.
+clean, `npm run build:room` green, 56/56 server security tests and
+14/14 Worker tests pass. Live 2026-11-22 at
+`https://enigmagift-room.trustfall.workers.dev/?photo=1` — a public
+fixture was created, played and revoked through the Worker. Not yet
+proven on real phones or their virtual keyboards — emulation only;
+production retry races and the native OS share sheet are likewise
+unverified.
 
 Delight/intuitiveness release (source `71911b9`) verified live on
 2026-11-22: `?make=1` served the new assets; empty Review guided "Add

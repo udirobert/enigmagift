@@ -1,6 +1,6 @@
 # EnigmaGift — ops runbook
 
-Last verified live: 2026-11-21. This is the "how to operate it" doc: deploys,
+Last verified live: 2026-11-22. This is the "how to operate it" doc: deploys,
 secrets, the gotchas that actually bit us, and how to verify the live flow.
 
 ---
@@ -11,7 +11,7 @@ secrets, the gotchas that actually bit us, and how to verify the live flow.
 |---|---|---|
 | Frontend | Cloudflare Pages — `enigmagift.pages.dev` (project `enigmagift`) | `npm run build` → `wrangler pages deploy dist --project-name=enigmagift --branch=main`. `/api/*` proxied to Fly by `functions/api/[[path]].js`; `/*` → `index.html` via `_redirects`. Netlify (`enigmagift.netlify.app`) still live as legacy mirror. |
 | Backend | Fly.io — `enigmagift-api.fly.dev`, app `enigmagift-api`, region `iad` | `fly deploy` from `server/`. 512MB shared-cpu-1x, `/data` volume for SQLite + uploads. |
-| Tabletop room pilot | Cloudflare Worker `enigmagift-room` — `https://enigmagift-room.trustfall.workers.dev` | `npm run deploy:room` — builds `dog-gift-tabletop/dist` and deploys `dog-gift-tabletop/wrangler.jsonc`. Static assets + `worker.ts` proxying only `/api/health` and `/api/room-gifts*` to Fly. Deploy the Fly API first. |
+| Gift pilot | Cloudflare Worker `enigmagift-room` — `https://enigmagift-room.trustfall.workers.dev` | Personal photo creation at `?photo=1`; sample-room editor at `?make=1&sample=1`. `npm run deploy:room` builds `dog-gift-tabletop/dist` and deploys `dog-gift-tabletop/wrangler.jsonc`. Static assets + `worker.ts` proxying `/api/health` and the `/api/room-gifts` and `/api/photo-gifts` routes to Fly. Deploy the Fly API first. |
 | Vision | SandBase `api.sandbase.ai/v1` (primary) + Google Gemini (fallback) | Key held as a Fly secret + local `server/sandbase.env`. |
 
 Frontend and backend are **not** on the same host. Pages is static-only (+ the
@@ -193,6 +193,27 @@ create→recipient→revoke fixture behaved end to end. Real phones and
 human onboarding research remain unverified. Rollback target: Worker
 version `7a8638ed-0324-41c0-b877-25a871a0c421`; API remains image
 `deployment-01M80C276AHAJGTD2P7HET78KE` (no API redeploy).
+
+**Post-release fixes, 2026-11-22** (source `cf498a4`): Worker version
+`7febf89f-d567-4994-a423-d04a6c0b0a67` — contextual hints cleared on
+movement/inspect/discovery, composer follows the visual viewport, copy
+updates. API unchanged.
+
+**Personal-photo hunts release, 2026-11-22** (backend source `fc38277`,
+frontend source `66cf464`): Fly API image
+`deployment-01M81SA5SRK00CANRFZ2AD120M`; Worker version
+`a7f7442f-538f-4726-ac7d-8f524b97c301` serving `index-CLiT6pfW.js`,
+`photo-app-wzFju6F8.js`, `main-BcsBTyFK.js`, `index-WgNI_fO3.css`. The
+Worker proxy allowlist now covers `/api/photo-gifts` and its subpaths
+alongside `/api/health` and the room-gift routes. Normalized JPEGs and
+editions are stored atomically in SQLite on the existing `/data` volume;
+the API machine has 512 MB of RAM.
+Live public smoke: one fixture created, played and revoked through the
+Worker — metadata and image both 404 after close. Rollback: Worker
+version `7febf89f-d567-4994-a423-d04a6c0b0a67` (an older frontend would
+only disable photo links, not delete stored gifts — favour roll-forward);
+API → prior image. Real phones, virtual keyboards and production retry
+races unverified.
 
 ### The world (per-gift 3D model)
 

@@ -192,6 +192,10 @@ Frontend env (build-time):
 | `GET /api/room-gifts/:token` | public recipient edition (`no-store`); `404` when revoked/unknown or the room/revision is not in the server allowlist |
 | `GET /api/room-gifts/manage` | owner view (`recipientToken`, `revoked`, `edition`) behind the management key |
 | `DELETE /api/room-gifts/manage` | revoke: deletes the stored edition text and marks the link closed (repeat-safe) |
+| `POST /api/photo-gifts` | multipart `edition` + `photo` (JPEG ≤ 3 MiB) + `Authorization: Bearer <key>` — one immutable photo gift → `{recipientToken}`; `409` on a different payload with the same key, `410` once revoked |
+| `GET /api/photo-gifts/:token` | public edition (`no-store`, never carries the image); `404` when revoked/unknown |
+| `GET /api/photo-gifts/:token/image` | the normalized JPEG (`no-store`); `404` when revoked/unknown |
+| `GET`/`DELETE /api/photo-gifts/manage` | owner view / revoke — removes edition and image atomically |
 
 Room-gift links are a pilot feature: no accounts — the sender's management
 key is a 64-hex bearer in the private `#manage=` URL and only its SHA-256
@@ -206,6 +210,11 @@ is not enabled, so forwarded IPs are never honoured). A shared household or
 NAT can still share a visitor bucket; no IP or visitor id is persisted —
 only a bounded in-memory rate map. There is no email, checkout or automatic
 delivery — the giver copies the link and sends it themselves.
+
+Photo-gift links follow the same pilot model but use **one** of the
+sender's own photos (the paid trail still requires 5–12): the photo is
+normalized server-side to a JPEG and stored next to the note, and revoke
+removes both at once. See `notes/PHOTO-HUNT.md`.
 
 API-only behaviors not surfaced in the current client: the frontend does not
 forward `ref` or `sendAt`; `sendAt` schedules the link's availability only —
@@ -231,10 +240,12 @@ Full runbook: `notes/OPS.md` (topology, secrets, redeploy, gotchas).
   the Pages Function `functions/api/[[path]].js` (Pages `_redirects`
   cannot proxy external domains). Netlify remains as a legacy mirror.
 - **Backend**: `cd server && fly deploy`.
-- **Tabletop room pilot**: Cloudflare Worker `enigmagift-room`, live at
-  `https://enigmagift-room.trustfall.workers.dev` (editor at
-  `…/?make=1`) — `npm run deploy:room` (builds `dog-gift-tabletop/dist`,
-  deploys `dog-gift-tabletop/wrangler.jsonc`); deploy the Fly API first.
+- **Tabletop pilot**: Cloudflare Worker `enigmagift-room`, live at
+  `https://enigmagift-room.trustfall.workers.dev` — personal photo hunts
+  start at `…/?photo=1` (plain `?make=1` also lands there; the
+  sample-room editor stays at `…/?make=1&sample=1`). `npm run deploy:room`
+  builds `dog-gift-tabletop/dist` and deploys
+  `dog-gift-tabletop/wrangler.jsonc`; deploy the Fly API first.
 - Each Payment Link's success URL is
   `https://enigmagift.pages.dev/?paid=1&sid={CHECKOUT_SESSION_ID}`.
   The gift ID survives the new-tab checkout via `localStorage`

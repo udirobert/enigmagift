@@ -283,12 +283,17 @@ shared through the OS sheet.
 
 ## Verification and status
 
-This design is approved and implemented locally behind `?photo=1` —
+This design is approved and implemented at `?photo=1` —
 creator (`photo-app.ts`, `photo-edition.ts`, `photo-image.ts`,
 `photo-links.ts`, `photo-storage.ts`), shared player
 (`photo-player.ts`), server route (`server/photo-gifts.js` mounted
 beside room gifts), Worker proxy signing, and routing in `entry.ts`.
-Not yet deployed.
+Published 2026-11-22: backend source `fc38277`, frontend source
+`66cf464`, Fly API image `deployment-01M81SA5SRK00CANRFZ2AD120M` and
+Worker version `a7f7442f-538f-4726-ac7d-8f524b97c301`. A live fixture
+was created, played and revoked through the public Worker — the recipient
+displayed the saved photo and exact note, and metadata plus image returned
+404 after close.
 
 Verified locally 2026-11-22: upload → placement (tap + arrow keys +
 Centre) → clue → note → local playtest → create → fresh recipient →
