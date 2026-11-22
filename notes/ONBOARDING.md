@@ -121,16 +121,19 @@ can revise their choices, and feel ownership of the result. Follow with real
 giver–recipient sessions to learn what the room adds to receiving the message.
 Small sessions provide qualitative direction, not conversion-rate evidence.
 
-## Implemented (2026-11-22, verified locally — not yet live)
+## Implemented and published (2026-11-22, source `b839209`)
 
-The letter-led composer described above now exists in `dog-gift-tabletop`
-(source changes under review at time of writing): a transparent dialog over
-the dimmed room holds an envelope (the recipient's name) and a lined letter
-(note + signature), routed envelope → letter → gift with the clue trail as
-an optional detour. Selecting an optional starter inserts an unfinished first
-line.
-It never replaces user-edited text, and the giver must finish the line
-before saving. The choices hide while they write and return if the field
-is cleared. The research questions above remain open: no human sessions have
-been run, and nothing
-here claims the delight hypothesis is proven.
+The letter-led composer described above now exists in `dog-gift-tabletop`,
+live at [the giver entry](https://enigmagift-room.trustfall.workers.dev/?make=1) (verified
+2026-11-22): a transparent dialog over the dimmed room holds an envelope
+(the recipient's name) and a lined letter (note + signature), routed
+envelope → letter → gift with the clue trail as an optional detour.
+Selecting an optional starter inserts an unfinished first line. It never
+replaces user-edited text, and the giver must finish the line before
+saving. The choices hide while they write and return if the field is
+cleared. Verified live: new assets served, the envelope-first route and
+Enter advance, starter insert/finish guidance, close/resume, preview with
+preserved line breaks, and one create→recipient→revoke fixture. The
+research questions above remain open: no human sessions have been run,
+real phones are unverified, and nothing here claims the delight
+hypothesis is proven.

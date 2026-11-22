@@ -178,6 +178,22 @@ locally). Rollback target: Worker version
 `27da1606-9354-4997-8ef2-9a00ca0d2028`; API remains image
 `deployment-01M80C276AHAJGTD2P7HET78KE` (no API redeploy).
 
+**Letter-led composer release, 2026-11-22** (source `b839209`): Worker
+version `414ccb0d-2901-4e92-be38-0b99545d8be8` — frontend-only update, 3
+static assets changed (`index.html`, `index-CbIdV1rk.js`,
+`index-DEUIajLM.css`). API and Worker proxy logic unchanged; the shared
+`ROOM_PROXY_SECRET` stays provisioned. The staged form became a
+letter-first composer: envelope (recipient) → letter (note + signature)
+→ gift, clue trail as an optional detour, optional first-line starters
+that must be finished before saving, Enter advancing a stage, and the
+room UI dimmed (visibility only) while composing. Public smoke: new
+assets served; guided/Enter routing, starter finish-gate, detour,
+close/resume and preview return all worked live; one disposable
+create→recipient→revoke fixture behaved end to end. Real phones and
+human onboarding research remain unverified. Rollback target: Worker
+version `7a8638ed-0324-41c0-b877-25a871a0c421`; API remains image
+`deployment-01M80C276AHAJGTD2P7HET78KE` (no API redeploy).
+
 ### The world (per-gift 3D model)
 
 Sealing a gift triggers `buildWorld` (`server/world.js`): SandBase **Run API**

@@ -252,6 +252,20 @@ through the public UI — recipient page served the exact personalized
 edition, and revocation through the private controls left the recipient
 link unavailable.
 
+Letter-led release (source `b839209`) verified live on 2026-11-22: the
+envelope → letter → gift composer served on `?make=1` with the new
+assets; real Enter keypresses advanced envelope→letter and
+letter→review without posting; an untouched starter guided "Finish your
+note"; the optional clues detour returned to the gift; Close revealed
+"Continue your gift" and resumed the draft; the recipient preview kept
+paragraph breaks and returned focus to Preview; a 40-character recipient
+name fit review bounds at 320×568; and one disposable create →
+personalized recipient → revoke fixture behaved end to end. Local
+evidence additionally covers strict TypeScript, the room build, the
+390×844/320×568/390×360 viewport bounds, the create freeze/retry, and
+reduced-motion behavior. Real phones and human
+research remain open.
+
 Delight/intuitiveness release (source `71911b9`) verified live on
 2026-11-22: `?make=1` served the new assets; empty Review guided "Add
 recipient" with Preview disabled; a real Enter keypress advanced a stage
