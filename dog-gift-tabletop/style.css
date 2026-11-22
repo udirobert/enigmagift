@@ -461,19 +461,6 @@ body {
   color: #5a4025;
   margin: 8px 0 0;
 }
-.remix form {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  pointer-events: auto;
-}
-.remix label {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  font-size: 0.85rem;
-  color: #5a4025;
-}
 .remix input,
 .remix textarea {
   font: inherit;
@@ -488,13 +475,6 @@ body {
   outline: 2px solid #9c4a2c55;
   border-color: #9c4a2c;
 }
-.remix-line {
-  font-size: 0.8rem;
-  color: #7a5a38;
-  font-style: italic;
-  margin: 0;
-}
-
 /* recap & remix float centered — the room stays behind */
 .recap, .remix {
   left: 50%;
@@ -601,23 +581,167 @@ body {
   flex: 0 0 auto;
 }
 
-/* ---- remix editor: the message first, clues tucked away ---- */
+/* ---- remix editor: a stationery sheet in four small stages ---- */
 .remix {
-  width: min(38rem, calc(100vw - 32px));
-  max-height: calc(100dvh - 32px);
-  align-items: stretch;
-  justify-content: flex-start;
+  margin: 0;
+  width: min(36rem, calc(100vw - 24px));
+  max-width: calc(100vw - 24px);
+  height: min(40rem, calc(100dvh - 24px));
+  max-height: calc(100dvh - 24px);
+  padding: clamp(1rem, 3vw, 1.75rem);
+  overflow: hidden;
+  border: 1px solid #b08c5a55;
   text-align: left;
-  padding: clamp(1.25rem, 4vw, 2rem);
 }
-.remix > * { flex-shrink: 0; }
-.remix .note-kicker { margin: 0; }
-.remix label { font-size: 1rem; gap: 0.4rem; }
-.remix input, .remix textarea { font-size: 1rem; min-height: 44px; width: 100%; }
-.remix form { gap: 1rem; }
-.remix-clues { border-top: 1px solid #b08c5a66; padding-top: 1rem; }
-.remix-clues summary { cursor: pointer; min-height: 44px; display: list-item; }
-.remix-clues label { margin-top: 1rem; }
+.remix::backdrop { background: rgba(20, 15, 10, 0.5); }
+/* the once-folded crease would cut straight through the fields */
+.remix::before { display: none; }
+.remix form {
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr) auto auto;
+  gap: 1rem;
+  min-height: 0;
+  height: 100%;
+  width: 100%;
+  pointer-events: auto;
+}
+.remix-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+.remix-header .note-kicker { margin: 0; font-size: 0.75rem; line-height: 1.5; letter-spacing: 0.1em; }
+.remix-viewport {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  padding: 0.25rem 0.15rem 0.5rem;
+}
+.remix-progress ol {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.25rem;
+}
+.remix-progress button {
+  width: 100%;
+  min-height: 48px;
+  padding: 0.3rem 0.2rem;
+  border: 0;
+  border-bottom: 1px solid #b08c5a55;
+  background: none;
+  font: inherit;
+  font-size: 0.9rem;
+  color: #7a5a38;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.1rem;
+}
+.remix-progress button span {
+  font-size: 0.68rem;
+  letter-spacing: 0.14em;
+  color: #a9895e;
+}
+.remix-progress button[aria-current='step'] {
+  color: #9c4a2c;
+  border-bottom-color: #9c4a2c;
+  background: rgba(191, 95, 46, 0.07);
+}
+.remix-progress button:focus-visible { outline: 2px solid #9c4a2c; outline-offset: 1px; }
+.remix-stage h2 {
+  font: 500 clamp(1.65rem, 4vw, 2rem) / 1.15 var(--serif);
+  margin: 0 0 0.65rem;
+}
+.remix-intro {
+  font-size: 0.95rem;
+  line-height: 1.55;
+  margin: 0 0 1.25rem;
+  color: #6d5139;
+}
+.remix label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  font-size: 1rem;
+  color: #5a4025;
+}
+.remix input, .remix textarea { font-size: 1rem; min-height: 44px; width: 100%; resize: none; }
+.remix-names { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+.remix-objects {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+.remix-objects button {
+  min-width: 0;
+  min-height: 44px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+  padding: 0.4rem 0.2rem;
+  border: 1px solid #b08c5a55;
+  border-radius: 4px;
+  background: #fffaf066;
+  font: inherit;
+  font-size: 0.875rem;
+  color: #5a4025;
+  cursor: pointer;
+}
+.remix-objects button img {
+  width: 100%;
+  height: 44px;
+  object-fit: cover;
+  border-radius: 3px;
+}
+.remix-objects button[aria-pressed='true'] {
+  border-color: #9c4a2c;
+  box-shadow: 0 0 0 1px #9c4a2c;
+}
+.remix-objects button:focus-visible { outline: 2px solid #9c4a2c; outline-offset: 1px; }
+.remix-review-letter {
+  border-left: 2px solid #bf5f2e77;
+  padding: 0.25rem 0 0.25rem 1rem;
+  margin-bottom: 1rem;
+  overflow-wrap: anywhere;
+}
+.remix-review-letter blockquote p { font-size: 1.05rem; }
+.remix-preview {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  margin: 0 0 0.4rem;
+}
+.remix-navigation {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.remix-navigation .btn { margin-left: auto; min-height: 44px; }
+.remix button { min-height: 44px; }
+.remix-footnote, .remix-count {
+  font-size: 0.875rem;
+  line-height: 1.4;
+  color: #6d5139;
+  margin: 0.5rem 0 0;
+}
+.remix-status:empty { display: none; }
+/* the gift-editor link only exists once the gift is actually open */
+#note:not([data-stage='open']) > .remix-entry { display: none; }
+@media (max-width: 440px) {
+  .remix-names { grid-template-columns: 1fr; }
+  .remix form { gap: 0.75rem; }
+}
 
 /* ---- quiet endings: secondary actions behind one disclosure ---- */
 .gift-options { max-width: 100%; }

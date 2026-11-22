@@ -12,7 +12,6 @@ import {
  */
 
 let edition: GiftEdition = { ...CANONICAL };
-let isDraft = false;
 
 const BASE_LINES: Record<Target, string> = {
   dog: '',
@@ -128,15 +127,14 @@ app.innerHTML = `
   <section class="note paper-note" id="paperNote" hidden aria-label="The unfolded note" tabindex="-1">
     <p class="note-kicker">Someone saved you a seat.</p>
     <blockquote><p id="paperBody"></p><p class="note-sign" id="paperSign" hidden></p></blockquote>
-    <p class="hint remix-line" id="paperRemixLine" hidden></p>
     <div class="row">
       <button class="btn small" id="paperKeep">Keep exploring</button>
     </div>
+    <button class="link remix-entry" id="paperRemix" hidden>Make a gift in this room</button>
     <details class="gift-options" id="paperOptions">
       <summary>More options</summary>
       <div class="row">
         <button class="link" id="paperRecap">How the hunt went</button>
-        <button class="link" id="paperRemix" hidden>Make a gift in this room</button>
         <button class="link" id="paperReplay">Start again</button>
       </div>
     </details>
@@ -175,11 +173,11 @@ app.innerHTML = `
       <button class="btn" id="keep">Keep exploring</button>
       <button class="link" id="slipBack" hidden>Not yet</button>
     </div>
+    <button class="link remix-entry" id="remixLink" hidden>Make a gift in this room</button>
     <details class="gift-options" id="noteOptions">
       <summary>More options</summary>
       <div class="row">
         <button class="link" id="recapLink">How the hunt went</button>
-        <button class="link" id="remixLink" hidden>Make a gift in this room</button>
         <button class="link" id="replay">Start again</button>
       </div>
     </details>
@@ -226,30 +224,44 @@ app.innerHTML = `
     </div>
   </section>
 
-  <section class="note paper-note remix" id="remixPanel" hidden aria-label="Make a gift in this room" tabindex="-1">
-    <p class="note-kicker">Make a gift in this room</p>
-    <p class="hint">Write the message they will find. This sample room is available to reuse.</p>
-    <form id="remixForm">
-      <label>To <input id="rmTo" maxlength="40" required placeholder="their name" /></label>
-      <label>From <input id="rmFrom" maxlength="40" required placeholder="your name" /></label>
-      <label>Your invitation or message <textarea id="rmInvite" maxlength="200" required rows="4" placeholder="What would you like them to discover?"></textarea></label>
-      <details class="remix-clues">
-        <summary>Personalize the clues (optional)</summary>
-        <p class="hint">The room already has a working trail. Keep these clues, or add a memory of your own.</p>
-        <label>The dog’s hint <textarea id="rmDog" maxlength="160" rows="2"></textarea></label>
-        <label>The postcard’s clue <textarea id="rmPostcard" maxlength="160" rows="2"></textarea></label>
-        <label>The ribbon’s keepsake <textarea id="rmMemory" maxlength="160" rows="2"></textarea></label>
-      </details>
-      <div class="row">
-        <button class="btn small" type="submit" id="rmCreate">Create recipient link</button>
-        <button class="link" type="submit" id="rmSubmit">Preview this gift</button>
-        <button class="link" id="remixCancel" type="button">Back</button>
-        <button class="link" id="remixOriginal" type="button">Back to original</button>
+  <dialog class="note paper-note remix" id="remixPanel" hidden aria-labelledby="rmDialogTitle">
+    <form id="remixForm" novalidate>
+      <header class="remix-header"><p class="note-kicker" id="rmDialogTitle">Make a gift in this room</p><button class="link remix-close" id="remixCancel" type="button">Close</button></header>
+      <nav class="remix-progress" aria-label="Gift stages"><ol>
+        <li><button type="button" data-rm-step="0" aria-controls="rmStagePeople"><span aria-hidden="true">01</span>People</button></li>
+        <li><button type="button" data-rm-step="1" aria-controls="rmStageMessage"><span aria-hidden="true">02</span>Message</button></li>
+        <li><button type="button" data-rm-step="2" aria-controls="rmStageClues"><span aria-hidden="true">03</span>Clues</button></li>
+        <li><button type="button" data-rm-step="3" aria-controls="rmStageReview"><span aria-hidden="true">04</span>Review</button></li>
+      </ol></nav>
+      <div class="remix-viewport" id="rmViewport">
+        <section class="remix-stage" id="rmStagePeople" data-rm-panel="0">
+          <h2 tabindex="-1">Who’s it for?</h2><p class="remix-intro">A small surprise, from you to them.</p>
+          <div class="remix-names"><label>To<input id="rmTo" maxlength="40" required placeholder="Their name" autocomplete="off" /></label><label>From<input id="rmFrom" maxlength="40" required placeholder="Your name" autocomplete="off" /></label></div>
+        </section>
+        <section class="remix-stage" id="rmStageMessage" data-rm-panel="1" hidden>
+          <h2 tabindex="-1">What will they find?</h2><p class="remix-intro">An invitation, a thank-you, or something only you could say.</p>
+          <label>Your message<textarea id="rmInvite" maxlength="200" required rows="4" placeholder="Dinner for two. You choose the evening…" aria-describedby="rmInviteCount"></textarea></label><p class="remix-count" id="rmInviteCount"></p>
+        </section>
+        <section class="remix-stage" id="rmStageClues" data-rm-panel="2" hidden>
+          <h2 tabindex="-1">Little discoveries</h2><p class="remix-intro">Optional. Keep the room’s trail, or add a familiar detail.</p>
+          <div class="remix-objects" role="group" aria-label="Choose a clue to edit">
+            <button type="button" data-rm-clue="dog" aria-pressed="true" aria-controls="rmClueDog"><img src="./stills/dog.webp" alt="" width="44" height="36" />Dog</button>
+            <button type="button" data-rm-clue="postcard" aria-pressed="false" aria-controls="rmCluePostcard"><img src="./stills/postcard.webp" alt="" width="44" height="36" />Postcard</button>
+            <button type="button" data-rm-clue="memory" aria-pressed="false" aria-controls="rmClueMemory"><img src="./stills/ribbon.webp" alt="" width="44" height="36" />Keepsake</button>
+          </div>
+          <div id="rmClueDog" data-rm-clue-panel="dog"><label>The dog’s hint<textarea id="rmDog" maxlength="160" rows="3"></textarea></label></div>
+          <div id="rmCluePostcard" data-rm-clue-panel="postcard" hidden><label>The postcard’s clue<textarea id="rmPostcard" maxlength="160" rows="3"></textarea></label></div>
+          <div id="rmClueMemory" data-rm-clue-panel="memory" hidden><label>The ribbon’s keepsake<textarea id="rmMemory" maxlength="160" rows="3"></textarea></label></div>
+        </section>
+        <section class="remix-stage" id="rmStageReview" data-rm-panel="3" hidden>
+          <h2 tabindex="-1">Ready to share?</h2><p class="remix-intro">A note, tucked into the room.</p>
+          <div class="remix-review-letter"><p id="rmReviewTo"></p><blockquote><p id="rmReviewMessage"></p></blockquote><p class="note-sign" id="rmReviewFrom"></p></div>
+        </section>
       </div>
       <p class="remix-status" id="rmLinkStatus" role="status" aria-live="polite"></p>
+      <footer class="remix-footer"><button class="link remix-preview" type="submit" id="rmSubmit" hidden>Preview as your recipient</button><div class="remix-navigation"><button class="link" id="rmPrev" type="button" hidden>Back</button><button class="btn small" id="rmNext" type="button">Continue</button><button class="btn small" id="rmCreate" type="submit" hidden>Create recipient link</button></div><p class="remix-footnote" id="rmFootnote">Your draft stays in this tab.</p></footer>
     </form>
-    <p class="hint">Creating a link saves this gift so someone else can open it. No email is sent — copy the link to send it yourself. Drafts stay in this tab until you create a link.</p>
-  </section>
+  </dialog>
 `;
 
 const $ = <T extends HTMLElement>(sel: string) => app.querySelector(sel) as T;
@@ -278,7 +290,7 @@ const blink = $('#blink');
 const paperNote = $('#paperNote');
 const recapPanel = $('#recapPanel');
 const recapList = $('#recapList');
-const remixPanel = $('#remixPanel');
+const remixPanel = $<HTMLDialogElement>('#remixPanel');
 const helpNext = $('#helpNext');
 const tpAtlas = $('#tpAtlas');
 const tpArtList = $('#tpArtList');
@@ -1034,13 +1046,6 @@ $('#recapBack').addEventListener('click', () => {
 });
 
 /* ---------- remix: reuse this room for your own small edition ---------- */
-const draftChips = () => {
-  for (const id of ['paperRemixLine']) {
-    const el = $(`#${id}`) as HTMLElement;
-    el.hidden = !isDraft;
-    if (isDraft) el.textContent = 'You are previewing your own gift.';
-  }
-};
 const remixLinks = () => {
   // recipient links and previews never offer the editor — remix is demo-only
   const on = ROOM.allowRemix && !isPreview && linkMode === 'demo';
@@ -1049,27 +1054,15 @@ const remixLinks = () => {
 };
 remixLinks();
 
+let lastDraft: GiftEdition | null = null;
+let remixStep = 0;
+let remixClue: 'dog' | 'postcard' | 'memory' = 'dog';
+let remixOpener: HTMLElement | null = null;
 let remixReturn: 'paper' | 'note' | 'text' | null = null;
-const openRemix = () => {
-  if (!ROOM.allowRemix || isPreview || linkMode !== 'demo') return;
-  remixReturn = !paperNote.hidden ? 'paper' : !note.hidden ? 'note' : 'text';
-  note.hidden = true;
-  paperNote.hidden = true;
-  /* the last draft keeps its edits; a fresh one gets neutral starters —
-     nothing of the canonical gift is copied across */
-  const base = lastDraft ?? makeDraft();
-  ($('#rmTo') as HTMLInputElement).value = base.to;
-  ($('#rmFrom') as HTMLInputElement).value = base.from;
-  ($('#rmDog') as HTMLTextAreaElement).value = base.dog;
-  ($('#rmPostcard') as HTMLTextAreaElement).value = base.postcard;
-  ($('#rmMemory') as HTMLTextAreaElement).value = base.memory;
-  ($('#rmInvite') as HTMLTextAreaElement).value = base.invitation;
-  remixPanel.hidden = false;
-  remixPanel.focus();
-};
-for (const id of ['paperRemix', 'remixLink']) {
-  ($(`#${id}`) as HTMLElement).addEventListener('click', openRemix);
-}
+let rmAnim: Animation | null = null;
+const rmForm = $<HTMLFormElement>('#remixForm');
+const composerBusy = () => rmForm.getAttribute('aria-busy') === 'true';
+
 const readDraft = (): GiftEdition => {
   const val = (id: string) => (($(id) as HTMLInputElement | HTMLTextAreaElement).value || '').trim();
   const draft = makeDraft();
@@ -1081,34 +1074,157 @@ const readDraft = (): GiftEdition => {
   draft.invitation = val('#rmInvite');
   return draft;
 };
+
+const submitLabel = () => {
+  const to = (($('#rmTo') as HTMLInputElement).value || '').trim();
+  ($('#rmSubmit') as HTMLElement).textContent = `Preview as ${to || 'your recipient'}`;
+};
+
+const syncRemixReview = () => {
+  const d = readDraft();
+  $('#rmReviewTo').textContent = d.to ? `For ${d.to}` : 'For someone special';
+  $('#rmReviewMessage').textContent = d.invitation || 'Your message will appear here.';
+  $('#rmReviewFrom').textContent = d.from ? `— ${d.from}` : 'From you';
+  ($('#rmInviteCount') as HTMLElement).textContent =
+    `${($('#rmInvite') as HTMLTextAreaElement).value.length} / 200`;
+  const defaults = makeDraft();
+  const customClues = (['dog', 'postcard', 'memory'] as const).some((k) => d[k] !== defaults[k]);
+  ($('#rmNext') as HTMLElement).textContent =
+    remixStep === 2 ? (customClues ? 'Review gift' : 'Skip clues') : 'Continue';
+  submitLabel();
+};
+
+const stageHeading = () =>
+  $(`[data-rm-panel="${remixStep}"] h2`) as HTMLElement;
+
+const showRemixStep = (next: number, focus = true) => {
+  if (composerBusy()) return;
+  const previous = remixStep;
+  remixStep = Math.max(0, Math.min(3, next));
+  rmForm.querySelectorAll<HTMLElement>('[data-rm-panel]').forEach((p) => {
+    p.hidden = Number(p.dataset.rmPanel) !== remixStep;
+  });
+  rmForm.querySelectorAll<HTMLElement>('[data-rm-step]').forEach((b) => {
+    if (Number(b.dataset.rmStep) === remixStep) b.setAttribute('aria-current', 'step');
+    else b.removeAttribute('aria-current');
+  });
+  ($('#rmPrev') as HTMLElement).hidden = remixStep === 0;
+  ($('#rmNext') as HTMLElement).hidden = remixStep === 3;
+  ($('#rmCreate') as HTMLElement).hidden = remixStep !== 3;
+  ($('#rmSubmit') as HTMLElement).hidden = remixStep !== 3;
+  ($('#rmFootnote') as HTMLElement).textContent = remixStep === 3
+    ? 'Creates a saved link. You’ll choose where to send it.'
+    : 'Your draft stays in this tab.';
+  syncRemixReview();
+  ($('#rmViewport') as HTMLElement).scrollTop = 0;
+  const panel = $(`[data-rm-panel="${remixStep}"]`) as HTMLElement;
+  if (remixStep !== previous && !reduced()) {
+    rmAnim?.cancel();
+    rmAnim = panel.animate(
+      [{ opacity: 0, transform: `translateY(${next < previous ? -8 : 8}px)` },
+       { opacity: 1, transform: 'translateY(0)' }],
+      { duration: 180, easing: 'cubic-bezier(.2,.7,.2,1)' },
+    );
+  }
+  if (focus && remixPanel.open) stageHeading().focus();
+};
+
+const selectRemixClue = (kind: 'dog' | 'postcard' | 'memory', focus = false) => {
+  remixClue = kind;
+  rmForm.querySelectorAll<HTMLElement>('[data-rm-clue-panel]').forEach((p) => {
+    p.hidden = p.dataset.rmCluePanel !== kind;
+  });
+  rmForm.querySelectorAll<HTMLElement>('[data-rm-clue]').forEach((b) => {
+    b.setAttribute('aria-pressed', String(b.dataset.rmClue === kind));
+  });
+  if (focus) {
+    const field = { dog: '#rmDog', postcard: '#rmPostcard', memory: '#rmMemory' }[kind];
+    ($(field) as HTMLElement).focus();
+  }
+};
+
+const openRemix = () => {
+  if (!ROOM.allowRemix || isPreview || linkMode !== 'demo' || remixPanel.open) return;
+  const ae = document.activeElement as HTMLElement | null;
+  // ?make=1 opens from the cover with no trigger — body counts as no opener
+  remixOpener = ae && ae !== document.body && ae !== document.documentElement ? ae : null;
+  remixReturn = !paperNote.hidden ? 'paper' : !note.hidden ? 'note' : 'text';
+  note.hidden = true;
+  paperNote.hidden = true;
+  /* the last draft keeps its edits; a fresh one gets neutral starters with a
+     blank invitation — nothing of the canonical gift is copied across */
+  const base = lastDraft ?? { ...makeDraft(), invitation: '' };
+  ($('#rmTo') as HTMLInputElement).value = base.to;
+  ($('#rmFrom') as HTMLInputElement).value = base.from;
+  ($('#rmDog') as HTMLTextAreaElement).value = base.dog;
+  ($('#rmPostcard') as HTMLTextAreaElement).value = base.postcard;
+  ($('#rmMemory') as HTMLTextAreaElement).value = base.memory;
+  ($('#rmInvite') as HTMLTextAreaElement).value = base.invitation;
+  remixPanel.hidden = false;
+  remixPanel.showModal();
+  showRemixStep(remixStep);
+  selectRemixClue(remixClue);
+};
+for (const id of ['paperRemix', 'remixLink']) {
+  ($(`#${id}`) as HTMLElement).addEventListener('click', openRemix);
+}
+
 const closeRemix = () => {
+  if (composerBusy()) return;
   lastDraft = readDraft(); // unsaved edits survive a leave-without-submit
+  remixPanel.close();
   remixPanel.hidden = true;
+  // measured after the return view is revealed — a hidden opener has no rect
+  const restoreFocus = (fallback: HTMLElement) => {
+    const openerVisible = remixOpener && document.contains(remixOpener) && remixOpener.getClientRects().length > 0;
+    (openerVisible ? remixOpener! : fallback).focus();
+  };
   if (remixReturn === 'paper' && paperState === 'open' && world) {
     paperNote.hidden = false;
-    paperNote.focus();
+    restoreFocus(paperNote);
   } else if (remixReturn === 'note') {
     note.hidden = false;
-    note.focus();
+    restoreFocus(note);
   } else if (returnToText || !textpath.hidden) {
     textpath.hidden = false;
-    ($('#tpDog') as HTMLElement).focus();
-  } else if (!hud.hidden) $('#help').focus();
+    restoreFocus($('#tpDog') as HTMLElement);
+  } else if (!hud.hidden) {
+    restoreFocus($('#help') as HTMLElement);
+  } else {
+    restoreFocus($('#enter') as HTMLElement);
+  }
+  remixOpener = null;
   remixReturn = null;
 };
 $('#remixCancel').addEventListener('click', closeRemix);
+remixPanel.addEventListener('cancel', (e) => {
+  e.preventDefault(); // Escape must never drop the draft or interrupt a create
+  if (!composerBusy()) closeRemix();
+});
+rmForm.querySelectorAll<HTMLElement>('[data-rm-step]').forEach((b) => {
+  b.addEventListener('click', () => showRemixStep(Number(b.dataset.rmStep)));
+});
+rmForm.querySelectorAll<HTMLElement>('[data-rm-clue]').forEach((b) => {
+  b.addEventListener('click', () => selectRemixClue(b.dataset.rmClue as 'dog' | 'postcard' | 'memory'));
+});
+$('#rmNext').addEventListener('click', () => showRemixStep(remixStep + 1));
+$('#rmPrev').addEventListener('click', () => showRemixStep(remixStep - 1));
+for (const id of ['#rmTo', '#rmFrom', '#rmInvite', '#rmDog', '#rmPostcard', '#rmMemory']) {
+  ($(id) as HTMLElement).addEventListener('input', (e) => {
+    const field = e.target as HTMLElement;
+    field.removeAttribute('aria-invalid');
+    field.removeAttribute('aria-errormessage');
+    // editing again after a message clears it — draft content is kept
+    ($('#rmLinkStatus') as HTMLElement).textContent = '';
+    syncRemixReview();
+  });
+}
+
 /* ---------- recipient preview: the draft opens in an isolated frame ---------- */
-let lastDraft: GiftEdition | null = null;
 let previewSheet: HTMLElement | null = null;
 let previewFrame: HTMLIFrameElement | null = null;
 let previewBack: HTMLButtonElement | null = null;
 let previewOpener: HTMLElement | null = null;
-
-const submitLabel = () => {
-  const to = (($('#rmTo') as HTMLInputElement).value || '').trim();
-  ($('#rmSubmit') as HTMLElement).textContent = `Open it as ${to || 'your recipient'}`;
-};
-$('#rmTo').addEventListener('input', submitLabel);
 
 const onPreviewMessage = (e: MessageEvent) => {
   if (!previewFrame || e.source !== previewFrame.contentWindow) return;
@@ -1126,6 +1242,7 @@ const onPreviewMessage = (e: MessageEvent) => {
 const openPreview = () => {
   if (previewSheet || isPreview) return; // never nest a preview inside a preview
   previewOpener = document.activeElement as HTMLElement | null;
+  remixPanel.close(); // an open modal would sit above the full-window frame
   remixPanel.hidden = true;
   previewSheet = document.createElement('div');
   previewSheet.className = 'preview-sheet';
@@ -1160,38 +1277,57 @@ const closePreview = () => {
   previewFrame = null;
   previewBack = null;
   app.removeAttribute('inert');
-  remixPanel.hidden = false; // the form kept every field — nothing was applied
-  remixPanel.focus();
-  (previewOpener && document.contains(previewOpener)
+  // the form kept every field — nothing was applied; return to the same stage
+  remixPanel.hidden = false;
+  remixPanel.showModal();
+  showRemixStep(remixStep, false);
+  (previewOpener && document.contains(previewOpener) && previewOpener.getClientRects().length
     ? previewOpener
-    : ($('#rmFrom') as HTMLElement)
+    : stageHeading()
   ).focus();
   previewOpener = null;
 };
 
-($('#remixForm') as HTMLFormElement).addEventListener('submit', (e) => {
+rmForm.addEventListener('submit', (e) => {
   e.preventDefault();
+  if (composerBusy()) return;
+  // navigation never validates or loses values — only an explicit action on
+  // the Review stage may preview or publish
+  if (remixStep !== 3) {
+    showRemixStep(remixStep + 1);
+    return;
+  }
   const draft = readDraft();
   const status = $('#rmLinkStatus') as HTMLElement;
-  if (!draft.to || !draft.from || !draft.invitation) {
-    status.textContent = 'Add both names and your message before continuing.';
-    ($((!draft.to ? '#rmTo' : !draft.from ? '#rmFrom' : '#rmInvite')) as HTMLElement).focus();
+  const problems: { field: string; stage: number; clue?: 'dog' | 'postcard' | 'memory'; say: string }[] = [];
+  if (!draft.to) problems.push({ field: '#rmTo', stage: 0, say: 'Add their name before previewing or creating a link.' });
+  else if (draft.to.length > 40) problems.push({ field: '#rmTo', stage: 0, say: 'Keep their name to 40 characters.' });
+  if (!draft.from) problems.push({ field: '#rmFrom', stage: 0, say: 'Add your name before previewing or creating a link.' });
+  else if (draft.from.length > 40) problems.push({ field: '#rmFrom', stage: 0, say: 'Keep your name to 40 characters.' });
+  if (!draft.invitation) problems.push({ field: '#rmInvite', stage: 1, say: 'Write the message they will find before continuing.' });
+  else if (draft.invitation.length > 200) problems.push({ field: '#rmInvite', stage: 1, say: 'Keep your message to 200 characters.' });
+  for (const [clue, field] of [['dog', '#rmDog'], ['postcard', '#rmPostcard'], ['memory', '#rmMemory']] as const) {
+    if (draft[clue].length > 160) {
+      problems.push({ field, stage: 2, clue, say: 'That clue is a little long — trim it to fit.' });
+    }
+  }
+  const first = problems[0];
+  if (first || !validateEdition(draft)) {
+    status.textContent = first?.say ?? 'Check the names, message and clue lengths before continuing.';
+    if (first) {
+      showRemixStep(first.stage, false);
+      if (first.clue) selectRemixClue(first.clue);
+      const field = $(first.field) as HTMLElement;
+      field.setAttribute('aria-invalid', 'true');
+      field.setAttribute('aria-errormessage', 'rmLinkStatus');
+      field.focus();
+    }
     return;
   }
   lastDraft = draft; // memory only — the parent's room is never replaced
   const submitter = (e as SubmitEvent).submitter as HTMLElement | null;
   if (submitter?.id === 'rmCreate') void createRecipientLink(draft);
-  else openPreview();
-});
-$('#remixOriginal').addEventListener('click', () => {
-  edition = { ...CANONICAL };
-  isDraft = false;
-  remixPanel.hidden = true;
-  remixReturn = null;
-  resetHunt();
-  draftChips();
-  setStatus('Back to the original gift.');
-  focusAfterReset();
+  else if (submitter?.id === 'rmSubmit') openPreview();
 });
 
 /* ---------- entry: paper lifts only when the room is really there ---------- */
@@ -1351,6 +1487,7 @@ if (linkMode === 'demo' && !isPreview) {
   const pending = restorePendingDraft();
   if (pending) {
     lastDraft = pending;
+    remixStep = 3; // a recovered save is ready for its retry on Review
     openRemix();
   }
 }
@@ -1361,7 +1498,6 @@ if (!isPreview) void initializeGiftLink(app, (ed) => {
   // a real saved recipient link: apply the fetched edition — nothing else is
   // replaced (the sender's own draft/run stays only in their tab)
   edition = ed;
-  isDraft = false;
   const card = coverFrame.querySelector('.paper-card') as HTMLElement;
   card.textContent = `For ${ed.to}, from ${ed.from}`;
   card.removeAttribute('aria-hidden');

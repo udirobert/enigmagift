@@ -51,24 +51,34 @@ The same cut also carries the fuller local hunt layer:
   "Walk me through it" spells out dog → sightline → table → Unfold and marks
   the run guided; "Just open my gift" is always present.
 - **Remix → recipient preview.** `ROOM.allowRemix` gates a post-reveal "Make a
-  gift in this room" editor — To, From and the invitation first, then the
-  dog/postcard/ribbon clues inside an optional `details` (cleared clue fields
-  fall back to the draft defaults; to/from/invitation stay required,
-  trimmed, maxlength); `?make=1` opens a clean editor without playing the
-  demo. The intro asks for the message they will find; a footer states no
-  email is sent — the giver copies the link and sends it themselves, and
-  drafts stay in the tab until a link is created. Backing out preserves the
-  unsaved draft in memory. The two actions: "Create recipient link"
-  publishes a saved snapshot (below), "Preview this gift" opens the draft
-  inside a
+  gift in this room" editor: a native `dialog` styled like the room's
+  stationery, written in four small stages — People (To/From), Message (the
+  invitation, with a 0/200 count), Clues and Review. The numbered stage tabs
+  along the top are always clickable — jumping forward or back never
+  validates and never loses text, so the only gate is the explicit action on
+  Review ("Create recipient link" or "Preview as …"; both
+  validate names + message and focus the first gap). The Clues stage is
+  optional: three small object cards (dog/postcard/ribbon stills) pick which
+  one textarea is shown; all three fields stay mounted and keep their text,
+  the room's default trail fills in anything left cleared, and the primary
+  button reads "Skip clues" until a clue is edited (then "Review gift") —
+  either way it lands on Review. The Review stage shows the note as the
+  recipient will read it, with gentle placeholders ("For someone special"…);
+  jumping back to fix anything uses the same stage tabs. `?make=1` opens a clean editor without playing
+  the demo — a fresh composer keeps the room's default clues but starts the
+  invitation blank; a reopened composer restores the last draft, the same
+  stage and the selected clue (drafts stay in the tab until a link is
+  created). Backing out — Close or Escape — preserves everything in memory.
+  "Create recipient link" publishes a saved snapshot (below); "Preview as
+  {name}" sits beside it in the footer and opens the draft inside a
   full-window same-origin iframe (`./?recipientPreview=1`) — the parent's
   room, run and keepsakes are never replaced. The draft travels by
   `postMessage` in memory only (no URL, no storage); the child validates
   source/origin/room revision/field lengths, signs its cover
   `For {to}, from {from}` via `textContent`, runs a fresh independent run,
   and offers no remix CTA. "Back to editing"/"Back to my draft" removes the
-  frame and restores the form and the original session. A short paper-fold
-  marks the transition (skipped under reduced motion).
+  frame and restores the form, stage and original session. A short
+  180 ms settle marks stage changes (skipped under reduced motion).
 - **Saved recipient links.** "Create recipient link" posts the draft to
   `/api/room-gifts` on the EnigmaGift API — an immutable edition snapshot,
   saved server-side (no checkout, no email, no account; free). The API
@@ -116,10 +126,12 @@ The same cut also carries the fuller local hunt layer:
   reachable after the reveal; all seen reads "You found everything that was
   left for you."
 - **Quiet endings.** Both the unfolded paper note and the gift note end on
-  one primary "Keep exploring"; recap, remix and replay sit behind a
-  collapsed "More options" disclosure. The pre-reveal slip offers only
-  "Unfold the note" and a dedicated "Not yet" — secondary actions can't
-  leak in before the gift is open.
+  one primary "Keep exploring"; a small "Make a gift in this room" link sits
+  beside it (CSS-gated so it can never appear while the note is still the
+  folded slip), and recap/replay stay behind a collapsed "More options"
+  disclosure. The pre-reveal slip offers only "Unfold the note" and a
+  dedicated "Not yet" — secondary actions can't leak in before the gift is
+  open.
 
 ## Build
 
@@ -177,6 +189,23 @@ and invalid/combined URL modes were exercised. Management layouts were
 checked at 390×844 and 320×568 without horizontal overflow. API regression
 tests additionally verified persistence across a server restart. Those
 were local tests against a temporary database.
+
+Staged-editor checks (local, Ego Browser; not yet deployed): the four-stage
+composer was exercised at 1450×736, 390×844 and 320×568 — always-clickable
+stage tabs, implicit Enter advancing a single stage without posting,
+Review-only validation focusing the first missing/oversized field, literal
+HTML names rendered as text, the "Skip clues"/"Review gift" primary label
+flipping when a clue differs from the room defaults, and clue-card
+selection plus all draft text surviving Close/Escape and reopen. The
+recipient preview closed the dialog, ran inert-gated in its iframe and
+returned to the same stage; the entry link stayed hidden until the note was
+open. A deferred local create froze every composer control (Escape
+included) and its rejection restored them with the draft intact; reload
+restored the pending draft on Review, a real retry created and revoked one
+local fixture, and the recipient link served the personalized edition
+before returning unavailable. Reduced-motion runs produced no stage
+animation. Small-height (~360 px) layout was checked for internal
+scrolling only; real-phone keyboards and touch were not exercised.
 
 Live verification (2026-11-21, Cloudflare Worker + Fly API): a disposable
 test gift was created through the real UI, opened in a fresh recipient
