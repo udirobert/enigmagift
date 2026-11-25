@@ -736,6 +736,42 @@ ops-report counts. The right long-term shape is continuous off-volume backup
   (machine `080ee739b9d578`) ships the enhanced ops report and webhook smoke
   script. `/api/health` returned 200 after deployment; no runtime application
   behavior changed.
+- Legacy Set cleanup: the pre-launch 3-credit test pack
+  (`08ec61f6-0b9b-4dc3-a10a-510fe3327361`) was detached and deleted after a
+  verified off-volume backup at
+  `~/enigmagift-backups/enigmagift-pre-pack-cleanup-2026-11-25T19-05-32-407Z.tar.gz`
+  (sha256 `f9818e02a106107675a21e64c8c8e61fd19d394cbe07e6ac3f59524a1aee3d34`).
+  There are no real users; the purchase-shaped parent gift remains part of the
+  older test inventory, but the pack liability is gone (`packs` is now empty).
+- SandBase activation: the original key remained unusable because its key-level
+  spending limit was exhausted and even the balance endpoint returned 402. The
+  owning console account could not be identified from available sessions, so a
+  new capped key was created in the authenticated Papa workspace using only its
+  existing $1 credit. Production `SANDBASE_API_KEY` was rotated to that key.
+  The key is named `EnigmaGift production pilot`, has a $1 lifetime cap, and
+  the console confirmed it active before use.
+- SandBase validation: a fresh controlled trail gift
+  (`55a0f7d5-2e55-46fc-b34b-a08337eea97c`) completed vision, synthetic payment,
+  seal, recipient payload and TRELLIS world generation. The world endpoint
+  returned 206 for a ranged asset request. The fixture was deleted through the
+  public delete route and both gift/trail then returned 404. SandBase history
+  showed one $0.300 TRELLIS run plus approximately $0.024 of vision/candidate
+  calls; balance after the test was $0.676027. This validates the provider
+  path but leaves budget for only a very small pilot unless credits are added.
+- Recraft boundary: the available Recraft account was accessible, but its API
+  balance is $0. Studio credits are separate and cannot power production API
+  image-to-image calls. No purchase was made, so `RECRAFT_API_KEY` remains
+  unset and portraits remain skipped.
+- Resend boundary: the user confirmed there is no production domain yet. The
+  free Resend tier is sufficient for pilot volume, but real customer email
+  requires a verified owned domain; `onboarding@resend.dev` only supports
+  owner testing. No purchase was made, so `RESEND_API_KEY` and `MAIL_FROM`
+  remain unset.
+- Ops-report provider balances were deployed in Fly image
+  `deployment-01M8A2X7B5TA68QF9NJ6FWPDWR`; the live report showed SandBase
+  balance `$0.676027`, Recraft key missing, `/api/health` 200. The first cold
+  start after the deploy measured about 4.9s, consistent with the accepted
+  auto-stop trade-off.
 - Recipient research instrumentation is live in Pages deployment
   `https://c61c2ec7.enigmagift.pages.dev` (`index-sQV1dESN.js`): per-round
   dwell, reveal completion, letter-read, world load/failure and bounded

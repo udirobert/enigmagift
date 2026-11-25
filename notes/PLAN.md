@@ -124,7 +124,9 @@ only a generated essay about the recipient's photographs.
   (Resend/Postmark), one template, no marketing consent bundled in.
 - **`GET /api/lookup`**: enter email → mail back every gift link owned by that
   address. No accounts, no passwords, no session. This is the recovery path for
-  "I paid and lost the tab" and for Set credits.
+  "I paid and lost the tab" and for Set credits. **Launch boundary 2026-11-25:**
+  code exists, but customer-facing use is blocked until an owned domain is
+  verified in Resend; the shared test sender cannot email real customers.
 - Move pack credits server-side, keyed to the purchase, resolvable by email.
 - Persist checkout intent server-side (`checkout_pending`), so the `?paid=1` +
   `localStorage` + "i've paid" dance (`Seal.tsx:64-145`) is a convenience, not

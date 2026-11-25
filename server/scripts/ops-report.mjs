@@ -38,6 +38,33 @@ console.log('ENABLE_EXPERIMENTAL_ROUTES:', process.env.ENABLE_EXPERIMENTAL_ROUTE
 console.log('ALLOW_UNPAID_SEAL:', process.env.ALLOW_UNPAID_SEAL === 'true' ? 'true — dangerous in production' : 'false');
 console.log('MAIL_FROM:', process.env.MAIL_FROM ? 'configured' : 'missing');
 
+console.log('\n-- provider balances (read-only, values never keys) --');
+if (process.env.SANDBASE_API_KEY) {
+  try {
+    const r = await fetch('https://api.sandbase.ai/v1/account/balance', {
+      headers: { authorization: `Bearer ${process.env.SANDBASE_API_KEY}` },
+      signal: AbortSignal.timeout(5000),
+    });
+    const j = await r.json().catch(() => ({}));
+    console.log('SandBase balance:', r.ok ? `$${j.balance ?? 'unknown'}` : `unavailable (${r.status}${j.error ? `: ${String(j.error).slice(0, 80)}` : ''})`);
+  } catch (e) {
+    console.log('SandBase balance: unavailable (', e.message, ')');
+  }
+} else console.log('SandBase balance: key missing');
+if (process.env.RECRAFT_API_KEY) {
+  try {
+    const r = await fetch('https://external.api.recraft.ai/v1/users/me', {
+      headers: { authorization: `Bearer ${process.env.RECRAFT_API_KEY}` },
+      signal: AbortSignal.timeout(5000),
+    });
+    const j = await r.json().catch(() => ({}));
+    const credits = Number(j.credits);
+    console.log('Recraft API units:', r.ok && Number.isFinite(credits) ? `${credits} (~$${(credits / 1000).toFixed(2)})` : `unavailable (${r.status})`);
+  } catch (e) {
+    console.log('Recraft API units: unavailable (', e.message, ')');
+  }
+} else console.log('Recraft API units: key missing');
+
 console.log('-- gifts --');
 console.log('by status:', q("SELECT status, COUNT(*) c FROM gifts GROUP BY status ORDER BY c DESC"));
 console.log('by tier/mode:', q("SELECT COALESCE(tier,'-') tier, mode, COUNT(*) c, SUM(paid) paid FROM gifts GROUP BY tier, mode ORDER BY c DESC"));
