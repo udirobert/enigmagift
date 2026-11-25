@@ -736,6 +736,9 @@ ops-report counts. The right long-term shape is continuous off-volume backup
   (machine `080ee739b9d578`) ships the enhanced ops report and webhook smoke
   script. `/api/health` returned 200 after deployment; no runtime application
   code changed.
+- Repository hardening: `main` now requires the `verify` CI check before
+  pushes merge through GitHub, with force pushes and branch deletion disabled.
+  The first CI run covering the Pages verifier passed as run `45663687944`.
 
 ## Test trails currently in the DB (for re-verification)
 
