@@ -685,5 +685,5 @@ plaintext code, now stored hashed):
 
 - `43ddaaea-…` → trail `6rOYxBOx-rkCDWxT` → code `F3Z6BQ` (Fort Point)
 - `68e0fb7c-…` → trail `kvEkSWjhRWlr6xHc` → code `2JNVZP` (Rosa's Cafe, Portsmouth)
-- `dd901e63-…` — ready, not sealed; `placeGuess` "Rockingham House on State Street
-  in Portsmouth, New Hampshire" (the concrete-placeGuess fix verified on this one)
+- older unsealed drafts, including the former Rockingham House test draft,
+  were purged as stale before the 2026-11-25 hardening backup/deploy
