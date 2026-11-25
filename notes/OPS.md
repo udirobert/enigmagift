@@ -374,8 +374,9 @@ a 6-digit authenticator code to reveal/roll it).
 **The webhook is the source of truth for `paid`.** On
 `checkout.session.completed` the server verifies the HMAC signature, checks
 `amount_total` against the tier's expected price (`TIER_PRICE_PENCE` =
-499/999/1900), sets `paid=1`, and for a **Set** payment creates a 3-credit
-`packs` row linked to the gift. `mark-paid` is only a client hint: it **fails
+499/999/1900), sets `paid=1` and `delivery_entitled=1`, and for a **Set**
+payment creates a 2-credit `packs` row linked to the gift (three hunts total
+including the purchase gift). `mark-paid` is only a client hint: it **fails
 closed** when `STRIPE_API_KEY` is unset (no key yet — see below) and never sets
 `paid` from a client claim; with the key it verifies the session via the Stripe
 API. The webhook is the only source of truth for `paid`.

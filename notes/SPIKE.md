@@ -42,11 +42,13 @@ observations good enough for auto-crops and hide-spot proposals.
   National Historic Site under the Golden Gate Bridge"). A guard
   (`isGenericPlaceGuess` in `pipeline.js`) rejects generic scene categories and
   falls back to the throughline's phrasing.
-- **HEIC handling** — partially. multer accepts `.heic/.heif` and `image-size`
-  reads their dimensions, so the vision pass works on them. But the frontend
-  crop framing loads the image via `new Image()`, which only Safari can decode
-  — in other browsers a HEIC gift's crops fall back to a 4:5 aspect. Low
-  priority: most buyers compress to JPEG before upload.
+- **HEIC handling** — superseded 2026-11-25. The production server now
+  normalizes every accepted upload through sharp and rejects bytes it cannot
+  decode, so undecodable HEIC never becomes a metadata-bearing stored original.
+  Safari 17+/iOS can decode HEIC in the browser and re-encodes it before
+  upload; other browsers may reject HEIC instead of offering the gift. Widening
+  that coverage would require a measured WASM decoder decision, not the spike's
+  original pass-through behavior.
 - **JSON reliability** — the spike's 3/6 clean-parse concern is handled by
   `repairJson` (fence-strip + trailing-comma + balanced-brace slice), a nudge
   retry on malformed output, and cross-model failover.

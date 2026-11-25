@@ -38,10 +38,12 @@ Two consequences for sequencing:
 - **One canonical gift, revised.** `[evidence]` The repo now has four recipient
   experiences (trail, room, photo hunt, prototypes). Freeze all but the trail.
 - **Never add a step to the giver's path to pay for a step elsewhere.** The
-  giver already carries 1–12 photos and an authoring grid for £4.99.[^effort]
+  giver already carries photo selection, review and payment for £4.99.[^effort]
 
-[^effort]: `[evidence]` `Door.tsx:122` blocks under 5 photos; `Editor.tsx`
-requires keep/cut/edit of every clue plus a world-source choice.
+[^effort]: `[evidence]` Before the Phase 3 floor work, `Door.tsx` blocked under
+5 photos and `Editor.tsx` required keep/cut/edit of every clue plus a
+world-source choice. Those specific costs are reduced now; the rule remains
+that new recipient-side magic must not be paid for with new giver-side labour.
 
 ---
 
@@ -187,17 +189,19 @@ delete the rounds and ship the letter and the photos. A gift doesn't need a quiz
 > the world-source picker inside the workbench; and **tier selection at the
 > till** — the door ships one default (`the trail · £4.99`) with the others
 > behind "other ways to give →", and the tier selector lives in the Seal's order
-> summary (trail ↔ hide only — a set is a pack of three minted at creation, and
-> the server's `/tier` PATCH accepts just those two, so offering the set at the
-> till would take £19 for one hunt; a set gift keeps what it bought).
+> summary (at that point trail ↔ hide only — a set was a pack minted at creation,
+> and the server's `/tier` PATCH accepted just those two, so offering the set at
+> the till would have taken £19 for one hunt; Phase 4 later added the Set row
+> properly, and the 2026-11-25 hardening made the pack two credits after the
+> purchase gift).
 > Verified with a new scene smoke test (`npm run smoke:scenes`): the editor
 > opens on the review card with exactly one primary control, the door shows one
 > active tier, the live Seal carries the selector, a set is never switchable at
 > the till, demo keeps the theatre.
 
-`[evidence]` The trail demands 5 photos minimum (`Door.tsx:122`) to serve a
-pipeline, and the editor asks the buyer to hand-author an artefact they have
-never seen the output of.
+`[evidence]` Before this phase, the trail demanded 5 photos minimum (`Door.tsx:122`)
+to serve the pipeline, and the editor asked the buyer to hand-author an artefact
+they had never seen the output of. The current floor is one photo.
 
 - **One photo → two rounds.** Short trails degrade honestly: fewer rounds,
   throughline as the only puzzle. Pipeline must accept 1–4 photos.
