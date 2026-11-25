@@ -90,9 +90,13 @@ export function Round({ demo, trail, round, onDone }: RoundProps) {
   // giver's letter (or the full photo behind the crop when there's no letter).
   const [payout, setPayout] = useState<string | null>(null);
   const doneRef = useRef(false);
+  const enteredAtRef = useRef(Date.now());
 
   const real = !demo && !!trail;
   // remember when the hunt started (for the reveal's recap stats)
+  useEffect(() => {
+    enteredAtRef.current = Date.now();
+  }, [round]);
   useEffect(() => {
     if (!real) return;
     try {
@@ -123,6 +127,13 @@ export function Round({ demo, trail, round, onDone }: RoundProps) {
   const finish = () => {
     if (doneRef.current) return;
     doneRef.current = true;
+    if (real) {
+      logTrailEvent(trail!.token, `round_${round}_dwell`, {
+        ms: Math.max(0, Date.now() - enteredAtRef.current),
+        attempts,
+        outcome: round === 3 ? 'throughline' : solved ? 'correct' : exhausted ? 'opened_anyway' : 'continued',
+      });
+    }
     onDone();
   };
 

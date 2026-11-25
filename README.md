@@ -106,8 +106,9 @@ giver watching live sees rounds land. Unsealed drafts get a
   `VITE_STRIPE_LINK_TRAIL` / `_HIDE` / `_SET` are baked at build time;
   the canonical production mapping is encoded in `npm run build:pages`.
 - **Analytics** — privacy-respecting funnel events (`events` table):
-  `POST /api/gifts/:id/event`, `POST /api/trail/:token/event`. No third-party
-  trackers.
+  `POST /api/gifts/:id/event`, `POST /api/trail/:token/event`. Recipient
+  quality signals include round dwell/picks, reveal completion, letter read,
+  world load/failure, note-back and bounded client errors. No third-party trackers.
 
 ## Development
 

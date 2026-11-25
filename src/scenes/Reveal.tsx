@@ -103,7 +103,18 @@ export function Reveal({ demo, trail, direction }: RevealProps) {
     logTrailEvent(trail.token, 'shared_back', { looks: recap?.looks, mins: recap?.mins });
   };
   const [worldLoaded, setWorldLoaded] = useState(false);
-  const onWorldReady = useCallback(() => setWorldLoaded(true), []);
+  const worldLoadedEventRef = useRef(false);
+  const worldFailedEventRef = useRef(false);
+  const revealCompleteEventRef = useRef(false);
+  const letterReadEventRef = useRef(false);
+  const letterEndRef = useRef<HTMLParagraphElement>(null);
+  const onWorldReady = useCallback(() => {
+    setWorldLoaded(true);
+    if (real && !worldLoadedEventRef.current) {
+      worldLoadedEventRef.current = true;
+      logTrailEvent(trail!.token, 'world_loaded', { note: worldNote });
+    }
+  }, [real, trail, worldNote]);
   useEffect(() => {
     if (codeDone && worldNote === null) {
       setWorldNote(worldState === 'ready' ? 'instant' : 'built');
@@ -146,6 +157,46 @@ export function Reveal({ demo, trail, direction }: RevealProps) {
   const letterSign = real
     ? (unlockedLetter?.signature ?? trail?.signature ?? '').trim()
     : demoLetter.signature;
+
+  useEffect(() => {
+    if (!real || !codeDone || revealCompleteEventRef.current) return;
+    revealCompleteEventRef.current = true;
+    logTrailEvent(trail!.token, 'reveal_complete', {
+      requiresCode: needsCode,
+      worldStatus: worldState,
+      looks: recap?.looks,
+      mins: recap?.mins,
+    });
+  }, [real, codeDone, trail, needsCode, worldState, recap]);
+
+  useEffect(() => {
+    if (!real || worldState !== 'failed' || worldFailedEventRef.current) return;
+    worldFailedEventRef.current = true;
+    logTrailEvent(trail!.token, 'world_failed', null);
+  }, [real, worldState, trail]);
+
+  useEffect(() => {
+    if (!real || !codeDone || letterReadEventRef.current) return;
+    const el = letterEndRef.current;
+    if (!el) return;
+    const markRead = () => {
+      if (letterReadEventRef.current) return;
+      letterReadEventRef.current = true;
+      logTrailEvent(trail!.token, 'letter_read', { looks: recap?.looks, mins: recap?.mins });
+    };
+    if (!('IntersectionObserver' in window)) {
+      markRead();
+      return;
+    }
+    const observer = new IntersectionObserver((entries) => {
+      if (entries.some((entry) => entry.isIntersecting)) {
+        markRead();
+        observer.disconnect();
+      }
+    }, { threshold: 0.8 });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [real, codeDone, trail, recap]);
 
   // poll the world build until it's ready (or failed). Cheap, stops on done.
   // Backoff while it's still building (builds take 45–90s): 5s → 10s → 20s cap.
@@ -295,7 +346,7 @@ export function Reveal({ demo, trail, direction }: RevealProps) {
                   </p>
                 </>
               )}
-              <p className="letter-sign">{letterSign ? `— ${letterSign}` : '— the one who left it there'}</p>
+              <p className="letter-sign" ref={letterEndRef}>{letterSign ? `— ${letterSign}` : '— the one who left it there'}</p>
             </article>
 
             {/* recap of their own hunt + a note they can send back to the giver */}

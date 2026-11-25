@@ -66,8 +66,9 @@ the room pilot (`CANONICAL-GIFT.md`, "Run card") — it has never been used.
   photo, where they stall, whether they ever open "something's not quite right".
 - **Instrumentation, minimal:** add `reveal_complete`, `world_loaded` /
   `world_failed`, per-round dwell ms, `letter_read` (scroll to signature), and a
-  client error event. `[evidence]` None of these exist; `round_N_picked`,
-  `unlocked`, `shared_back` do.
+  client error event. **Status: built 2026-11-25**; ops-report now summarizes
+  these counts. Older note: none of these existed; `round_N_picked`,
+  `unlocked`, `shared_back` did.
 
 **Exit criteria:** transcript-level notes on 5 recipients, and a ranked list of
 the three things that broke. If the list doesn't match this plan, the plan is

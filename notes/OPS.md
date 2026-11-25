@@ -732,10 +732,16 @@ ops-report counts. The right long-term shape is continuous off-volume backup
 - `server/scripts/stripe-webhook-smoke.mjs` now formalizes the signed local
   webhook smoke test. It requires `--confirm`, never prints the secret, and
   must be documented as synthetic whenever used.
-- Ops tooling deploy: Fly image `deployment-01M89VG7397TGM9GQ16A12Y0DZ`
+- Ops tooling deploy: Fly image `deployment-01M89VWB5DVCB9P5P3ZYWPECM6`
   (machine `080ee739b9d578`) ships the enhanced ops report and webhook smoke
   script. `/api/health` returned 200 after deployment; no runtime application
-  code changed.
+  behavior changed.
+- Recipient research instrumentation is live in Pages deployment
+  `https://c61c2ec7.enigmagift.pages.dev` (`index-sQV1dESN.js`): per-round
+  dwell, reveal completion, letter-read, world load/failure and bounded
+  token-redacted client errors now write to the existing events table. The
+  deployed ops report summarizes all of them; current counts are zero until
+  the first recipient session after this deploy.
 - Repository hardening: `main` now requires the `verify` CI check before
   pushes merge through GitHub, with force pushes and branch deletion disabled.
   The first CI run covering the Pages verifier passed as run `45663687944`.

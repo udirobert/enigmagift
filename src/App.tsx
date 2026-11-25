@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Lenis from 'lenis';
-import { apiHealthy, createGift, getGift, getTrail, logGiftEvent, stashPack, tokenFromUrl, unstashPack, updateGiftTier } from './lib/api';
+import { apiHealthy, createGift, getGift, getTrail, logGiftEvent, logTrailEvent, stashPack, tokenFromUrl, unstashPack, updateGiftTier } from './lib/api';
 import type { Gift, GiftDirection, GiftMode, HideSpot, Tier, Trail } from './lib/types';
 
 import { Door } from './scenes/Door';
@@ -148,6 +148,26 @@ export default function App() {
       cancelAnimationFrame(raf);
       lenis.destroy();
     };
+  }, []);
+
+  useEffect(() => {
+    const token = tokenFromUrl();
+    if (!token) return;
+    const clean = (value: unknown) => String(value ?? 'unknown').split(token).join('[token]').slice(0, 180);
+    const onError = (event: ErrorEvent) => {
+      logTrailEvent(token, 'client_error', { kind: 'error', message: clean(event.message) });
+    };
+    const onRejection = (event: PromiseRejectionEvent) => {
+      const reason = event.reason instanceof Error ? event.reason.message : event.reason;
+      logTrailEvent(token, 'client_error', { kind: 'unhandledrejection', message: clean(reason) });
+    };
+    window.addEventListener('error', onError);
+    window.addEventListener('unhandledrejection', onRejection);
+    return () => {
+      window.removeEventListener('error', onError);
+      window.removeEventListener('unhandledrejection', onRejection);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // recipient entry: a sealed link opens with ?t=token → load the trail and

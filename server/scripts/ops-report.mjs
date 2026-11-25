@@ -79,6 +79,20 @@ console.log('webhook_ok (verified Stripe events that landed):', webhookRows.leng
 console.log('markpaid_pending (client claims we could NOT verify — fine, webhook is truth):', one("SELECT COUNT(*) c FROM events WHERE name='markpaid_pending'").c);
 console.log('seal_blocked_unpaid (payment boundary held):', one("SELECT COUNT(*) c FROM events WHERE name='seal_blocked_unpaid'").c);
 console.log('shared_back (recipients sent a note back):', one("SELECT COUNT(*) c FROM events WHERE name='shared_back'").c);
+const dwellRows = q("SELECT name, data FROM events WHERE name LIKE 'round_%_dwell'");
+const dwellMs = [];
+for (const row of dwellRows) {
+  try {
+    const ms = Number(JSON.parse(row.data || '{}').ms);
+    if (Number.isFinite(ms)) dwellMs.push(ms);
+  } catch {}
+}
+console.log('round dwell events:', dwellRows.length, dwellMs.length
+  ? `avg ${Math.round(dwellMs.reduce((a, b) => a + b, 0) / dwellMs.length / 1000)}s, max ${Math.round(Math.max(...dwellMs) / 1000)}s`
+  : 'no timing data yet');
+for (const name of ['reveal_complete', 'letter_read', 'world_loaded', 'world_failed', 'client_error']) {
+  console.log(`${name}:`, one('SELECT COUNT(*) c FROM events WHERE name=?', name).c);
+}
 
 console.log('\n-- reconcile (manual steps) --');
 console.log('1. Stripe dashboard → Developers → Webhooks → we_… → "Recent deliveries": all 2xx?');
