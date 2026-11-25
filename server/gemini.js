@@ -4,7 +4,7 @@
 // working key is available. getCandidates tests each key+model pair with a real
 // call, so a dead quota / unknown model never poisons the others — failover
 // walks the ordered list, last-success first.
-import { readFileSync, readdirSync, existsSync } from 'node:fs';
+import { readFileSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -28,8 +28,6 @@ const GEMINI_MODELS = [
   'gemini-2.5-flash-lite',
 ];
 
-const DEV_DIR = '/Users/udingethe/Dev';
-
 // 1x1 transparent PNG — cheap proof that a model accepts image input.
 const TEST_PNG_B64 =
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
@@ -38,36 +36,12 @@ let cachedList = null; // [{provider, key, model}] — working pairs, best first
 let lastGood = 0;       // index into cachedList that last succeeded
 
 function* envFiles() {
-  // Local server env (server/sandbase.env, server/.env, ...)
-  try {
-    for (const f of readdirSafe(join(__dirname))) {
-      if (f.endsWith('.env') || f === '.env' || f.startsWith('.env.')) {
-        const p = join(__dirname, f);
-        if (existsSync(p)) yield p;
-      }
-    }
-  } catch {}
-  // Sibling dev-project env files (unchanged from before).
-  try {
-    for (const d of readdirSafe(DEV_DIR)) {
-      for (const f of ['.env', '.env.local']) {
-        const p = join(DEV_DIR, d, f);
-        if (existsSync(p)) yield p;
-      }
-      try {
-        for (const f of readdirSafe(join(DEV_DIR, d))) {
-          if (f.startsWith('.env') && f !== '.env' && f !== '.env.local') {
-            const p = join(DEV_DIR, d, f);
-            if (existsSync(p)) yield p;
-          }
-        }
-      } catch {}
-    }
-  } catch {}
-}
-
-function readdirSafe(p) {
-  try { return readdirSync(p); } catch { return []; }
+  // Explicit project-local compatibility files only. Never scan sibling
+  // projects: credentials must come from this deployment's own configuration.
+  for (const f of ['.env', 'sandbase.env']) {
+    const p = join(__dirname, f);
+    if (existsSync(p)) yield p;
+  }
 }
 
 // Collect keys per provider. SandBase keys are never sent to the Gemini host

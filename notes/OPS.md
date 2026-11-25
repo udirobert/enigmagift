@@ -30,7 +30,7 @@ Frontend and backend are **not** on the same host. Pages is static-only (+ the
 | `STRIPE_API_KEY` (optional) | Fly app secret | lets `mark-paid` verify the checkout session server-side. **Without it mark-paid fails closed** — only the signed webhook sets `paid` |
 | `ALLOWED_ORIGINS` (optional) | Fly app secret | comma-separated CORS allowlist; defaults to the deployed Pages/Netlify domains + localhost |
 | `ROOM_PROXY_SECRET` | Fly app secret **and** Cloudflare Worker secret — the same value in both | 32 random bytes as 64 hex; shared edge→API proof so room-gift creates bucket per real client IP. Never committed; `.dev.vars` is gitignored |
-| Gemini key (fallback) | any `Dev/*/.env*` the server scans | — |
+| Gemini key (fallback) | Fly app secret or explicit `server/.env` / `server/sandbase.env` | sibling-project `.env` scanning was removed; keys are never discovered across `~/Dev` |
 
 Note: `RECRAFT_API_KEY` spends **API units**, which are billed separately
 from the Recraft Studio subscription credits (those only flow through MCP
@@ -66,6 +66,19 @@ key, created with a $10 spend cap).
 - If a secret ever does leak: rotate it in the provider (Stripe: roll the
   webhook secret; SandBase: revoke the key), set the new value as a Fly
   secret, redeploy, then scrub history only if the repo is private.
+
+
+### Required explicit runtime flags
+
+- `ALLOW_UNPAID_SEAL` defaults off. Set it to `true` only for a deliberately
+  free demo/dev deployment. Production must leave it unset/false; otherwise
+  sealing, recipient access, email delivery, world generation and portrait
+  generation are all blocked until Stripe/pack entitlement exists.
+- `ENABLE_EXPERIMENTAL_ROUTES` defaults off. Set it to `true` only on backends
+  that intentionally serve the tabletop `/api/room-gifts` and `/api/photo-gifts`
+  pilots. The canonical EnigmaGift API does not need those routes.
+- `MAX_DRAFTS_PER_DAY` defaults to `200`. It is a global cost circuit breaker
+  in addition to the existing 5 drafts/hour/IP limit.
 
 To set the Fly secret without printing the key:
 
@@ -438,7 +451,7 @@ curl -s -X POST https://enigmagift-api.fly.dev/api/gifts/<id>/event \
 curl -s -X POST https://enigmagift-api.fly.dev/api/gifts/<id>/revoke
 
 # security regression tests (local, throwaway DB): webhook sig, fail-closed
-# mark-paid, answer-key stripping, unlock rate limit, revoke/expiry, EXIF strip
+# mark-paid, answer-key stripping, unlock rate limit, revoke/expiry, upload normalization
 cd server && node test/security.test.mjs
 
 # webhook smoke test (sign a fake checkout.session.completed with the real secret)
@@ -474,8 +487,9 @@ were derived from them at migration.
   sessionStorage and stripped from the URL on load.
 - **Headers**: CSP + nosniff + DENY + `Referrer-Policy: no-referrer` + HSTS on
   both origins (`public/_headers` for Pages, middleware in `server/index.js`).
-- **EXIF/GPS stripped** from uploaded JPEG/PNG (`server/exif.js`; WebP/GIF/HEIC
-  pass through — documented gap). The browser also re-encodes uploads.
+- **EXIF/GPS removed by JPEG normalization** for every accepted upload
+  (`server/image.js`, sharp; unsupported/undecodable files are rejected rather
+  than stored). Safari 17+/iOS also re-encodes HEIC in the browser before upload.
 - **Rate limits** on create/reclue/unlock/answer/mark-paid/seal/hide/
   world-source/revoke/delete/events; the in-memory limiter is key-bounded.
 - **Legal pages**: `/privacy`, `/terms` (static, `public/*.html`, clean URLs —
@@ -524,8 +538,9 @@ were derived from them at migration.
   hit after idle pays a multi-second cold start. If that hurts, set
   `min_machines_running=1` in `fly.toml` (one always-on shared-cpu machine).
 - **Cost levers already in**: client-side 1280px downscale before upload (fewer
-  vision tokens, less storage), EXIF strip, 5 drafts/h/IP, reclue bounded,
-  world build idempotent. Later: self-host fonts (drops a render-blocking
+  vision tokens, less storage), server-side JPEG normalization, 5 drafts/h/IP
+  plus `MAX_DRAFTS_PER_DAY` global circuit breaker, payment-gated generation,
+  reclue bounded, world build idempotent. Later: self-host fonts (drops a render-blocking
   third-party request + CSP exceptions), optional `compression` on the API.
 
 ## Weekly ops routine (volume, funnel, money, webhook health)
@@ -551,6 +566,41 @@ the event funnel (round-pick correctness, `shared_back`, `webhook_ok`,
 Also: `fly -a enigmagift-api logs --no-tail | grep -i "stripe webhook"` for
 endpoint errors. Every verified webhook is logged as a `webhook_ok` event
 (`server/index.js`), which is what makes the gap check possible.
+
+
+## Backup and restore
+
+The SQLite database and uploads are customer data; the Fly volume is durable
+infrastructure, not a backup. Create a verified point-in-time backup inside the
+machine with:
+
+```bash
+fly -a enigmagift-api ssh console -C "node /app/scripts/backup-volume.mjs"
+```
+
+The script uses SQLite `VACUUM INTO`, verifies row counts against the source,
+copies uploads, writes a manifest, and stores the result under
+`/data/backups/<timestamp>` (override with `BACKUP_DIR`). A backup on the same
+volume protects against application corruption, not volume/machine loss — copy
+important backups offsite before relying on them:
+
+```bash
+fly -a enigmagift-api ssh console -C "tar -C /data/backups -czf - <timestamp>" > enigmagift-backup-<timestamp>.tar.gz
+```
+
+Restore is intentionally explicit and preserves the pre-restore database and
+uploads beside the restored files:
+
+```bash
+DB_PATH=/data/enigmagift.db UPLOADS_DIR=/data/uploads \
+  node /app/scripts/restore-volume.mjs --from /data/backups/<timestamp> --confirm-restore
+```
+
+Run restore only while the application is not serving the target database, then
+restart the app and verify `/api/health`, one known recipient link, and the
+ops-report counts. The right long-term shape is continuous off-volume backup
+(for example Litestream to object storage); until that exists, the manual
+offsite copy step is part of the weekly routine.
 
 ---
 

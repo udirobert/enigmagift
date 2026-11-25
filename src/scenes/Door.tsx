@@ -479,7 +479,7 @@ export function Door({
             type="button"
             className="btn btn-primary dock-build"
             onClick={startTrail}
-            disabled={starting || count < 5 || !consent}
+            disabled={starting || count < 1 || !consent}
           >
             {starting ? 'Opening…' : 'Build my trail'}
           </button>

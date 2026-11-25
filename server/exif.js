@@ -1,9 +1,7 @@
-// EXIF stripping — phone photos carry GPS/camera/timestamp metadata in EXIF.
-// The frontend re-encodes most uploads through canvas (which drops EXIF); this
-// is the server-side guarantee for pass-through and fallback cases.
-// JPEG: drop APP1 (Exif + XMP, where GPS lives), APP13 (IPTC) and COM segments,
-// keep the rest (APP0/JFIF, APP2/ICC). PNG: drop the eXIf chunk.
-// WebP/GIF/HEIC: passed through untouched (documented gap).
+// Legacy helper retained for reference only — not imported by the production
+// server. Upload privacy now lives in server/image.js, which re-encodes every
+// accepted image to JPEG. The implementation below handles only JPEG/PNG and
+// must not be reintroduced as the privacy boundary.
 
 function stripExifJpeg(buf) {
   if (buf.length < 4 || buf[0] !== 0xff || buf[1] !== 0xd8) return buf;

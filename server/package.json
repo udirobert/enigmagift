@@ -5,7 +5,10 @@
   "type": "module",
   "scripts": {
     "dev": "node --watch index.js",
-    "start": "node index.js"
+    "start": "node index.js",
+    "test": "node test/security.test.mjs",
+    "backup": "node scripts/backup-volume.mjs",
+    "restore": "node scripts/restore-volume.mjs"
   },
   "dependencies": {
     "cors": "^2.8.5",

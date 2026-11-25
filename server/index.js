@@ -3,14 +3,14 @@ import express from 'express';
 import multer from 'multer';
 import crypto from 'node:crypto';
 import { join, dirname } from 'node:path';
-import { mkdirSync, existsSync, readdirSync, rmSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, existsSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { db, UPLOADS_DIR, hashCode, verifyCode } from './db.js';
 import { runPipeline, reclue, giftLetterDrafts } from './pipeline.js';
 import { buildWorld } from './world.js';
 import { buildPortrait, portraitMime } from './portrait.js';
-import { stripExif } from './exif.js';
 import { isEmail, sendGiftLink, sendLookup } from './mailer.js';
+import { normalizeImageFile } from './image.js';
 import { mountRoomGiftRoutes } from './room-gifts.js';
 import { mountPhotoGiftRoutes } from './photo-gifts.js';
 
@@ -123,6 +123,23 @@ function limitOr429(res, key, max, windowMs) {
   return true;
 }
 
+/** Drafts cost real vision money before payment. Per-IP limits shape normal
+ * use; the global daily circuit breaker bounds what a distributed flood can
+ * cost us. MAX_DRAFTS_PER_DAY is an operator control, not a product promise. */
+function draftCreationLimited(req, res) {
+  if (!rateLimit(`gifts:${req.ip}`, 5, 60 * 60 * 1000)) {
+    res.status(429).json({ error: 'too many drafts — try again in an hour' });
+    return true;
+  }
+  const maxPerDay = Math.max(1, parseInt(process.env.MAX_DRAFTS_PER_DAY || '200', 10) || 200);
+  if (!rateLimit('gifts:global', maxPerDay, 24 * 60 * 60 * 1000)) {
+    logEvent(null, null, 'draft_global_limit_hit', { maxPerDay });
+    res.status(503).json({ error: 'the gift builder is full right now — please try again later' });
+    return true;
+  }
+  return false;
+}
+
 // Tier → accepted Stripe amount (in pence), shared by the webhook and the
 // mark-paid verification path. A null tier is a legacy physical gift (priced
 // like The Hide); an unknown non-null tier is rejected. The £1 referral
@@ -146,8 +163,6 @@ function validGiftPayment(gift, session) {
       (!!gift.referred_by && session.amount_total === fullPrice - 100))
   );
 }
-
-// EXIF stripping lives in exif.js (imported below) so it can be unit-tested.
 
 function verifyStripeSignature(payload, header, secret) {
   try {
@@ -178,8 +193,9 @@ const upload = multer({
       cb(null, dir);
     },
     filename: (req, file, cb) => {
-      const ext = (file.originalname.match(/\.[^.]+$/) || ['.jpg'])[0].toLowerCase();
-      const e = IMAGE_EXT.test(ext) ? ext : '.jpg';
+      // every accepted upload is normalized to JPEG below, so the stored
+      // extension always matches the actual bytes and the served content type
+      const e = '.jpg';
       // zero-padded upload order → sorted filenames === upload order,
       // so photoIndex (sorted order) matches what the buyer saw first
       const n = ((req._uploadN = (req._uploadN || 0) + 1) || 1) - 1;
@@ -196,9 +212,29 @@ function getGift(id) {
   return db.prepare('SELECT * FROM gifts WHERE id = ?').get(id);
 }
 
+/**
+ * Delivery entitlement is the server's money boundary. A gift is deliverable
+ * when Stripe marked it paid, or when it consumed a credit from someone else's
+ * Set pack. The purchase gift's own pack_id must not count as entitlement —
+ * that row is minted only after its direct payment anyway.
+ *
+ * ALLOW_UNPAID_SEAL=true exists for deliberately free demos/dev deployments.
+ * It is exact, explicit, and off by default; production must never set it.
+ */
+function giftHasDeliveryEntitlement(g) {
+  if (!g) return false;
+  if (g.paid || g.delivery_entitled) return true;
+  if (process.env.ALLOW_UNPAID_SEAL === 'true') return true;
+  if (!g.pack_id) return false;
+  const pack = db.prepare('SELECT purchase_gift_id FROM packs WHERE id=?').get(g.pack_id);
+  return !!pack && pack.purchase_gift_id !== g.id;
+}
+
 // Fire-and-forget: build the 3D world for a gift. Safe to call repeatedly —
 // buildWorld is idempotent and skips if one is already in flight or done.
 function startWorldBuild(giftId) {
+  const g = getGift(giftId);
+  if (!giftHasDeliveryEntitlement(g)) return;
   buildWorld(giftId).catch((e) => {
     console.error(`[world ${giftId}] trigger error:`, e);
   });
@@ -207,6 +243,8 @@ function startWorldBuild(giftId) {
 // Same fire-and-forget pattern for the keepsake portrait — skipped quietly
 // when no Recraft key is configured.
 function startPortraitBuild(giftId) {
+  const g = getGift(giftId);
+  if (!giftHasDeliveryEntitlement(g)) return;
   buildPortrait(giftId).catch((e) => {
     console.error(`[portrait ${giftId}] trigger error:`, e);
   });
@@ -263,7 +301,7 @@ function logEvent(giftId, token, name, data) {
   } catch { /* events are best-effort */ }
 }
 
-// The Set is a pack of three hunts, and the pack row is minted when the money
+// The Set is three hunts total: this purchase plus two pack credits. The pack row is minted when the money
 // lands rather than at creation — so EVERY payment path has to call this, and
 // the gift may only ever own one pack. Idempotent: the guarded INSERT fires
 // only for a set gift with no pack yet, inside one immediate transaction so a
@@ -274,7 +312,7 @@ function ensureSetPack(giftId) {
   try {
     const minted = db.prepare(
       `INSERT INTO packs (id, purchase_gift_id, credits_left)
-       SELECT ?, id, 3 FROM gifts WHERE id=? AND tier='set' AND pack_id IS NULL`,
+       SELECT ?, id, 2 FROM gifts WHERE id=? AND tier='set' AND pack_id IS NULL`,
     ).run(packId, giftId).changes;
     if (!minted) {
       db.exec('ROLLBACK');
@@ -359,25 +397,34 @@ function trailPayload(t, gift) {
 
 app.get('/api/health', (_req, res) => res.json({ ok: true }));
 
-// Tabletop room-gift pilot links: private recipient links + owner management.
-mountRoomGiftRoutes(app, { db, limitOr429 });
-mountPhotoGiftRoutes(app, { db, limitOr429 });
+// Tabletop/photo-gift pilots are experimental and increase the public API
+// surface. They are mounted only by explicit operator opt-in; the canonical
+// paid trail product does not need them.
+if (process.env.ENABLE_EXPERIMENTAL_ROUTES === 'true') {
+  mountRoomGiftRoutes(app, { db, limitOr429 });
+  mountPhotoGiftRoutes(app, { db, limitOr429 });
+}
 
 function handleGiftCreate(req, res, packIdParam = null) {
   req.giftId = crypto.randomUUID();
-  upload.array('photos', 12)(req, res, (err) => {
+  upload.array('photos', 12)(req, res, async (err) => {
     if (err) return res.status(400).json({ error: err.message });
     const files = req.files || [];
     if (files.length < 1) return res.status(400).json({ error: 'Need 1-12 photos' });
     if (files.length > 12) return res.status(400).json({ error: 'Max 12 photos' });
-    // strip EXIF (GPS etc.) from stored copies before anything reads them
-    for (const f of files) {
-      try {
+    // Normalize every upload through sharp before anything reads it. Re-encoding
+    // drops EXIF/XMP/GPS metadata regardless of source format, handles browser
+    // pass-through cases, and rejects malformed/unsupported image bytes instead
+    // of storing them. Animated formats become their first frame.
+    try {
+      for (const f of files) {
         const p = join(UPLOADS_DIR, req.giftId, f.filename);
-        const orig = readFileSync(p);
-        const stripped = stripExif(orig);
-        if (!stripped.equals(orig)) writeFileSync(p, stripped);
-      } catch { /* best-effort */ }
+        const normalized = await normalizeImageFile(p);
+        writeFileSync(p, normalized);
+      }
+    } catch {
+      try { rmSync(join(UPLOADS_DIR, req.giftId), { recursive: true, force: true }); } catch {}
+      return res.status(400).json({ error: 'one of those files is not a supported image' });
     }
     const direction = req.body?.direction === 'me' ? 'me' : 'someone';
     // digital-first: The Trail (digital) is the default; The Hide is physical.
@@ -386,10 +433,13 @@ function handleGiftCreate(req, res, packIdParam = null) {
     // packId comes from the route (/api/packs/:id/gifts) or the multipart body
     const packId = packIdParam ?? (typeof req.body?.packId === 'string' && req.body.packId ? req.body.packId : null);
     if (packId) {
-      const pack = db.prepare('SELECT * FROM packs WHERE id=?').get(packId);
-      if (!pack) return res.status(404).json({ error: 'pack not found' });
-      if ((pack.credits_left || 0) < 1) return res.status(409).json({ error: 'pack has no hunts left' });
-      db.prepare('UPDATE packs SET credits_left = credits_left - 1 WHERE id=?').run(packId);
+      // Debit atomically: image normalization above awaits, so concurrent pack
+      // creations can interleave here. The conditional UPDATE is the lock.
+      const debited = db.prepare('UPDATE packs SET credits_left = credits_left - 1 WHERE id=? AND credits_left >= 1').run(packId).changes;
+      if (!debited) {
+        const pack = db.prepare('SELECT id FROM packs WHERE id=?').get(packId);
+        return res.status(pack ? 409 : 404).json({ error: pack ? 'pack has no hunts left' : 'pack not found' });
+      }
     }
     // referral — optional multipart `ref` field carrying a source trail token
     // (frontend forwarding is not implemented; the field exists for direct
@@ -400,8 +450,8 @@ function handleGiftCreate(req, res, packIdParam = null) {
       ? req.body.ref
       : null;
     const referredBy = ref && liveTrail(ref) ? ref : null;
-    db.prepare('INSERT INTO gifts (id, direction, status, photo_count, mode, tier, pack_id, referred_by) VALUES (?,?,?,?,?,?,?,?)')
-      .run(req.giftId, direction, 'reading', files.length, mode, tier, packId, referredBy);
+    db.prepare('INSERT INTO gifts (id, direction, status, photo_count, mode, tier, pack_id, referred_by, delivery_entitled) VALUES (?,?,?,?,?,?,?,?,?)')
+      .run(req.giftId, direction, 'reading', files.length, mode, tier, packId, referredBy, packId ? 1 : 0);
     logEvent(req.giftId, null, 'uploaded', { photos: files.length, mode, tier, referred: !!referredBy });
     if (referredBy) {
       logEvent(req.giftId, null, 'referred', { ref: referredBy });
@@ -421,10 +471,7 @@ function handleGiftCreate(req, res, packIdParam = null) {
 }
 
 app.post('/api/gifts', (req, res) => {
-  // draft-cost control: per-IP sliding window on gift creation
-  if (!rateLimit(`gifts:${req.ip}`, 5, 60 * 60 * 1000)) {
-    return res.status(429).json({ error: 'too many drafts — try again in an hour' });
-  }
+  if (draftCreationLimited(req, res)) return;
   // packId in the multipart body is honoured inside handleGiftCreate (multer
   // parses the body there); the pack route passes it as a param instead
   handleGiftCreate(req, res, null);
@@ -688,9 +735,7 @@ app.get('/api/packs/:id', (req, res) => {
 });
 
 app.post('/api/packs/:id/gifts', (req, res) => {
-  if (!rateLimit(`gifts:${req.ip}`, 5, 60 * 60 * 1000)) {
-    return res.status(429).json({ error: 'too many drafts — try again in an hour' });
-  }
+  if (draftCreationLimited(req, res)) return;
   handleGiftCreate(req, res, req.params.id);
 });
 
@@ -783,6 +828,10 @@ app.post('/api/gifts/:id/seal', (req, res) => {
     }
     fallbackAt = new Date(ts).toISOString();
   }
+  if (!giftHasDeliveryEntitlement(g)) {
+    logEvent(g.id, null, 'seal_blocked_unpaid', null);
+    return res.status(402).json({ error: 'payment is still pending — try again once stripe confirms it', paymentRequired: true });
+  }
   // the code is stored as a scrypt hash only — the plaintext exists solely in
   // the response so the buyer can write it into the hidden thing (Hide tier)
   db.prepare('INSERT INTO trails (token, gift_id, rounds, unlock_code, unlock_hash, expires_at, send_at, fallback_at) VALUES (?,?,?,?,?,?,?,?)')
@@ -837,7 +886,7 @@ app.post('/api/gifts/:id/mark-paid', async (req, res) => {
       if (r.ok) {
         const s = await r.json();
         if (s.client_reference_id === g.id && validGiftPayment(g, s)) {
-          db.prepare('UPDATE gifts SET paid=1, status=CASE WHEN status=\'sealed\' THEN \'paid\' ELSE status END WHERE id=?').run(g.id);
+          db.prepare('UPDATE gifts SET paid=1, delivery_entitled=1, status=CASE WHEN status=\'sealed\' THEN \'paid\' ELSE status END WHERE id=?').run(g.id);
           logEvent(g.id, null, 'paid', { tier: g.tier, verified: true });
           // the pack is owed the moment the money is verified — the webhook may
           // never arrive (unset secret, lost delivery), so don't wait for it
@@ -863,6 +912,7 @@ app.post('/api/gifts/:id/mark-paid', async (req, res) => {
 async function deliverGiftLink(giftId) {
   const g = getGift(giftId);
   if (!g || !g.buyer_email || g.email_sent_at) return;
+  if (!giftHasDeliveryEntitlement(g)) return;
   const t = db.prepare('SELECT token, send_at FROM trails WHERE gift_id=?').get(giftId);
   if (!t) return;
   try {
@@ -885,7 +935,7 @@ function deliverDueGifts() {
   try {
     const due = db
       .prepare(
-        "SELECT g.id FROM gifts g JOIN trails t ON t.gift_id=g.id WHERE g.buyer_email IS NOT NULL AND g.email_sent_at IS NULL AND g.paid=1 AND (t.send_at IS NULL OR t.send_at <= datetime('now'))",
+        "SELECT g.id FROM gifts g JOIN trails t ON t.gift_id=g.id WHERE g.buyer_email IS NOT NULL AND g.email_sent_at IS NULL AND (t.send_at IS NULL OR t.send_at <= datetime('now'))",
       )
       .all();
     for (const { id } of due) void deliverGiftLink(id);
@@ -966,11 +1016,11 @@ app.post('/api/stripe/webhook', (req, res) => {
         console.error('[stripe webhook] payment does not match gift', g.id);
         return res.status(400).json({ error: 'payment mismatch' });
       }
-      db.prepare('UPDATE gifts SET paid=1, status=CASE WHEN status=\'sealed\' THEN \'paid\' ELSE status END WHERE id=?').run(g.id);
+      db.prepare('UPDATE gifts SET paid=1, delivery_entitled=1, status=CASE WHEN status=\'sealed\' THEN \'paid\' ELSE status END WHERE id=?').run(g.id);
       logEvent(g.id, null, 'paid', { tier: g.tier, via: 'webhook', session: s.id, amount: s.amount_total, referred: !!g.referred_by });
       // the webhook may be the only survivor of a lost tab — deliver here too
       void deliverGiftLink(g.id);
-      // a Set payment creates the 3-credit pack (idempotent, shared with the
+      // a Set payment creates the 2-credit pack (idempotent, shared with the
       // verified mark-paid path so the pack exists whichever lands first)
       ensureSetPack(g.id);
     } else {
@@ -997,13 +1047,16 @@ function scheduledUntil(t) {
 
 function liveTrail(token) {
   const t = getTrail(token);
-  if (t && scheduledUntil(t)) return null;
+  if (!t) return null;
+  if (!giftHasDeliveryEntitlement(getGift(t.gift_id))) return null;
+  if (scheduledUntil(t)) return null;
   return t;
 }
 
 app.get('/api/trail/:token', (req, res) => {
   const t = getTrail(req.params.token);
   if (!t) return res.status(404).json({ error: 'not found' });
+  if (!giftHasDeliveryEntitlement(getGift(t.gift_id))) return res.status(404).json({ error: 'not found' });
   // scheduled send: tell the recipient when it opens instead of leaking rounds
   const soon = scheduledUntil(t);
   if (soon) return res.status(423).json({ error: 'scheduled', sendAt: soon });

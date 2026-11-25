@@ -14,7 +14,7 @@ sealed trail of clues that leads the recipient to the keepsake.
 rounds open the keepsake directly — no physical errand, any distance, sent
 as a link. **The Hide** (£9.99) adds the physical beat: the buyer hides
 something at the place and writes an unlock code into it. **The Set** (£19)
-is a pack of three hunts for different people or occasions.
+is three hunts total — this purchase plus two further hunts — for different people or occasions.
 
 Live: **https://enigmagift.pages.dev**
 
@@ -22,9 +22,9 @@ Live: **https://enigmagift.pages.dev**
 
 | Tier | Price | Mode | What the giver does | Recipient flow |
 |---|---|---|---|---|
-| **The Trail** (default) | £4.99 | digital | upload 5–12 photos, approve the clues, seal & send | `?t=` → 3 rounds → keepsake opens directly (no code) |
+| **The Trail** (default) | £4.99 | digital | upload 1–12 photos, approve the clues, seal & send | `?t=` → 3 rounds → keepsake opens directly (no code) |
 | **The Hide** | £9.99 | physical | everything in The Trail, plus physically hide a thing at the place and write the code into it | 3 rounds → find the thing → enter code → keepsake |
-| **The Set** | £19 | pack of 3 | buy once, create up to 3 hunts (each Trail or Hide), each with its own recipient link | one link per hunt |
+| **The Set** | £19 | pack of 3 total | buy once, create this hunt plus 2 further hunts (each Trail or Hide), each with its own recipient link | one link per hunt |
 
 One send = one published recipient link; previews and re-sending the same link
 are free. The recipient is never charged. The same exploration, rounds and
@@ -37,7 +37,7 @@ is all someone needs (the set saves £10.97 against three Hides).
    (the sales pitch before the ask).
 1. **Door** — pick a tier, choose photos of a place (or "for me" / demo
    mode). The selection accumulates across picks and drops — up to 12,
-   deduplicated, minimum 5 — and nothing is uploaded until the buyer
+   deduplicated, minimum 1 — and nothing is uploaded until the buyer
    confirms consent and presses "Build my trail"; "Clear selection" resets
    it. Copy adapts to direction and tier: "for me" reframes the lede, and
    the digital tiers say there is a link to send, not a thing to hide.
@@ -54,7 +54,7 @@ is all someone needs (the set saves £10.97 against three Hides).
    The Trail tier skips this scene entirely.
 5. **Seal** — Stripe Payment Link for the chosen tier; on return (webhook +
    `?paid=1`) the gift seals and issues a trail token (+ unlock code for
-   The Hide; The Set also creates a 3-credit pack). Mid-flow upsell: on a
+   The Hide; The Set also creates a 2-credit pack (three hunts total including this one). Mid-flow upsell: on a
    live, unsealed Trail the pay block offers "add the physical ending
    (+£5)", which switches the order summary to The Hide and persists via
    `PATCH /api/gifts/:id/tier` (409 once sealed/paid — tier is locked then).
@@ -149,6 +149,13 @@ Env (backend, `server/.env` or Fly secrets):
   `EnigmaGift <gifts@enigmagift.pages.dev>`; set a real domain in production).
 - `APP_ORIGIN` — absolute origin used in email links (default
   `https://enigmagift.pages.dev`). Recovery page lives at `/find.html`.
+- `ALLOW_UNPAID_SEAL` — exact `true` enables deliberately free demo deployments;
+  unset/false in production. Payment or pack entitlement is otherwise required
+  before sealing, delivery, recipient access, world generation or portrait generation.
+- `ENABLE_EXPERIMENTAL_ROUTES` — exact `true` mounts the tabletop/photo-gift pilot
+  routes; unset/false for the canonical paid product.
+- `MAX_DRAFTS_PER_DAY` — global draft-cost circuit breaker (default 200), in
+  addition to the per-IP draft limit.
 
 Optional local sandbox for browser testing: `DAYTONA_API_KEY` may live in a
 gitignored root `.env.local` (never a `VITE_` prefix — it must not reach the
@@ -171,15 +178,15 @@ Frontend env (build-time):
 | Route | Purpose |
 |---|---|
 | `GET /api/health` | liveness |
-| `POST /api/gifts` | multipart `photos` (5–12, field name `photos`) + `direction` + `mode` (`digital`\|`physical`) + `tier` (`trail`\|`hide`\|`set`) + optional `packId` + optional `ref` (a source trail token for referral attribution; unknown/expired/revoked/scheduled refs are ignored) → `{giftId}`. Rate-limited per IP |
+| `POST /api/gifts` | multipart `photos` (1–12, field name `photos`) + `direction` + `mode` (`digital`\|`physical`) + `tier` (`trail`\|`hide`\|`set`) + optional `packId` + optional `ref` (a source trail token for referral attribution; unknown/expired/revoked/scheduled refs are ignored) → `{giftId}`. Rate-limited per IP |
 | `GET /api/gifts/:id` | gift payload (clues, hideSpots, throughline, rounds, mode, tier) |
 | `GET /api/gifts/:id/overview` | giver-dashboard payload: status, trail link (incl. `sendAt`/`scheduled`), pack, `referredBy`, stats derived from events, recent events. **Never includes clues/rounds/answers/unlock hashes.** Rate-limited, `no-store` |
 | `PATCH /api/gifts/:id/clues` | `{keepIds, edits}` buyer approval |
-| `PATCH /api/gifts/:id/tier` | `{tier: trail\|hide, mode}` — mid-flow upsell pre-seal; `409` once sealed/paid, `400` for other tiers |
+| `PATCH /api/gifts/:id/tier` | `{tier: trail\|hide\|set, mode}` — tier choice/upsell pre-seal; `409` once sealed/paid, `400` for other tiers |
 | `POST /api/gifts/:id/reclue` | `{notes}` — re-run the cross-image pass with buyer notes; regenerates clues/rounds (bounded to 2 pre-payment) |
 | `POST /api/gifts/:id/world-source` | `{index}` — pick which photo becomes the 3D world; rebuilds if already built |
 | `POST /api/gifts/:id/hide` | record the physical hide (Hide tier) |
-| `POST /api/gifts/:id/seal` | → `{trailToken, trailUrl, unlockCode?, expiresAt?, sendAt?}`; optional `{sendAt}` schedules availability (future, ≤1 year — enforced at read time) and optional `{expireDays}` sets link expiry, counted from the scheduled open when one is set (code only for Hide). Idempotent: re-sealing returns the existing token/sendAt |
+| `POST /api/gifts/:id/seal` | payment/entitlement-gated (`402` until Stripe/pack entitlement exists) → `{trailToken, trailUrl, unlockCode?, expiresAt?, sendAt?}`; optional `{sendAt}` schedules availability (future, ≤1 year — enforced at read time) and optional `{expireDays}` sets link expiry, counted from the scheduled open when one is set (code only for Hide). Idempotent: re-sealing returns the existing token/sendAt |
 | `POST /api/gifts/:id/mark-paid` | fallback paid-marker; verifies the Stripe session server-side when `STRIPE_API_KEY` is set — **fails closed otherwise** (never trusts the client; only the webhook sets `paid`) |
 | `POST /api/gifts/:id/revoke` | buyer revokes the recipient trail link (token stops resolving immediately) |
 | `POST /api/stripe/webhook` | signed Stripe webhook — the source of truth for `paid`; creates a pack on a Set payment |
@@ -196,14 +203,14 @@ Frontend env (build-time):
 | `GET /api/trail/:token/portrait` | streams the painted keepsake portrait (202 until ready/skipped) |
 | `GET /api/trail/:token/photo/:i` | original photo by sorted index, **token-scoped** |
 | `GET /api/photo/:giftId/:i` | original photo by gift id (buyer/editor side only) |
-| `POST /api/room-gifts` | `{edition}` + `Authorization: Bearer <key>` — save an immutable tabletop gift edition → `{recipientToken}`; idempotent on the same key+edition, `409` on a different edition, `410` once revoked |
-| `GET /api/room-gifts/:token` | public recipient edition (`no-store`); `404` when revoked/unknown or the room/revision is not in the server allowlist |
-| `GET /api/room-gifts/manage` | owner view (`recipientToken`, `revoked`, `edition`) behind the management key |
-| `DELETE /api/room-gifts/manage` | revoke: deletes the stored edition text and marks the link closed (repeat-safe) |
-| `POST /api/photo-gifts` | multipart `edition` + `photo` (JPEG ≤ 3 MiB) + `Authorization: Bearer <key>` — one immutable photo gift → `{recipientToken}`; `409` on a different payload with the same key, `410` once revoked |
-| `GET /api/photo-gifts/:token` | public edition (`no-store`, never carries the image); `404` when revoked/unknown |
-| `GET /api/photo-gifts/:token/image` | the normalized JPEG (`no-store`); `404` when revoked/unknown |
-| `GET`/`DELETE /api/photo-gifts/manage` | owner view / revoke — removes edition and image atomically |
+| `POST /api/room-gifts` *(experimental, only when `ENABLE_EXPERIMENTAL_ROUTES=true`)* | `{edition}` + `Authorization: Bearer <key>` — save an immutable tabletop gift edition → `{recipientToken}`; idempotent on the same key+edition, `409` on a different edition, `410` once revoked |
+| `GET /api/room-gifts/:token` *(experimental)* | public recipient edition (`no-store`); `404` when revoked/unknown or the room/revision is not in the server allowlist |
+| `GET /api/room-gifts/manage` *(experimental)* | owner view (`recipientToken`, `revoked`, `edition`) behind the management key |
+| `DELETE /api/room-gifts/manage` *(experimental)* | revoke: deletes the stored edition text and marks the link closed (repeat-safe) |
+| `POST /api/photo-gifts` *(experimental)* | multipart `edition` + `photo` (JPEG ≤ 3 MiB) + `Authorization: Bearer <key>` — one immutable photo gift → `{recipientToken}`; `409` on a different payload with the same key, `410` once revoked |
+| `GET /api/photo-gifts/:token` *(experimental)* | public edition (`no-store`, never carries the image); `404` when revoked/unknown |
+| `GET /api/photo-gifts/:token/image` *(experimental)* | the normalized JPEG (`no-store`); `404` when revoked/unknown |
+| `GET`/`DELETE /api/photo-gifts/manage` *(experimental)* | owner view / revoke — removes edition and image atomically |
 
 Room-gift links are a pilot feature: no accounts — the sender's management
 key is a 64-hex bearer in the private `#manage=` URL and only its SHA-256
@@ -220,7 +227,7 @@ only a bounded in-memory rate map. There is no email, checkout or automatic
 delivery — the giver copies the link and sends it themselves.
 
 Photo-gift links follow the same pilot model but use **one** of the
-sender's own photos (the paid trail still requires 5–12): the photo is
+sender's own photos (the paid trail accepts 1–12): the photo is
 normalized server-side to a JPEG and stored next to the note, and revoke
 removes both at once. The ready screen offers "See what they see"
 (play the saved gift) and "Make changes" — saved links are immutable,
@@ -280,9 +287,7 @@ Public pages: `/privacy` and `/terms` (`public/privacy.html`, `public/terms.html
   strings, which leak via Referer/history).
 - `POST /api/gifts/:id/mark-paid` **fails closed** without `STRIPE_API_KEY` —
   only the signed Stripe webhook sets `paid` (HMAC + per-tier amount check).
-- **EXIF metadata (incl. GPS) is stripped** from uploaded JPEG/PNG on the server
-  (`server/exif.js`); the browser also re-encodes uploads before they leave the
-  device. Upload consent is required in the UI before any photo is sent.
+- **Uploads are normalized to JPEG server-side through sharp before anything reads them**, stripping EXIF/XMP/GPS metadata regardless of accepted source format. Safari 17+ can also decode HEIC in the browser, so HEIC is re-encoded client-side there; unsupported undecodable uploads are rejected rather than stored. Upload consent is required in the UI before any photo is sent.
 - Photos are processed by the AI providers listed in `/privacy` (SandBase,
   Google Gemini fallback, Recraft) solely to generate the gift. No third-party
   trackers; funnel events are first-party only. No cookies — the in-progress
@@ -291,7 +296,7 @@ Public pages: `/privacy` and `/terms` (`public/privacy.html`, `public/terms.html
   `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`, HSTS — set both by
   `public/_headers` (Pages) and in `server/index.js` (API/SPA origin).
 - CORS is restricted to `ALLOWED_ORIGINS`; all SQL is parameterised.
-- `POST /api/gifts` and all state-changing routes are rate-limited; unsealed
+- `POST /api/gifts` is rate-limited per IP and bounded by a global daily draft circuit breaker (`MAX_DRAFTS_PER_DAY`, default 200); other state-changing routes keep their own bounded limits; unsealed
   drafts older than 7 days are purged (files included) on a timer.
 - The giver can `DELETE /api/gifts/:id` (draft or whole gift + link + photos)
   and revoke the recipient link at any time.
@@ -300,14 +305,14 @@ Public pages: `/privacy` and `/terms` (`public/privacy.html`, `public/terms.html
   `npm run deploy:room` refuses to deploy unless `npm run verify:room` passes
   — the gate replays the suite against the build about to ship and writes an
   agent-readable failure digest. See `spec/README.md`.
-- Security regression tests: `cd server && node test/security.test.mjs`
+- Security regression tests: `cd server && npm test`
   (webhook signature + payment-amount matrix, fail-closed mark-paid,
   answer-key stripping, unlock rate limit, revoke/expiry, scheduled
-  availability, referral attribution, EXIF strip, headers). Requires Node
+  availability, referral attribution, upload normalization, headers). Requires Node
   ≥22.15 (`module.registerHooks`); runs against a temporary DB and mocked
   pipeline/world/portrait providers with external HTTP disabled — no paid
   provider calls, no credentials needed.
-- Scene smoke render: `npm run smoke:scenes` — bundles each scene with
+- Root verification: `npm test` runs the bundled shelf assertions plus scene smoke render; `npm run smoke:scenes` runs the scene pass alone — bundles each scene with
   esbuild and renders every demo/live state (editor review card, door tiers,
   seal incl. pack-owned gifts) to catch a broken scene before a deploy.
 
@@ -360,14 +365,16 @@ suggests the five shots that read best (door / sign / seat / view / detail).
 
 ## Known gaps (pre-launch hardening)
 
-- HEIC upload accepted by extension but untested end-to-end (EXIF stripping
-  covers JPEG/PNG only — WebP/GIF/HEIC pass through with metadata intact).
+- HEIC depends on browser decode support (Safari 17+/iOS); if the browser
+  cannot decode it, the server rejects it rather than storing metadata-bearing
+  bytes. A WASM HEIC decoder would widen coverage but adds significant bundle
+  cost and should only be added after measuring real upload failures.
 - `mark-paid` server-side verification still needs a restricted Stripe API key
   (`STRIPE_API_KEY`) — until then the webhook alone sets `paid` (fail closed).
 - Fly `min_machines_running = 0` — cold starts ~5s on first hit.
-- No automated tests around the new tier/mode branching yet — verify with the
-  run card in `notes/CANONICAL-GIFT.md` (one person, own phone, no coaching)
-  plus the `events` funnel on real strangers.
+- Backups are scripted (`server/scripts/backup-volume.mjs`) but still require
+  an operator to copy them off the Fly volume; continuous off-volume backup
+  (for example Litestream to object storage) is not configured yet.
 - Uncoached recipient research (Phase 0 in `notes/PLAN.md`) has still not
   been run — it gates every remaining decision (Set fate, print product,
   price test, the world-first roadmap).

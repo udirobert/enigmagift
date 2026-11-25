@@ -64,7 +64,7 @@
       <details open>
         <summary>what we collect</summary>
         <ul>
-          <li><strong>the photos you upload</strong> (5–12 per gift) and the choices you make while building the gift (clues, hiding spot, tier).</li>
+          <li><strong>the photos you upload</strong> (1–12 per gift) and the choices you make while building the gift (clues, hiding spot, tier).</li>
           <li><strong>the recipient link</strong> you share (a random token in the URL, e.g. <code>/t/…</code>) and the unlock code (stored only as a one-way scrypt hash).</li>
           <li><strong>first-party usage events</strong> (page views, round picks, “sealed”, “paid”) on our own server, to understand where gifts get stuck. <strong>we run no third-party analytics, ads, or trackers.</strong></li>
           <li><strong>payment</strong> is handled entirely by Stripe (payment links). card numbers never reach our servers.</li>
@@ -90,7 +90,7 @@
       <details>
         <summary>what we do to protect it</summary>
         <ul>
-          <li><strong>EXIF metadata (including GPS location) is stripped</strong> from uploaded JPEG/PNG files on our server before anything reads them; the app also re-encodes photos in your browser before upload.</li>
+          <li><strong>EXIF metadata (including GPS location) is removed</strong> by re-encoding every accepted upload to JPEG on our server before anything reads it; browsers that can decode HEIC (Safari 17+/iOS) also re-encode HEIC before upload. Files the server cannot decode are rejected rather than stored.</li>
           <li>the recipient only ever holds a random link token: photos, the 3D world and the portrait are served through token-scoped URLs; the answer key to the rounds never leaves the server.</li>
           <li>unlock codes are stored as scrypt hashes; the Stripe webhook signature is verified before any payment is recorded; payment confirmation from your browser alone is <em>not</em> trusted.</li>
           <li>TLS everywhere, a strict Content-Security-Policy, <code>Referrer-Policy: no-referrer</code> (so the link token can’t leak to other sites), rate limiting on uploads, answers and code attempts, and CORS restricted to our own domains.</li>

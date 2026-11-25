@@ -97,11 +97,15 @@ async function downscaleForUpload(file: File): Promise<Blob> {
   const MAX = 1280;
   try {
     const bmp = await createImageBitmap(file);
-    if (Math.max(bmp.width, bmp.height) <= MAX) {
+    // HEIC must never pass through: the server cannot decode it with sharp,
+    // and even a small HEIC can carry location metadata. Safari 17+ can decode
+    // it here, so always re-encode that format even when no resize is needed.
+    const heic = /\.hei[cf]$/i.test(file.name) || /hei[cf]/i.test(file.type);
+    if (!heic && Math.max(bmp.width, bmp.height) <= MAX) {
       bmp.close();
       return file;
     }
-    const scale = MAX / Math.max(bmp.width, bmp.height);
+    const scale = Math.min(1, MAX / Math.max(bmp.width, bmp.height));
     const w = Math.max(1, Math.round(bmp.width * scale));
     const h = Math.max(1, Math.round(bmp.height * scale));
     const canvas = document.createElement('canvas');

@@ -25,6 +25,7 @@ CREATE TABLE IF NOT EXISTS gifts (
   rounds TEXT,
   hides TEXT,
   paid INTEGER NOT NULL DEFAULT 0,
+  delivery_entitled INTEGER NOT NULL DEFAULT 0,
   photos_observed INTEGER NOT NULL DEFAULT 0,
   read_ready_at TEXT,
   world_status TEXT NOT NULL DEFAULT 'pending',
@@ -71,7 +72,7 @@ CREATE TABLE IF NOT EXISTS trails (
 CREATE TABLE IF NOT EXISTS packs (
   id TEXT PRIMARY KEY,
   purchase_gift_id TEXT NOT NULL REFERENCES gifts(id),
-  credits_left INTEGER NOT NULL DEFAULT 3,
+  credits_left INTEGER NOT NULL DEFAULT 2,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
@@ -147,10 +148,23 @@ addColumnIfMissing('gifts', 'world_ready_at', 'TEXT');
 addColumnIfMissing('gifts', 'portrait_status', "TEXT NOT NULL DEFAULT 'pending'");
 addColumnIfMissing('gifts', 'portrait_file', 'TEXT');
 addColumnIfMissing('gifts', 'portrait_started_at', 'TEXT');
+addColumnIfMissing('gifts', 'delivery_entitled', 'INTEGER NOT NULL DEFAULT 0');
 // tier/mode (Trail £4.99 digital default · Hide £9.99 physical · Set £19 pack)
 addColumnIfMissing('gifts', 'mode', "TEXT NOT NULL DEFAULT 'physical'");
 addColumnIfMissing('gifts', 'tier', 'TEXT');
 addColumnIfMissing('gifts', 'pack_id', 'TEXT');
+// Backfill existing entitlement separately from revenue analytics: direct Stripe
+// payments are paid=1; pack children were entitled when their credit was consumed.
+db.exec(`
+UPDATE gifts SET delivery_entitled=1 WHERE paid=1;
+UPDATE gifts SET delivery_entitled=1
+WHERE pack_id IS NOT NULL
+  AND EXISTS (
+    SELECT 1 FROM packs
+    WHERE packs.id = gifts.pack_id
+      AND packs.purchase_gift_id != gifts.id
+  );
+`);
 addColumnIfMissing('gifts', 'reclue_count', 'INTEGER NOT NULL DEFAULT 0');
 // the giver's own words — the letter the recipient reads at the reveal
 addColumnIfMissing('gifts', 'message', 'TEXT');

@@ -38,7 +38,7 @@ Two consequences for sequencing:
 - **One canonical gift, revised.** `[evidence]` The repo now has four recipient
   experiences (trail, room, photo hunt, prototypes). Freeze all but the trail.
 - **Never add a step to the giver's path to pay for a step elsewhere.** The
-  giver already carries 5–12 photos and an authoring grid for £4.99.[^effort]
+  giver already carries 1–12 photos and an authoring grid for £4.99.[^effort]
 
 [^effort]: `[evidence]` `Door.tsx:122` blocks under 5 photos; `Editor.tsx`
 requires keep/cut/edit of every clue plus a world-source choice.
@@ -240,20 +240,16 @@ never seen the output of.
 > **Decisions still open for the owner:** retire/resize The Set, paid printed
 > artefact, price test after 25 paid gifts.
 >
-> **Two money questions the code can't settle — evidence, not guesses:**
-> 1. **A set delivers four hunts for £19.** The pack is minted with
->    `credits_left = 3` and the purchase gift is itself a delivered hunt, so
->    the buyer gets *that one plus three more*, while the till copy promises
->    "a pack of three hunts — this one, plus two more"
->    (`Seal.tsx` `TIER_INCLUDES.set`). Either mint 2 credits or change the
->    copy — it is a pricing decision, so it is left alone.
-> 2. **`POST /api/gifts/:id/seal` never checks `paid`.** It creates the trail,
->    sets status `sealed`, and starts the world build for an unpaid draft; the
->    trail then resolves at `/api/trail/:token`. The client gates on payment,
->    the server does not. This is now asserted explicitly by the suite
->    (`paid=0` → seal → 200), so it is a known, deliberate-to-decide hole
->    rather than an accident. Gating it needs a rule for Stripe-less
->    deployments, hence not done here.
+> **Money questions resolved 2026-11-25:**
+> 1. The Set now means three hunts total: the purchase gift plus a 2-credit
+>    pack, matching the till copy. Existing already-minted packs were not
+>    retroactively reduced.
+> 2. `POST /api/gifts/:id/seal` now fails closed with `402` unless the gift is
+>    Stripe-paid, consumed a Set-pack credit, or the explicit demo-only
+>    `ALLOW_UNPAID_SEAL=true` escape hatch is set. The same entitlement gates
+>    recipient access, email delivery, world generation and portrait
+>    generation; the regression suite covers both unpaid denial and pack-child
+>    allowance.
 
 `[evidence]` Costs are honestly modelled at 88–90% contribution
 (`DIGITAL-HUNT.md` "Price test"), including the pre-payment read cost. The risk

@@ -3,7 +3,7 @@ import { gsap } from 'gsap';
 import { SEAL_LINK } from '../data';
 import { prefersReducedMotion } from '../lib/motion';
 import { WaxSeal } from '../components/WaxSeal';
-import { deleteGift, markPaid, revokeTrail, sealGift, type GiftMode, type SealResult, type Tier } from '../lib/api';
+import { ApiError, deleteGift, markPaid, revokeTrail, sealGift, type GiftMode, type SealResult, type Tier } from '../lib/api';
 import { TrustRow } from '../components/TrustRow';
 import { QRCode } from '../components/QRCode';
 
@@ -36,7 +36,7 @@ const TIER_INCLUDES: Record<Tier, string> = {
 };
 
 /**
- * The seal — and the till. Live gifts don't seal until the £19 clears:
+ * The seal — and the till. Live gifts don't seal until payment clears:
  * the CTA opens the Stripe Payment Link in a new tab, and on return
  * (?paid=1, window focus, or the explicit "i've paid" nudge) we mark the
  * gift paid and seal for real. Demo mode keeps the old theatre.
@@ -107,20 +107,35 @@ export function Seal({ demo, giftId, kept, tier, mode, onSend, onTier, packOwned
           // it reports pending and only the signed webhook sets paid
           await markPaid(giftId, sid);
         } catch {
-          /* payment marking is best-effort — the seal still matters */
+          /* payment marking is best-effort; sealing itself fails closed below */
         }
       }
-      const r = await sealGift(giftId, {
-        email: email.trim() || undefined,
-        sendAt: sendDate || undefined,
-        fallbackAt: mode === 'physical' && fallbackDate ? fallbackDate : undefined,
-      });
+      let r: SealResult | null = null;
+      for (let attempt = 0; attempt < 4; attempt++) {
+        try {
+          r = await sealGift(giftId, {
+            email: email.trim() || undefined,
+            sendAt: sendDate || undefined,
+            fallbackAt: mode === 'physical' && fallbackDate ? fallbackDate : undefined,
+          });
+          break;
+        } catch (e) {
+          if (!(e instanceof ApiError) || e.status !== 402 || attempt === 3) throw e;
+          await new Promise((resolve) => window.setTimeout(resolve, 1600));
+        }
+      }
+      if (!r) throw new ApiError('payment is still pending', 402);
       setResult(r);
       setCode(r.unlockCode ?? null);
       setPhase('sealed');
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'couldn’t seal — try again');
-      setPhase('error');
+      if (e instanceof ApiError && e.status === 402) {
+        setError('stripe hasn’t confirmed the payment yet — give it a few seconds, then try again');
+        setPhase('awaiting');
+      } else {
+        setError(e instanceof Error ? e.message : 'couldn’t seal — try again');
+        setPhase('error');
+      }
     } finally {
       workingRef.current = false;
     }

@@ -31,3 +31,6 @@ dog-gift-tabletop/worker-configuration.d.ts
 .testmuai/testruns/
 .testmuai/verify*.json
 .testmuai/verify.ndjson
+
+# Perch local agent configuration
+.perch/

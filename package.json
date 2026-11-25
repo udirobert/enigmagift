@@ -10,7 +10,9 @@
     "build:room": "VITE_API_URL= vite build dog-gift-tabletop --outDir dist && wrangler types dog-gift-tabletop/worker-configuration.d.ts --config dog-gift-tabletop/wrangler.jsonc",
     "verify:room": "node scripts/verify-room.mjs",
     "smoke:scenes": "esbuild scripts/smoke-scenes.tsx --bundle --platform=node --format=esm --jsx=automatic --define:import.meta.env={} --external:react --external:react-dom --outfile=node_modules/.cache/smoke-scenes.mjs --log-level=warning && node node_modules/.cache/smoke-scenes.mjs",
-    "deploy:room": "npm run build:room && npm run verify:room && wrangler deploy --config dog-gift-tabletop/wrangler.jsonc"
+    "deploy:room": "npm run build:room && npm run verify:room && wrangler deploy --config dog-gift-tabletop/wrangler.jsonc",
+    "test:unit": "esbuild tests/shelfGift.test.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/shelfGift.test.mjs --log-level=warning && node node_modules/.cache/shelfGift.test.mjs",
+    "test": "npm run test:unit && npm run smoke:scenes"
   },
   "dependencies": {
     "@sparkjsdev/spark": "2.4.0",

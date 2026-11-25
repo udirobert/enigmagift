@@ -63,6 +63,7 @@ export interface WorldBackdropHandle {
 
 export const WorldBackdrop = forwardRef<WorldBackdropHandle, WorldBackdropProps>(
   function WorldBackdrop({ dragActive = false, onPhase }, ref) {
+    const [loadWorld, setLoadWorld] = useState(false); // heavy WebGL deferred until idle
     const [worldOn, setWorldOn] = useState(false); // world layer is up
     const [worldReady, setWorldReady] = useState(false); // GLB loaded
     const [temps, setTemps] = useState<TempCard[]>([]);
@@ -72,6 +73,27 @@ export const WorldBackdrop = forwardRef<WorldBackdropHandle, WorldBackdropProps>
     // stable — World keys its effect off this; an inline arrow would reload
     // the model on every re-render
     const handleWorldReady = useCallback(() => setWorldReady(true), []);
+
+    /* The three.js runtime and multi-megabyte GLB are enhancement, not first
+     * paint. Start them only once the browser is idle; visitors asking for
+     * reduced motion, data saver, or a slow connection keep the still photo. */
+    useEffect(() => {
+      if (prefersReducedMotion()) return;
+      const nav = navigator as Navigator & {
+        connection?: { saveData?: boolean; effectiveType?: string };
+      };
+      if (nav.connection?.saveData || ['slow-2g', '2g'].includes(nav.connection?.effectiveType ?? '')) return;
+      const win = window as Window & {
+        requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number;
+        cancelIdleCallback?: (id: number) => void;
+      };
+      if (win.requestIdleCallback) {
+        const id = win.requestIdleCallback(() => setLoadWorld(true), { timeout: 3500 });
+        return () => win.cancelIdleCallback?.(id);
+      }
+      const id = window.setTimeout(() => setLoadWorld(true), 1600);
+      return () => window.clearTimeout(id);
+    }, []);
 
     /* ------------------------- temp polaroids ------------------------ */
     /* Dropped files land as small prints that drift in, linger, and fade. */
@@ -182,12 +204,14 @@ export const WorldBackdrop = forwardRef<WorldBackdropHandle, WorldBackdropProps>
         {/* layer 2 — the world of the place (ambient spin, input passes through) */}
         <div className="wb-world-layer">
           <Suspense fallback={null}>
-            <World
-              src="/world.glb"
-              interactive={false}
-              spin={0.3}
-              onReady={handleWorldReady}
-            />
+            {loadWorld && (
+              <World
+                src="/world.glb"
+                interactive={false}
+                spin={0.3}
+                onReady={handleWorldReady}
+              />
+            )}
           </Suspense>
         </div>
 

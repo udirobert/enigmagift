@@ -8,7 +8,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import crypto from 'node:crypto';
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
-import { stripExif } from '../exif.js';
+import { normalizeImageFile } from '../image.js';
 import { roomCreateRateKey } from '../room-gifts.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -24,8 +24,7 @@ const ROOM_SECRET = crypto.randomBytes(32).toString('hex');
 const tmp = mkdtempSync(join(tmpdir(), 'eg-sec-'));
 
 // Module-load preload: provider modules (pipeline/world/portrait) can reach
-// paid APIs and discover credentials from sibling .env files, so the test
-// server must never import them. A resolve hook swaps each for a stub when
+// paid APIs, so the test server must never import them. A resolve hook swaps each for a stub when
 // index.js asks for them; fetch is disabled outright as a second guard.
 const PRELOAD = join(tmp, 'isolate-providers.mjs');
 writeFileSync(PRELOAD, `import { registerHooks } from 'node:module';
@@ -56,6 +55,7 @@ const env = {
   STRIPE_WEBHOOK_SECRET: SECRET,
   STRIPE_API_KEY: '', // mark-paid must fail closed; also blocks stripe fetch
   ROOM_PROXY_SECRET: ROOM_SECRET,
+  ENABLE_EXPERIMENTAL_ROUTES: 'true',
 };
 
 let serverLog = '';
@@ -122,38 +122,21 @@ function sign(payload) {
 async function main() {
   await waitUp();
 
-  // --- EXIF unit tests ---
-  await t('stripExif removes JPEG APP1 (Exif/GPS) but keeps SOI + image data', () => {
+  // --- upload normalization unit tests (the production privacy boundary) ---
+  await t('normalizeImageFile removes JPEG EXIF/GPS and returns JPEG bytes', async () => {
     const real = readFileSync(PHOTO);
     const exifSeg = Buffer.concat([Buffer.from([0xff, 0xe1]), (() => { const b = Buffer.alloc(2); b.writeUInt16BE(2 + 10); return b; })(), Buffer.from('Exif\0\0GPS!')]);
     const withExif = Buffer.concat([real.subarray(0, 2), exifSeg, real.subarray(2)]);
-    const stripped = stripExif(withExif);
-    assert.equal(stripped[0], 0xff); assert.equal(stripped[1], 0xd8);
-    assert.ok(!stripped.includes(Buffer.from('Exif\0\0GPS!')), 'EXIF payload still present');
-    // image data survives: SOS marker and the tail of the original file remain
-    assert.ok(stripped.includes(Buffer.from([0xff, 0xda])), 'SOS marker lost');
-    assert.ok(stripped.includes(real.subarray(real.length - 64)), 'image tail lost');
-    assert.ok(stripped.length < withExif.length, 'segment not removed');
+    const fixture = join(tmp, 'exif-fixture.jpg');
+    writeFileSync(fixture, withExif);
+    const normalized = await normalizeImageFile(fixture);
+    assert.equal(normalized[0], 0xff); assert.equal(normalized[1], 0xd8);
+    assert.ok(!normalized.includes(Buffer.from('Exif\0\0GPS!')), 'EXIF payload survived normalization');
   });
-  await t('stripExif removes PNG eXIf chunk, keeps IHDR', () => {
-    const sig = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
-    const chunk = (type, data) => {
-      const b = Buffer.alloc(8 + data.length + 4);
-      b.writeUInt32BE(data.length, 0);
-      b.write(type, 4, 'ascii');
-      data.copy(b, 8);
-      return b; // crc omitted (we never validate it)
-    };
-    const ihdr = chunk('IHDR', Buffer.alloc(13));
-    const exif = chunk('eXIf', Buffer.from('GPSDATA'));
-    const png = Buffer.concat([sig, ihdr, exif]);
-    const stripped = stripExif(png);
-    assert.ok(!stripped.includes(Buffer.from('eXIf')));
-    assert.ok(stripped.includes(Buffer.from('IHDR')));
-  });
-  await t('stripExif leaves non-JPEG/PNG buffers untouched', () => {
-    const b = Buffer.from('GIF89a-not-really');
-    assert.equal(stripExif(b), b);
+  await t('normalizeImageFile rejects non-image bytes instead of storing them', async () => {
+    const fixture = join(tmp, 'not-an-image.jpg');
+    writeFileSync(fixture, Buffer.from('<html>not an image</html>'));
+    await assert.rejects(() => normalizeImageFile(fixture));
   });
 
   // --- create a gift ---
@@ -195,6 +178,22 @@ async function main() {
     assert.equal(r.status, 200);
     const g = await (await fetch(`${BASE}/api/gifts/${giftId}`)).json();
     assert.equal(g.paid, false);
+  });
+
+  await t('unpaid seal fails closed with 402 and creates no trail', async () => {
+    const r = await fetch(`${BASE}/api/gifts/${giftId}/seal`, {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}',
+    });
+    assert.equal(r.status, 402);
+    const j = await r.json();
+    assert.equal(j.paymentRequired, true);
+    const db = new DatabaseSync(join(tmp, 'test.db'));
+    const trail = db.prepare('SELECT token FROM trails WHERE gift_id=?').get(giftId);
+    const status = db.prepare('SELECT status, paid FROM gifts WHERE id=?').get(giftId);
+    db.close();
+    assert.equal(trail, undefined);
+    assert.equal(status.paid, 0);
+    assert.equal(status.status, 'ready');
   });
 
   await t('webhook with bad signature → 400', async () => {
@@ -248,7 +247,7 @@ async function main() {
     fd.append('mode', 'physical'); fd.append('tier', 'hide');
     const gid = (await (await fetch(`${BASE}/api/gifts`, { method: 'POST', body: fd })).json()).giftId;
     const db = new DatabaseSync(join(tmp, 'test.db'));
-    db.prepare("UPDATE gifts SET status='ready', rounds=? WHERE id=?").run(JSON.stringify(ROUNDS), gid);
+    db.prepare("UPDATE gifts SET status='ready', paid=1, rounds=? WHERE id=?").run(JSON.stringify(ROUNDS), gid);
     db.prepare("INSERT INTO hide_spots (id, gift_id, position, data) VALUES ('hide_abc', ?, 0, ?)").run(
       gid, JSON.stringify({ description: 'behind the third stair', confidence: 0.9 }),
     );
@@ -401,7 +400,7 @@ async function main() {
     db2.close();
   });
 
-  await t('a set payment mints exactly one 3-hunt pack, however many times it lands', async () => {
+  await t('a set payment mints exactly one 2-credit pack, however many times it lands', async () => {
     const set = async () => fetch(`${BASE}/api/gifts/${upsellId}/tier`, {
       method: 'PATCH', headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ tier: 'set', mode: 'digital' }),
@@ -420,9 +419,45 @@ async function main() {
     const gift = db.prepare('SELECT pack_id, paid FROM gifts WHERE id=?').get(upsellId);
     db.close();
     assert.equal(packs.length, 1, 'a set gift must own exactly one pack');
-    assert.equal(packs[0].credits_left, 3);
+    assert.equal(packs[0].credits_left, 2);
     assert.equal(gift.pack_id, packs[0].id, 'the gift must point at its pack');
     assert.equal(gift.paid, 1);
+  });
+
+  await t('a prepaid pack child may seal even though its own paid flag is zero', async () => {
+    const db = new DatabaseSync(join(tmp, 'test.db'));
+    const pack = db.prepare('SELECT id FROM packs WHERE purchase_gift_id=?').get(upsellId);
+    const childId = crypto.randomUUID();
+    db.prepare("INSERT INTO gifts(id,status,photo_count,mode,tier,rounds,pack_id,paid) VALUES (?,'ready',0,'digital','trail',?,?,0)")
+      .run(childId, JSON.stringify(ROUNDS), pack.id);
+    db.close();
+    const r = await fetch(`${BASE}/api/gifts/${childId}/seal`, {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}',
+    });
+    assert.equal(r.status, 200);
+    const seal = await r.json();
+    assert.ok(seal.trailToken);
+    assert.equal((await fetch(`${BASE}/api/trail/${seal.trailToken}`)).status, 200);
+  });
+
+  await t('a recorded pack credit remains deliverable after the pack is detached', async () => {
+    const db = new DatabaseSync(join(tmp, 'test.db'));
+    const childId = crypto.randomUUID();
+    // Mirrors the server's pack-child insert: the credit consumption, not the
+    // continued existence of the pack row, is the delivery entitlement.
+    db.prepare("INSERT INTO gifts(id,status,photo_count,mode,tier,rounds,paid,delivery_entitled) VALUES (?,'ready',0,'digital','trail',?,0,1)")
+      .run(childId, JSON.stringify(ROUNDS));
+    const child = db.prepare('SELECT paid, delivery_entitled FROM gifts WHERE id=?').get(childId);
+    db.close();
+    assert.equal(child.paid, 0, 'pack children are not direct Stripe revenue');
+    assert.equal(child.delivery_entitled, 1, 'consuming the credit records delivery entitlement');
+
+    const sealed = await fetch(`${BASE}/api/gifts/${childId}/seal`, {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}',
+    });
+    assert.equal(sealed.status, 200);
+    const trailToken = (await sealed.json()).trailToken;
+    assert.equal((await fetch(`${BASE}/api/trail/${trailToken}`)).status, 200);
   });
 
   await t('a trail payment mints no pack at all', async () => {
@@ -435,9 +470,8 @@ async function main() {
   await t('PATCH tier after seal → 409 (tier locked)', async () => {
     const db = new DatabaseSync(join(tmp, 'test.db'));
     const ROUNDS2 = [{ kicker: 'r1', question: 'q?', options: ['a', 'b', 'c'], correct: 1, cropPhotoIndex: 0 }];
-    // paid=0 on purpose: the payment already proved its own lock above, and
-    // this test must fail on the seal alone
-    db.prepare("UPDATE gifts SET status='ready', paid=0, rounds=? WHERE id=?").run(JSON.stringify(ROUNDS2), upsellId);
+    // direct payment entitlement is required before the seal can exist
+    db.prepare("UPDATE gifts SET status='ready', paid=1, rounds=? WHERE id=?").run(JSON.stringify(ROUNDS2), upsellId);
     db.close();
     const s = await fetch(`${BASE}/api/gifts/${upsellId}/seal`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' });
     assert.equal(s.status, 200);
@@ -518,10 +552,10 @@ async function main() {
 
   // ---------- webhook payment validation matrix ----------
   // seeded drafts (no paid pipeline) — one independent gift per case
-  const seed = (tier = 'trail', referredBy = null) => {
+  const seed = (tier = 'trail', referredBy = null, paid = 0) => {
     const id = crypto.randomUUID();
     const db = new DatabaseSync(join(tmp, 'test.db'));
-    db.prepare("INSERT INTO gifts(id,status,photo_count,mode,tier,rounds,referred_by) VALUES (?,'ready',0,'digital',?,?,?)").run(id, tier, JSON.stringify(ROUNDS), referredBy);
+    db.prepare("INSERT INTO gifts(id,status,photo_count,mode,tier,rounds,referred_by,paid) VALUES (?,'ready',0,'digital',?,?,?,?)").run(id, tier, JSON.stringify(ROUNDS), referredBy, paid);
     db.close();
     return id;
   };
@@ -603,7 +637,7 @@ async function main() {
 
   // ---------- scheduled availability (send_at) ----------
   await t('seal schedules availability; expiry counts from open; all routes closed until then', async () => {
-    const id = seed('trail');
+    const id = seed('trail', null, 1);
     const sendAt = new Date(Date.now() + 2 * 86400000).toISOString();
     const seal = await (await fetch(`${BASE}/api/gifts/${id}/seal`, {
       method: 'POST', headers: { 'content-type': 'application/json' },
@@ -679,7 +713,7 @@ async function main() {
   });
 
   await t('unscheduled seal opens immediately and stays idempotent', async () => {
-    const id = seed('trail');
+    const id = seed('trail', null, 1);
     const seal = await (await fetch(`${BASE}/api/gifts/${id}/seal`, {
       method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}',
     })).json();
@@ -694,7 +728,7 @@ async function main() {
 
   // ---------- referral attribution ----------
   await t('ref token attributes the new gift; source sees conversion but not the destination id', async () => {
-    const sourceId = seed('trail');
+    const sourceId = seed('trail', null, 1);
     const sourceSeal = await (await fetch(`${BASE}/api/gifts/${sourceId}/seal`, {
       method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}',
     })).json();
