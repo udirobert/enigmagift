@@ -25,6 +25,19 @@ const safeOne = (sql, ...args) => { try { return one(sql, ...args); } catch { re
 
 console.log('=== enigmagift ops report —', new Date().toISOString(), '===\n');
 
+console.log('-- configured capabilities (presence only, never values) --');
+for (const key of [
+  'SANDBASE_API_KEY',
+  'GEMINI_API_KEY',
+  'STRIPE_WEBHOOK_SECRET',
+  'STRIPE_API_KEY',
+  'RESEND_API_KEY',
+  'RECRAFT_API_KEY',
+]) console.log(`${key}:`, process.env[key] ? 'configured' : 'missing');
+console.log('ENABLE_EXPERIMENTAL_ROUTES:', process.env.ENABLE_EXPERIMENTAL_ROUTES === 'true' ? 'true' : 'false');
+console.log('ALLOW_UNPAID_SEAL:', process.env.ALLOW_UNPAID_SEAL === 'true' ? 'true — dangerous in production' : 'false');
+console.log('MAIL_FROM:', process.env.MAIL_FROM ? 'configured' : 'missing');
+
 console.log('-- gifts --');
 console.log('by status:', q("SELECT status, COUNT(*) c FROM gifts GROUP BY status ORDER BY c DESC"));
 console.log('by tier/mode:', q("SELECT COALESCE(tier,'-') tier, mode, COUNT(*) c, SUM(paid) paid FROM gifts GROUP BY tier, mode ORDER BY c DESC"));
@@ -45,19 +58,31 @@ console.log('total:', one('SELECT COUNT(*) c FROM trails').c,
 console.log('\n-- packs --');
 console.log(q('SELECT id, credits_left, purchase_gift_id FROM packs'));
 
+console.log('\n-- entitlement/payoff integrity --');
+console.log('paid but not delivery-entitled:', safeOne('SELECT COUNT(*) c FROM gifts WHERE paid=1 AND COALESCE(delivery_entitled,0)=0').c);
+console.log('sealed but not delivery-entitled (legacy rows blocked at read time):', safeOne("SELECT COUNT(*) c FROM gifts WHERE status='sealed' AND COALESCE(delivery_entitled,0)=0").c);
+console.log('recipient links attached to unentitled gifts (legacy rows blocked at read time):', safeOne('SELECT COUNT(*) c FROM trails t JOIN gifts g ON g.id=t.gift_id WHERE COALESCE(g.delivery_entitled,0)=0').c);
+console.log('worlds ready/failed/worlding/pending:', q("SELECT COALESCE(world_status,'pending') s, COUNT(*) c FROM gifts GROUP BY s ORDER BY c DESC"));
+console.log('portraits ready/failed/painting/skipped/pending:', q("SELECT COALESCE(portrait_status,'pending') s, COUNT(*) c FROM gifts GROUP BY s ORDER BY c DESC"));
+console.log('stale worlds marked worlding >10min:', safeOne("SELECT COUNT(*) c FROM gifts WHERE world_status='worlding' AND world_started_at < datetime('now','-10 minutes')").c);
+console.log('stale portraits marked painting >10min:', safeOne("SELECT COUNT(*) c FROM gifts WHERE portrait_status='painting' AND portrait_started_at < datetime('now','-10 minutes')").c);
+
 console.log('\n-- funnel events (all time) --');
 console.log(q("SELECT name, COUNT(*) c FROM events GROUP BY name ORDER BY c DESC LIMIT 25"));
 const picks = q("SELECT name, data FROM events WHERE name LIKE 'round_%_picked'");
 let right = 0;
 for (const p of picks) { try { if (JSON.parse(p.data || '{}').correct) right++; } catch {} }
 console.log(`round picks: ${picks.length}, correct: ${right} (${picks.length ? Math.round((100 * right) / picks.length) : 0}%)`);
-console.log('webhook_ok (verified Stripe events that landed):', one("SELECT COUNT(*) c FROM events WHERE name='webhook_ok'").c);
+const webhookRows = q("SELECT data FROM events WHERE name='webhook_ok'");
+const syntheticWebhooks = webhookRows.filter((r) => String(r.data || '').includes('evt_ops_smoke_')).length;
+console.log('webhook_ok (verified Stripe events that landed):', webhookRows.length, `of which synthetic ops smoke: ${syntheticWebhooks}`);
 console.log('markpaid_pending (client claims we could NOT verify — fine, webhook is truth):', one("SELECT COUNT(*) c FROM events WHERE name='markpaid_pending'").c);
+console.log('seal_blocked_unpaid (payment boundary held):', one("SELECT COUNT(*) c FROM events WHERE name='seal_blocked_unpaid'").c);
 console.log('shared_back (recipients sent a note back):', one("SELECT COUNT(*) c FROM events WHERE name='shared_back'").c);
 
 console.log('\n-- reconcile (manual steps) --');
 console.log('1. Stripe dashboard → Developers → Webhooks → we_… → "Recent deliveries": all 2xx?');
-console.log('   Compare count with webhook_ok above — a gap means lost paid events.');
+console.log('   Compare count with non-synthetic webhook_ok above — a gap means lost paid events.');
 console.log('2. Stripe → Balance → payouts for the same window vs estimated gross above.');
 console.log('3. SandBase + Recraft dashboards → spend in the same window (drafts included).');
 console.log('   DIGITAL-HUNT.md models ~10p/read per draft; if drafts(7d) × 10p is large vs paid revenue, tighten or gate the read behind payment.');

@@ -103,7 +103,8 @@ giver watching live sees rounds land. Unsealed drafts get a
 - **Payments** — Stripe Payment Links (live, GBP, one-time) per tier on the
   "EnigmaGift" Stripe account, plus a signed webhook
   (`POST /api/stripe/webhook`) that is the source of truth for `paid`.
-  `VITE_STRIPE_LINK_TRAIL` / `_HIDE` / `_SET` are baked at build time.
+  `VITE_STRIPE_LINK_TRAIL` / `_HIDE` / `_SET` are baked at build time;
+  the canonical production mapping is encoded in `npm run build:pages`.
 - **Analytics** — privacy-respecting funnel events (`events` table):
   `POST /api/gifts/:id/event`, `POST /api/trail/:token/event`. No third-party
   trackers.
@@ -168,9 +169,9 @@ Frontend env (build-time):
 
 - `VITE_STRIPE_LINK_TRAIL` / `VITE_STRIPE_LINK_HIDE` / `VITE_STRIPE_LINK_SET` —
   the three Payment Link URLs (legacy single `VITE_STRIPE_LINK` still works and
-  maps to the Hide link). Build-time only — pass them on the `npm run build`
-  command line (see `notes/OPS.md` for the live URLs); Pages/Netlify runtime
-  env vars do NOT reach a prebuilt Vite bundle.
+  maps to the Hide link). Build-time only — use `npm run build:pages` for the
+  canonical production mapping; Pages/Netlify runtime env vars do NOT reach a
+  prebuilt Vite bundle.
 - `VITE_API_URL` — optional; defaults to same-origin `/api`.
 
 ## API
@@ -252,9 +253,10 @@ physical gift priced as Hide (999p); unknown non-null tiers are rejected.
 Full runbook: `notes/OPS.md` (topology, secrets, redeploy, gotchas).
 
 - **Frontend**: Cloudflare Pages project `enigmagift`
-  (`enigmagift.pages.dev`). `npm run build` then
-  `npx wrangler pages deploy dist --project-name=enigmagift --branch=main`
-  with the `VITE_STRIPE_LINK_*` vars set at build time. `/api/*` is proxied to Fly by
+  (`enigmagift.pages.dev`). Use `npm run deploy:pages` (or `npm run build:pages`
+  plus `npm run verify:pages-build` before a manual wrangler deploy). The
+  verifier proves the live payment links are inlined and the first HTML does
+  not preload the heavy world stack. `/api/*` is proxied to Fly by
   the Pages Function `functions/api/[[path]].js` (Pages `_redirects`
   cannot proxy external domains). Netlify remains as a legacy mirror.
 - **Backend**: `cd server && fly deploy`.
@@ -372,9 +374,10 @@ suggests the five shots that read best (door / sign / seat / view / detail).
 - `mark-paid` server-side verification still needs a restricted Stripe API key
   (`STRIPE_API_KEY`) — until then the webhook alone sets `paid` (fail closed).
 - Fly `min_machines_running = 0` — cold starts ~5s on first hit.
-- Backups are scripted (`server/scripts/backup-volume.mjs`) but still require
-  an operator to copy them off the Fly volume; continuous off-volume backup
-  (for example Litestream to object storage) is not configured yet.
+- Backups are scripted (`server/scripts/backup-volume.mjs` plus
+  `scripts/pull-backup.sh` for the off-volume copy) but still depend on the
+  weekly operator routine; continuous off-volume backup (for example
+  Litestream to object storage) is not configured yet.
 - Uncoached recipient research (Phase 0 in `notes/PLAN.md`) has still not
   been run — it gates every remaining decision (Set fate, print product,
   price test, the world-first roadmap).

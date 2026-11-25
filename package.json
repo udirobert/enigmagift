@@ -12,7 +12,10 @@
     "smoke:scenes": "esbuild scripts/smoke-scenes.tsx --bundle --platform=node --format=esm --jsx=automatic --define:import.meta.env={} --external:react --external:react-dom --outfile=node_modules/.cache/smoke-scenes.mjs --log-level=warning && node node_modules/.cache/smoke-scenes.mjs",
     "deploy:room": "npm run build:room && npm run verify:room && wrangler deploy --config dog-gift-tabletop/wrangler.jsonc",
     "test:unit": "esbuild tests/shelfGift.test.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/shelfGift.test.mjs --log-level=warning && node node_modules/.cache/shelfGift.test.mjs",
-    "test": "npm run test:unit && npm run smoke:scenes"
+    "test": "npm run test:unit && npm run smoke:scenes",
+    "build:pages": "VITE_STRIPE_LINK_TRAIL=https://buy.stripe.com/cNi6oIgAj4mSa63acb8EM02 VITE_STRIPE_LINK_HIDE=https://buy.stripe.com/6oU9AUesb1aGcebckj8EM03 VITE_STRIPE_LINK_SET=https://buy.stripe.com/7sYfZiabV6v0emj0BB8EM04 npm run build",
+    "verify:pages-build": "node scripts/verify-pages-build.mjs",
+    "deploy:pages": "npm run build:pages && npm run verify:pages-build && wrangler pages deploy dist --project-name enigmagift --branch=main --commit-dirty=true"
   },
   "dependencies": {
     "@sparkjsdev/spark": "2.4.0",

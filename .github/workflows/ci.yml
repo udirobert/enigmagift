@@ -17,7 +17,8 @@ jobs:
             package-lock.json
             server/package-lock.json
       - run: npm ci
-      - run: npm run build
+      - run: npm run build:pages
+      - run: npm run verify:pages-build
       - run: npm test
       - run: npm audit --omit=dev --audit-level=high
       - name: install server dependencies

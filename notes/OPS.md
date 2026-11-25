@@ -9,7 +9,7 @@ secrets, the gotchas that actually bit us, and how to verify the live flow.
 
 | Piece | Where | Notes |
 |---|---|---|
-| Frontend | Cloudflare Pages — `enigmagift.pages.dev` (project `enigmagift`) | `npm run build` → `wrangler pages deploy dist --project-name=enigmagift --branch=main`. `/api/*` proxied to Fly by `functions/api/[[path]].js`; `/*` → `index.html` via `_redirects`. Netlify (`enigmagift.netlify.app`) still live as legacy mirror. |
+| Frontend | Cloudflare Pages — `enigmagift.pages.dev` (project `enigmagift`) | `npm run deploy:pages` (canonical; includes payment-link verification). `/api/*` proxied to Fly by `functions/api/[[path]].js`; `/*` → `index.html` via `_redirects`. Netlify (`enigmagift.netlify.app`) still live as legacy mirror. |
 | Backend | Fly.io — `enigmagift-api.fly.dev`, app `enigmagift-api`, region `iad` | `fly deploy` from `server/`. 512MB shared-cpu-1x, `/data` volume for SQLite + uploads. |
 | Gift pilot | Cloudflare Worker `enigmagift-room` — `https://enigmagift-room.trustfall.workers.dev` | Personal photo creation at `?photo=1`; sample-room editor at `?make=1&sample=1`. `npm run deploy:room` builds `dog-gift-tabletop/dist` and deploys `dog-gift-tabletop/wrangler.jsonc`. Static assets + `worker.ts` proxying `/api/health` and the `/api/room-gifts` and `/api/photo-gifts` routes to Fly. Deploy the Fly API first. |
 | Vision | SandBase `api.sandbase.ai/v1` (primary) + Google Gemini (fallback) | Key held as a Fly secret + local `server/sandbase.env`. |
@@ -255,13 +255,14 @@ viewports. React Editor/Seal were checked by rendering their demo components,
 not by completing the paid pipeline. Real phones, native share sheets and
 live payment/generation remain unverified. No Fly redeploy was needed.
 
-**Manual Pages builds:** retain the three production `VITE_STRIPE_LINK_*`
-public values when running `npm run build`. `wrangler pages deploy` uploads
-already-built assets; it does not inject the dashboard’s build variables
-into that local build. The first local build omitted these values, so it
-was rebuilt with the existing production mapping before publication.
-The final bundle’s trail/hide/set links were checked against the previous
-production bundle. No checkout URLs or prices were changed.
+**Pages builds:** use `npm run deploy:pages`. The script builds with the
+three production `VITE_STRIPE_LINK_*` public values, then
+`scripts/verify-pages-build.mjs` proves the live links are inlined, no Stripe
+`test_` link slipped in, the terms copy matches the upload pipeline, and the
+first HTML does not preload three.js/the GLB. `wrangler pages deploy` uploads
+already-built assets; it does not inject dashboard or shell env vars into a
+local build. Do not hand-assemble payment-link env vars unless the script
+itself is being changed.
 
 The motion proposals and sources are in [`MOTION.md`](MOTION.md). This
 release changes language and the ready/editing flows, not animation timing.
@@ -321,12 +322,12 @@ per-gift TRELLIS world from `server/world.js`.
 ### Frontend (Cloudflare Pages)
 
 ```bash
-VITE_STRIPE_LINK_TRAIL="https://buy.stripe.com/<trail>" \
-VITE_STRIPE_LINK_HIDE="https://buy.stripe.com/<hide>" \
-VITE_STRIPE_LINK_SET="https://buy.stripe.com/<set>" \
-npm run build
-npx wrangler pages deploy dist --project-name=enigmagift --branch=main
+npm run deploy:pages
 ```
+
+For a manual two-step deploy, use `npm run build:pages && npm run
+verify:pages-build` before `npx wrangler pages deploy dist
+--project-name=enigmagift --branch=main`.
 
 `/api/*` is proxied to Fly by `functions/api/[[path]].js` — Pages `_redirects`
 cannot proxy external domains, so don't try to express the API route there.
@@ -553,13 +554,20 @@ Run the report inside the Fly machine (the script ships in the image):
 fly -a enigmagift-api ssh console -C "node /app/scripts/ops-report.mjs"
 ```
 
-It prints: gifts by status/tier/mode, paid-by-tier + estimated gross £, unsealed
-drafts (7d count = vision spend at risk), trails (unlocked/expired), packs,
-the event funnel (round-pick correctness, `shared_back`, `webhook_ok`,
-`markpaid_pending`), and the reconciliation checklist:
+It prints: configured capability presence (never secret values), gifts by
+status/tier/mode, paid-by-tier + estimated gross £, unsealed drafts (7d count
+= vision spend at risk), trails (unlocked/expired), packs,
+entitlement/payoff integrity (`paid but not delivery-entitled` should always
+be 0; legacy unentitled sealed rows are counted separately and should remain
+blocked at read time; world/portrait status counts; stale generation jobs),
+the event funnel
+(round-pick correctness, `shared_back`, `webhook_ok`, `markpaid_pending`,
+`seal_blocked_unpaid`), and the reconciliation checklist:
 
 1. Stripe → Developers → Webhooks → `we_…` → Recent deliveries: all 2xx?
-   Compare with `webhook_ok` in the report — a gap means a lost `paid` event.
+   Compare with non-synthetic `webhook_ok` in the report — a gap means a lost
+   `paid` event. The report separately counts `evt_ops_smoke_…` webhooks so
+   operator smoke tests do not masquerade as Stripe deliveries.
 2. Stripe → Balance/payouts vs estimated gross (same window).
 3. SandBase + Recraft dashboards → spend in the same window. If
    drafts(7d) × ~10p approaches paid revenue, consider gating the vision read
@@ -590,6 +598,13 @@ important backups offsite before relying on them:
 fly -a enigmagift-api ssh console -C "tar -C /data/backups -czf - <timestamp>" > enigmagift-backup-<timestamp>.tar.gz
 ```
 
+The canonical local wrapper does both steps and verifies the gzip before
+moving it into place:
+
+```bash
+scripts/pull-backup.sh ~/enigmagift-backups
+```
+
 Restore is intentionally explicit and preserves the pre-restore database and
 uploads beside the restored files:
 
@@ -601,8 +616,8 @@ DB_PATH=/data/enigmagift.db UPLOADS_DIR=/data/uploads \
 Run restore only while the application is not serving the target database, then
 restart the app and verify `/api/health`, one known recipient link, and the
 ops-report counts. The right long-term shape is continuous off-volume backup
-(for example Litestream to object storage); until that exists, the manual
-offsite copy step is part of the weekly routine.
+(for example Litestream to object storage); until that exists, running
+`scripts/pull-backup.sh` is part of the weekly routine.
 
 ---
 
@@ -678,6 +693,49 @@ offsite copy step is part of the weekly routine.
   (53 assertions + 10 scene smoke renders), server security suite 62/62,
   backup/restore rehearsal passed, legacy migration rehearsal passed, root and
   server production audits clean.
+
+## Post-release validation and corrections — 2026-11-25
+
+- A controlled live funnel test created gift
+  `0de519d7-8d37-4900-ba6c-6c9550923953` from one production photo upload.
+  The vision pipeline completed (`3` clues, `2` rounds) after a fallback from
+  one unparseable vision response.
+- Payment-negative verification: unauthenticated unpaid `POST /seal` returned
+  `402 paymentRequired` and logged `seal_blocked_unpaid`; no trail was created.
+- Payment-positive verification without spending money: a synthetic
+  `checkout.session.completed` payload was signed inside the Fly machine using
+  the production webhook secret and posted to localhost. The webhook returned
+  `200`; the gift became `paid=1`/`delivery_entitled=1`; a subsequent public
+  `POST /seal` returned `200` and created recipient token `q6Gls1W8rkiLkJ3_`.
+  The recipient API/page returned 200 and rendered the keepsake. This proves
+  our webhook handling and seal boundary, not Stripe dashboard delivery.
+- The controlled fixture was then deleted through the public delete route;
+  gift and trail both returned 404 afterward. No test customer data remains.
+- No real Stripe checkout was completed: the production Payment Links are
+  live-money links. Stripe dashboard delivery therefore remains the one
+  unverified part of the true payment path.
+- Deployment correction: during the Terms copy redeploy, a manually assembled
+  build first omitted payment links and then briefly used invalid Stripe
+  `test_…` links carried forward incorrectly. The mistake was caught in live
+  verification and corrected within minutes; production again serves the real
+  links. `npm run deploy:pages` plus `verify:pages-build` now makes that class
+  of mistake a build/CI failure instead of a manual-memory requirement.
+- Production capability findings from the controlled seal: Recraft portrait
+  was skipped because `RECRAFT_API_KEY` is not configured; SandBase world
+  generation failed with provider `402 API key spending limit exceeded`.
+  Email is likewise unconfigured until `RESEND_API_KEY`/`MAIL_FROM` are set.
+  These are operator billing/key decisions, not code-path failures.
+- Post-test backup `/data/backups/2026-11-25T17-12-24-249Z` was created and
+  copied off-volume to `~/enigmagift-backups/enigmagift-2026-11-25T17-12-24-249Z.tar.gz`
+  (12,917,317 bytes, sha256
+  `f95d3910d4133f3e484552787b0dfb1f9346082b6dde3963722a17aa8e427103`).
+- `server/scripts/stripe-webhook-smoke.mjs` now formalizes the signed local
+  webhook smoke test. It requires `--confirm`, never prints the secret, and
+  must be documented as synthetic whenever used.
+- Ops tooling deploy: Fly image `deployment-01M89VG7397TGM9GQ16A12Y0DZ`
+  (machine `080ee739b9d578`) ships the enhanced ops report and webhook smoke
+  script. `/api/health` returned 200 after deployment; no runtime application
+  code changed.
 
 ## Test trails currently in the DB (for re-verification)
 
