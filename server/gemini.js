@@ -369,6 +369,45 @@ export async function observeImage(imgBuffer, mime) {
   ], { temperature: 0.2, maxOutputTokens: 4096 });
 }
 
+export const LETTER_PROMPT = `You are helping someone write the short letter a person will read at the end of a photo trail about a place they share.
+
+Return ONLY valid JSON (no markdown fences) with this exact shape:
+{
+  "drafts": ["...", "...", "..."]
+}
+
+Rules:
+- Three drafts, each 2-4 sentences, first person, speaking to the reader as "you".
+- Voice: spoken, not written. Plain words, short sentences. The page already prints the greeting and the signature, so include neither.
+- Warm, specific and a little restrained. Never use sentimental filler ("words cannot express", "you mean the world to me").
+- Ground every draft in the observed details below: name one or two concrete things actually seen in the photos.
+- Do NOT invent shared memories, names, dates, events or feelings that are not in the observations or the writer's notes.
+- Three different registers: (1) plain and warm, (2) playful, (3) short and quiet.
+- Never mention AI, analysis, clues, puzzles, rounds or the gift mechanism. Only the place and the person.
+- No emoji, no exclamation marks, no em dashes.`;
+
+export async function letterDrafts({ bundle, direction = 'someone', notes = '' }) {
+  const who =
+    direction === 'me'
+      ? 'The writer and the reader are the same person: this is a letter to their future self.'
+      : 'The writer shared this place with the reader.';
+  const prompt = [
+    LETTER_PROMPT,
+    '',
+    who,
+    notes ? `The writer's own note about what they want to say:\n${notes}` : '',
+    '',
+    'PLACE OBSERVATIONS:',
+    bundle,
+  ].join('\n');
+  const data = await callVision([{ text: prompt }], { temperature: 0.85, maxOutputTokens: 900 });
+  const drafts = Array.isArray(data?.drafts)
+    ? data.drafts.filter((d) => typeof d === 'string' && d.trim()).slice(0, 3)
+    : [];
+  if (!drafts.length) throw new Error('no drafts returned');
+  return drafts.map((d) => d.trim());
+}
+
 export async function crossImage(bundle) {
   const prompt = CROSS_PROMPT + '\n\nPHOTOS AND OBSERVATIONS:\n' + bundle;
   return callVision([{ text: prompt }], { temperature: 0.3, maxOutputTokens: 2048 });

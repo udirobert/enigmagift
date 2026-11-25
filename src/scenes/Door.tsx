@@ -119,7 +119,10 @@ export function Door({
   }, []);
 
   const startTrail = () => {
-    if (startingRef.current || selectedFiles.length < 5 || !consent) return;
+    // Phase 3 — one photo is enough: the trail degrades honestly (fewer
+    // rounds, throughline as the only puzzle). The old 5-photo floor served
+    // the pipeline, not the gift.
+    if (startingRef.current || selectedFiles.length < 1 || !consent) return;
     startingRef.current = true;
     setStarting(true);
     previewUrls.current = selectedFiles
@@ -275,7 +278,11 @@ export function Door({
                 : 'Choose photos of the place'}
             </span>
             <span className="dock-sub">
-              Choose 5–12 photos. You can add them a few at a time.
+              Choose 1–12 photos. One is enough — more make the trail richer.
+            </span>
+            <span className="dock-shots">
+              standing in the place? the five shots that read best: the door,
+              a sign or name, where you sat, the view, one small detail.
             </span>
           </button>
           <div className="dock-promise">
@@ -400,6 +407,9 @@ export function Door({
             role="group"
             aria-label="which gift"
           >
+            {/* Phase 3 — the door ships one default. Tier selection moved to
+                the Seal, where the buyer has felt the trail and is choosing
+                an ending. "Other ways" stays here for discovery. */}
             <button
               className={tier === 'trail' ? 'is-active' : ''}
               aria-pressed={tier === 'trail'}
@@ -412,28 +422,42 @@ export function Door({
               the trail · £4.99
             </button>
             <button
-              className={tier === 'hide' ? 'is-active' : ''}
-              aria-pressed={tier === 'hide'}
+              aria-expanded={tier !== 'trail'}
               disabled={starting}
               onClick={(e) => {
                 e.stopPropagation();
-                onTier('hide');
+                onTier(tier === 'trail' ? 'hide' : 'trail');
               }}
             >
-              the hide · £9.99
-            </button>
-            <button
-              className={tier === 'set' ? 'is-active' : ''}
-              aria-pressed={tier === 'set'}
-              disabled={starting}
-              onClick={(e) => {
-                e.stopPropagation();
-                onTier('set');
-              }}
-            >
-              the set · £19
+              {tier === 'trail' ? 'other ways to give →' : '← back to the trail'}
             </button>
           </div>
+          {tier !== 'trail' && (
+            <div className="seg dock-seg dock-tier" role="group" aria-label="other ways to give">
+              <button
+                className={tier === 'hide' ? 'is-active' : ''}
+                aria-pressed={tier === 'hide'}
+                disabled={starting}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onTier('hide');
+                }}
+              >
+                the hide · £9.99
+              </button>
+              <button
+                className={tier === 'set' ? 'is-active' : ''}
+                aria-pressed={tier === 'set'}
+                disabled={starting}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onTier('set');
+                }}
+              >
+                the set · £19
+              </button>
+            </div>
+          )}
           <p className="dock-tier-hint">{TIER_HINT[tier][direction]}</p>
           {packCredits != null && packCredits > 0 && (
             <p className="dock-pack-note">
@@ -444,8 +468,8 @@ export function Door({
           <p className="dock-status" role="status" aria-live="polite">
             {starting
               ? 'Opening your trail…'
-              : count < 5
-                ? `${count} of 5 photos selected. Add ${5 - count} more to continue.`
+              : count < 1
+                ? 'Choose at least one photo of the place to continue.'
                 : !consent
                   ? 'Your photos are ready. Confirm you can share them to continue.'
                   : 'Your photos are ready. Build your trail when you are ready.'}

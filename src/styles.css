@@ -184,13 +184,6 @@ img { display: block; max-width: 100%; }
 }
 .demo-link:hover { color: var(--rust-soft); }
 
-/* mid-flow upsell (Trail → Hide) — a quiet step up, not a competitor to the pay button */
-.seal-upsell {
-  color: var(--rust-soft);
-  text-decoration-style: dashed;
-}
-.seal-upsell:hover { color: var(--rust); }
-
 /* quiet secondary door — an alternative, not a competitor to upload */
 .demo-cta {
   font-family: var(--mono);
@@ -475,6 +468,7 @@ img { display: block; max-width: 100%; }
 .dock-glyph { font-size: 1.25rem; line-height: 1; color: var(--gold); }
 .dock-label { font-family: var(--serif); font-size: 0.98rem; color: var(--paper); }
 .dock-sub { font-size: 0.62rem; line-height: 1.5; letter-spacing: 0.02em; color: var(--paper-faint); }
+.dock-shots { display: block; font-size: 0.58rem; line-height: 1.5; color: var(--paper-faint); font-style: italic; }
 .dock-consent {
   display: flex;
   align-items: flex-start;
@@ -539,6 +533,38 @@ img { display: block; max-width: 100%; }
 }
 .seal-order-head span:last-child { font-family: var(--mono); font-size: 0.8rem; color: var(--gold); }
 .seal-order-includes { margin: 0; font-size: 0.66rem; color: var(--paper-faint); line-height: 1.5; }
+.seal-tier { width: 100%; }
+.seal-tier button { font-size: 0.62rem; padding: 0.4rem 0.6rem; }
+
+/* Phase 3 — the review card: the clue set as one composition */
+.clue-review { max-width: 34rem; margin: 0 auto 1rem; }
+.clue-review-list {
+  margin: 0; padding-left: 1.2rem;
+  display: flex; flex-direction: column; gap: 0.5rem;
+  font-family: var(--serif); font-size: 0.95rem; line-height: 1.6;
+  color: var(--paper);
+}
+.clue-review-list li.is-out { opacity: 0.4; text-decoration: line-through; }
+.editor-choices {
+  display: flex; flex-direction: column; align-items: center; gap: 0.55rem;
+  margin: 1.2rem 0;
+}
+
+/* seal — delivery (email + optional open date), Phase 1b */
+.seal-delivery {
+  display: flex; flex-direction: column; gap: 0.35rem;
+  width: 100%; max-width: 340px; text-align: left;
+}
+.seal-delivery-label { font-size: 0.68rem; color: var(--paper); letter-spacing: 0.02em; }
+.seal-delivery-label .seal-optional { color: var(--paper-faint); font-size: 0.6rem; }
+.seal-delivery-input {
+  width: 100%; box-sizing: border-box;
+  background: rgba(243, 234, 217, 0.06); color: var(--paper);
+  border: 1px solid var(--line); border-radius: 6px;
+  padding: 0.5rem 0.7rem; font-family: var(--mono); font-size: 0.8rem;
+}
+.seal-delivery-input:focus { outline: none; border-color: var(--gold); }
+.seal-delivery-note { margin: 0; font-size: 0.6rem; color: var(--paper-faint); line-height: 1.5; }
 
 /* seal — manage row under the link (revoke / delete / what's stored) */
 .seal-manage {
@@ -605,6 +631,26 @@ img { display: block; max-width: 100%; }
 
 /* round 3 hide hint (Hide tier) — points the recipient at the physical spot */
 .round-hide-hint { margin: 0.8rem 0 0; font-family: var(--mono); font-size: 0.66rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--gold); }
+
+/* Phase 4 — print-at-home keepsake */
+.reveal-print-actions { margin-top: 1.4rem; display: flex; flex-direction: column; align-items: center; gap: 0.3rem; }
+.reveal-print-hint { font-size: 0.6rem; color: var(--paper-faint); }
+
+/* the keepsake prints on paper: letter + photos, dark theme stripped */
+@media print {
+  body { background: #fff !important; }
+  body * { visibility: hidden; }
+  .scene-reveal .scene-inner, .scene-reveal .scene-inner * { visibility: visible; }
+  .scene-reveal { position: absolute; left: 0; top: 0; width: 100%; background: #fff; }
+  .scene-reveal .grain, .scene-reveal .vignette,
+  .scene-reveal .reveal-world, .scene-reveal .build-status,
+  .scene-reveal .reveal-print-actions, .scene-reveal .reveal-make,
+  .scene-reveal .reveal-recap, .scene-reveal .keepsake-portrait { display: none !important; }
+  .scene-reveal .letter { color: #1a1612; max-width: 100%; }
+  .scene-reveal .letter p, .scene-reveal .letter-salutation, .scene-reveal .letter-sign { color: #1a1612; }
+  .scene-reveal .kicker, .scene-reveal .scene-title { color: #1a1612; }
+  .scene-reveal .keepsake-photos .polaroid { box-shadow: none; background: #fff; border: 1px solid #ccc; }
+}
 
 /* the promise — bottom centre, live with the backdrop's photo ⇄ world loop */
 .door-caption {
@@ -1095,6 +1141,54 @@ img { display: block; max-width: 100%; }
   border-style: dashed;
 }
 
+/* the review card — the whole clue set read as one composition, not a workbench */
+.clue-review { margin-top: 0.5rem; }
+.clue-review-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  counter-reset: clue;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+.clue-review-list li {
+  display: flex;
+  gap: 0.7rem;
+  font-family: var(--serif);
+  font-weight: 420;
+  font-variation-settings: 'opsz' 24;
+  font-size: 1.02rem;
+  line-height: 1.5;
+  transition: opacity 0.5s ease, filter 0.5s ease;
+}
+.clue-review-list li::before {
+  counter-increment: clue;
+  content: counter(clue);
+  flex: none;
+  min-width: 1rem;
+  padding-top: 0.4rem;
+  font-family: var(--mono);
+  font-size: 0.6rem;
+  letter-spacing: 0.1em;
+  color: var(--gold);
+}
+.clue-review-list li.is-out {
+  opacity: 0.38;
+  filter: grayscale(0.7);
+  text-decoration: line-through;
+}
+
+/* the exceptions under the review card — quiet, never competing with the
+   affirmative in the footer */
+.editor-choices {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 1.2rem;
+  margin-top: 1rem;
+}
+
 .clue-media { position: relative; }
 .clue-media .photo-mat { border-radius: 0; box-shadow: none; }
 
@@ -1363,6 +1457,45 @@ img { display: block; max-width: 100%; }
 }
 .round-nudge.is-visible { opacity: 1; }
 
+/* Phase 2 — honest misses: the crop is labelled with what's actually there */
+.round-crop-wrap { position: relative; display: inline-block; }
+.round-truth {
+  position: absolute;
+  left: 50%; bottom: 0.6rem;
+  transform: translateX(-50%);
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.1em;
+  color: var(--paper);
+  background: rgba(23, 19, 16, 0.78);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 0.35rem 0.8rem;
+  white-space: nowrap;
+  pointer-events: none;
+  animation: truth-in 0.4s ease-out;
+}
+@keyframes truth-in { from { opacity: 0; transform: translate(-50%, 4px); } to { opacity: 1; transform: translate(-50%, 0); } }
+@media (prefers-reduced-motion: reduce) { .round-truth { animation: none; } }
+.round-open-anyway { margin-top: 0.2rem; }
+
+/* Phase 2 — the payout: the line the correct look released */
+.round-payout {
+  display: flex; flex-direction: column; align-items: center; gap: 0.7rem;
+  max-width: 30rem; margin-top: 0.4rem;
+  animation: truth-in 0.6s ease-out;
+}
+.round-payout-line {
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: 1.05rem;
+  line-height: 1.65;
+  color: var(--paper);
+  display: flex; flex-direction: column; gap: 0.5rem;
+  margin: 0;
+}
+@media (prefers-reduced-motion: reduce) { .round-payout { animation: none; } }
+
 .round-hint {
   font-family: var(--mono);
   font-size: 0.66rem;
@@ -1425,6 +1558,137 @@ img { display: block; max-width: 100%; }
 .letter-sign {
   font-style: italic;
   color: var(--paper-dim);
+}
+
+/* --------------------------- writing the letter ----------------------- */
+
+.letter-inner { gap: clamp(1rem, 2.6vh, 1.7rem); }
+.letter-head { display: flex; flex-direction: column; gap: 0.65rem; }
+
+/* a real sheet of paper: the one warm, light thing in a dark product */
+.letter-sheet {
+  position: relative;
+  width: 100%;
+  max-width: 40rem;
+  background: var(--paper);
+  color: var(--ink);
+  border-radius: 3px;
+  padding: clamp(1.35rem, 4vw, 2.3rem);
+  rotate: -0.35deg;
+  box-shadow:
+    0 22px 60px rgba(8, 5, 3, 0.55),
+    0 1px 0 rgba(255, 255, 255, 0.1) inset;
+  transition: box-shadow 0.3s;
+}
+.letter-sheet:focus-within {
+  box-shadow:
+    0 22px 60px rgba(8, 5, 3, 0.55),
+    0 0 0 2px rgba(192, 95, 46, 0.45);
+}
+
+.letter-sheet .letter-salutation {
+  color: #96461f;
+  font-size: 1.06em;
+  margin-bottom: 0.55rem;
+}
+
+.letter-write {
+  display: block;
+  width: 100%;
+  min-height: 7.5rem;
+  background: transparent;
+  border: none;
+  outline: none;
+  /* no native grabber — it reads as a UI artefact on paper */
+  resize: none;
+  color: var(--ink);
+  caret-color: var(--rust);
+  font-family: var(--serif);
+  font-weight: 400;
+  font-variation-settings: 'opsz' 24, 'SOFT' 60;
+  font-size: clamp(1.05rem, 2.4vw, 1.22rem);
+  line-height: 1.8;
+}
+.letter-write::placeholder {
+  color: rgba(22, 17, 13, 0.32);
+  font-style: italic;
+}
+
+.letter-sign-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  margin-top: 0.9rem;
+  padding-top: 0.85rem;
+  border-top: 1px dashed rgba(22, 17, 13, 0.22);
+  font-family: var(--serif);
+  font-size: 1.05rem;
+  color: rgba(22, 17, 13, 0.5);
+}
+.letter-sign-input {
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--ink);
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: 1.05rem;
+}
+.letter-sign-input::placeholder { color: rgba(22, 17, 13, 0.32); }
+
+.letter-help {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.7rem;
+  max-width: 40rem;
+}
+.letter-help > .foot-note { text-align: left; }
+/* the shared .demo-link centres itself; here it sits on the sheet's edge */
+.letter-help > .demo-link { align-self: flex-start; }
+
+.letter-drafts {
+  list-style: none;
+  display: grid;
+  gap: 0.6rem;
+  width: 100%;
+  margin-top: 0.2rem;
+}
+.letter-drafts li {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.65rem;
+  padding: 0.95rem 1.1rem;
+  background: var(--ink-2);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+.letter-drafts li p {
+  font-family: var(--serif);
+  font-weight: 400;
+  font-size: 1rem;
+  line-height: 1.6;
+  color: var(--paper);
+}
+.letter-drafts li > .demo-link { align-self: flex-start; }
+
+.letter-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem 1.5rem;
+  flex-wrap: wrap;
+  max-width: 40rem;
+}
+.letter-foot .foot-note { text-align: left; max-width: 22rem; }
+
+@media (max-width: 640px) {
+  .letter-foot { flex-direction: column; align-items: stretch; }
+  .letter-foot .btn { width: 100%; }
+  .letter-sheet { rotate: 0deg; }
 }
 
 .build-status {

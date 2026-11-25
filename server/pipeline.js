@@ -5,7 +5,7 @@ import { join, extname } from 'node:path';
 import { imageSize } from 'image-size';
 import crypto from 'node:crypto';
 import { db, UPLOADS_DIR } from './db.js';
-import { getCandidates, observeImage, crossImage, mimeFor } from './gemini.js';
+import { getCandidates, observeImage, crossImage, mimeFor, letterDrafts } from './gemini.js';
 
 const IMAGE_EXT = new Set(['.jpg', '.jpeg', '.png', '.webp', '.gif', '.heic', '.heif']);
 const rand = (n) => crypto.randomBytes(n).toString('hex');
@@ -419,8 +419,10 @@ async function runPipelineInner(giftId) {
     for (const ob of data.observations) flat.push({ photoIndex, photoFile, obs: ob });
   });
 
-  // tolerate partial failure: need at least 3 photos observed successfully
-  if (obsRows.length < 3) {
+  // tolerate partial failure: with 1–2 photos even one successful observation
+  // can carry a short trail; with 3+ photos, need at least 3 observed
+  const minObs = photos.length >= 3 ? 3 : 1;
+  if (obsRows.length < minObs) {
     db.prepare("UPDATE gifts SET status='error' WHERE id=?").run(giftId);
     console.error(`[pipeline ${giftId}] only ${obsRows.length}/${photos.length} photos observed — below minimum`);
     return;
@@ -503,6 +505,38 @@ export function buildBundle(giftId) {
     pi++;
   }
   return { bundleLines, photoOrder, byPhoto, flat };
+}
+
+/**
+ * Three opening drafts for the giver's letter, grounded in what was actually
+ * observed in their photos. The giver edits, replaces or ignores them — the
+ * agent never writes the final words.
+ */
+export async function giftLetterDrafts(giftId, notes = '') {
+  const gift = db.prepare('SELECT id, direction FROM gifts WHERE id=?').get(giftId);
+  if (!gift) {
+    const e = new Error('not found');
+    e.status = 404;
+    throw e;
+  }
+  const { bundleLines } = buildBundle(giftId);
+  if (!bundleLines.length) {
+    const e = new Error('this gift has not been read yet');
+    e.status = 409;
+    throw e;
+  }
+  try {
+    return await letterDrafts({
+      bundle: bundleLines.join('\n'),
+      direction: gift.direction,
+      notes,
+    });
+  } catch (e) {
+    const err = new Error('could not write drafts just now');
+    err.status = 502;
+    err.cause = e;
+    throw err;
+  }
 }
 
 /**

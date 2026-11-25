@@ -152,12 +152,23 @@ addColumnIfMissing('gifts', 'mode', "TEXT NOT NULL DEFAULT 'physical'");
 addColumnIfMissing('gifts', 'tier', 'TEXT');
 addColumnIfMissing('gifts', 'pack_id', 'TEXT');
 addColumnIfMissing('gifts', 'reclue_count', 'INTEGER NOT NULL DEFAULT 0');
+// the giver's own words — the letter the recipient reads at the reveal
+addColumnIfMissing('gifts', 'message', 'TEXT');
+addColumnIfMissing('gifts', 'signature', 'TEXT');
 addColumnIfMissing('trails', 'unlock_hash', 'TEXT');
 addColumnIfMissing('trails', 'expires_at', 'TEXT');
 // scheduled send — the trail row exists but does not open until send_at passes
 addColumnIfMissing('trails', 'send_at', 'TEXT');
+// Phase 4 — the Hide fallback: after this date the keepsake opens without the
+// code ("if I don't hide it, open it on <date>"). Null = code is the only key.
+addColumnIfMissing('trails', 'fallback_at', 'TEXT');
 // referral — the trail token whose recipient's note-back led to this gift
 addColumnIfMissing('gifts', 'referred_by', 'TEXT');
+// Phase 1b — delivery and recovery: the buyer's email (transactional only,
+// deleted with the gift) and the checkout intent that survives a lost tab.
+addColumnIfMissing('gifts', 'buyer_email', 'TEXT');
+addColumnIfMissing('gifts', 'email_sent_at', 'TEXT');
+addColumnIfMissing('gifts', 'checkout_intent', 'TEXT'); // JSON: {sessionId, tier, startedAt}
 
 // Indexes on every gift_id foreign-key lookup — without these each is a table
 // scan (fine at tiny scale, free to fix, and the events table grows forever).

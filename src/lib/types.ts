@@ -72,6 +72,9 @@ export interface Gift {
   hideSpots?: HideSpot[];
   throughline?: string | null;
   placeGuess?: string | null;
+  /** the giver's own words, read at the reveal — null until they write them */
+  message?: string | null;
+  signature?: string | null;
   paid?: boolean;
   worldStatus?: WorldStatus;
   worldSource?: number | null;
@@ -103,6 +106,7 @@ export interface GiftOverview {
     worldStatus: WorldStatus;
     portraitStatus: string;
     packId: string | null;
+    hasLetter?: boolean;
     createdAt?: string;
   };
   trail: {
@@ -148,6 +152,9 @@ export interface Trail {
   hideHint?: string | null;
   throughline: string | null;
   placeGuess: string | null;
+  /** the giver's own letter — digital gifts only; The Hide receives it on unlock */
+  message?: string | null;
+  signature?: string | null;
   unlocked: boolean;
   /** false for digital gifts (The Trail) — the keepsake opens without a code */
   requiresCode?: boolean;
@@ -170,4 +177,8 @@ export interface SealResult {
   trailUrl: string;
   /** the code the buyer writes into the hidden thing (server extension) */
   unlockCode?: string;
+  /** ISO date the link opens (scheduled send, Phase 1b) */
+  sendAt?: string | null;
+  /** Hide fallback — after this date the keepsake opens without the code */
+  fallbackAt?: string | null;
 }

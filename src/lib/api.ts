@@ -127,6 +127,8 @@ export interface CreateGiftOpts {
   mode?: GiftMode;
   tier?: Tier | null;
   packId?: string | null;
+  /** referral — the trail token whose recipient made this gift (server-validated) */
+  ref?: string | null;
 }
 
 /** POST /api/gifts — multipart photos[] + direction + mode/tier → {giftId, status:'reading'} */
@@ -145,6 +147,7 @@ export async function createGift(
   form.append('mode', opts.mode ?? 'digital');
   if (opts.tier) form.append('tier', opts.tier);
   if (opts.packId) form.append('packId', opts.packId);
+  if (opts.ref) form.append('ref', opts.ref);
   return request<CreateGiftResult>('/api/gifts', { method: 'POST', body: form });
 }
 
@@ -178,6 +181,28 @@ export async function getPack(id: string): Promise<{ id: string; creditsLeft: nu
 /** POST /api/gifts/:id/reclue — {notes} → {ok, gift} re-derived clues/rounds */
 export async function reclueGift(id: string, notes: string): Promise<{ ok: boolean; gift: Gift }> {
   return request(`/api/gifts/${encodeURIComponent(id)}/reclue`, {
+    method: 'POST',
+    body: JSON.stringify({ notes }),
+  });
+}
+
+/** PATCH /api/gifts/:id/letter — {message, signature} → updated Gift.
+ *  Locked (409) once the gift is sealed: the recipient may already hold it. */
+export async function saveLetter(
+  id: string,
+  message: string,
+  signature: string,
+): Promise<Gift> {
+  return request<Gift>(`/api/gifts/${encodeURIComponent(id)}/letter`, {
+    method: 'PATCH',
+    body: JSON.stringify({ message, signature }),
+  });
+}
+
+/** POST /api/gifts/:id/letter-drafts — {notes?} → {drafts: string[]}
+ *  Three openings grounded in what the photos showed. Bounded server-side. */
+export async function letterDrafts(id: string, notes = ''): Promise<{ drafts: string[] }> {
+  return request(`/api/gifts/${encodeURIComponent(id)}/letter-drafts`, {
     method: 'POST',
     body: JSON.stringify({ notes }),
   });
@@ -265,12 +290,24 @@ export async function hideGift(id: string, body: HideBody): Promise<void> {
   });
 }
 
-/** POST /api/gifts/:id/seal → {trailToken, trailUrl, unlockCode?} */
-export async function sealGift(id: string): Promise<SealResult> {
+/** POST /api/gifts/:id/seal → {trailToken, trailUrl, unlockCode?, sendAt?}
+ * `email` is captured transactionally (Phase 1b): it delivers the link,
+ * powers /api/lookup recovery, and is deleted with the gift. */
+export async function sealGift(id: string, opts: { email?: string; sendAt?: string | null; fallbackAt?: string | null } = {}): Promise<SealResult> {
   return request<SealResult>(`/api/gifts/${encodeURIComponent(id)}/seal`, {
     method: 'POST',
-    body: JSON.stringify({}),
+    body: JSON.stringify({
+      email: opts.email ?? undefined,
+      sendAt: opts.sendAt ?? undefined,
+      fallbackAt: opts.fallbackAt ?? undefined,
+    }),
   });
+}
+
+/** GET /api/lookup?email= — mail back every gift owned by this address.
+ * The response is deliberately uninformative; the email is the payload. */
+export async function lookupGifts(email: string): Promise<{ ok: boolean }> {
+  return request(`/api/lookup?email=${encodeURIComponent(email)}`);
 }
 
 /** Read ?t=<token> from the URL — the recipient's entry point. */
@@ -305,7 +342,7 @@ export async function revokeTrail(id: string): Promise<{ ok: boolean; revoked: b
 /** PATCH /api/gifts/:id/tier — swap tier pre-seal (Trail → Hide upsell). 409 once sealed */
 export async function updateGiftTier(
   id: string,
-  tier: 'trail' | 'hide',
+  tier: Tier,
   mode: GiftMode,
 ): Promise<{ ok: boolean; tier: string; mode: string }> {
   return request(`/api/gifts/${encodeURIComponent(id)}/tier`, {
@@ -337,7 +374,18 @@ export async function answerRound(
 export async function unlockTrail(
   token: string,
   code: string,
-): Promise<{ unlocked: boolean; keepsake?: unknown }> {
+): Promise<{
+  unlocked: boolean;
+  viaFallback?: boolean;
+  /** when the giver's "open anyway" date passes, shown after a wrong code */
+  fallbackAt?: string | null;
+  keepsake?: {
+    throughline: string | null;
+    placeGuess: string | null;
+    message: string | null;
+    signature: string | null;
+  };
+}> {
   return request(`/api/trail/${encodeURIComponent(token)}/unlock`, {
     method: 'POST',
     body: JSON.stringify({ code }),

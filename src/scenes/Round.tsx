@@ -82,6 +82,13 @@ export function Round({ demo, trail, round, onDone }: RoundProps) {
   const [solved, setSolved] = useState(false);
   const [rightIdx, setRightIdx] = useState<number | null>(null);
   const [nudge, setNudge] = useState<string | null>(null);
+  // Phase 2 — honest misses: after a wrong look, label the actual crop so the
+  // place itself corrects them (shown briefly, then they look again).
+  const [truth, setTruth] = useState(false);
+  const truthTimer = useRef<number | undefined>(undefined);
+  // Phase 2 — progressive payout: a correct look releases one line of the
+  // giver's letter (or the full photo behind the crop when there's no letter).
+  const [payout, setPayout] = useState<string | null>(null);
   const doneRef = useRef(false);
 
   const real = !demo && !!trail;
@@ -109,11 +116,20 @@ export function Round({ demo, trail, round, onDone }: RoundProps) {
     : ((round === 1 ? ROUND_1 : ROUND_2) as unknown as RoundCfg);
   const mockSet = demo ? MOCK_PHOTOS : null;
 
+  // Phase 3 — short trails degrade honestly: the total round count comes from
+  // the real trail when there is one, so a one-photo gift reads "1 / 1".
+  const totalRounds = real && trail ? Math.max(1, trail.rounds.length || 3) : 3;
+
   const finish = () => {
     if (doneRef.current) return;
     doneRef.current = true;
     onDone();
   };
+
+  // Phase 2 — no auto-advance. After three misses the recipient chooses to
+  // open it: owning the choice is the difference between a gift and a paywall.
+  // The demo keeps its scripted theatre.
+  const exhausted = attempts >= 3;
 
   // entrance
   useEffect(() => {
@@ -177,6 +193,20 @@ export function Round({ demo, trail, round, onDone }: RoundProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [round]);
 
+  // Phase 2 — the letter line each round releases. Split the giver's words
+  // into paragraphs; rounds 1 and 2 hand out the first two, round 3 (the
+  // throughline) hands out the rest. With no letter, the full photo behind
+  // the crop is the payout instead.
+  function letterLine(t: Trail, r: 1 | 2 | 3): string | null {
+    const body = (t.message ?? '').trim();
+    if (!body) return null;
+    const paras = body.split(/\n{2,}/).map((p) => p.trim()).filter(Boolean);
+    if (paras.length === 0) return null;
+    if (r === 1) return paras[0];
+    if (r === 2) return paras[1] ?? null;
+    return paras.slice(2).join('\n\n') || null;
+  }
+
   const pick = (i: number) => {
     if (solved) return;
     if (live) {
@@ -195,13 +225,22 @@ export function Round({ demo, trail, round, onDone }: RoundProps) {
             setRightIdx(i);
             setSolved(true);
             setNudge(null);
-            window.setTimeout(finish, 1100);
+            setTruth(false);
+            // Phase 2 — the look pays out: one line of the giver's letter
+            setPayout(letterLine(trail!, round));
+            logTrailEvent(trail!.token, `round_${round}_payout`, { line: true });
             return;
           }
           const next = attempts + 1;
           setAttempts(next);
           setNudge(NUDGES[Math.min(next - 1, NUDGES.length - 1)]);
-          if (next >= 3) window.setTimeout(finish, 1600); // the lock is theatre — it opens anyway
+          if (next >= 3) {
+            setAttempts(next);
+            setTruth(true);
+            if (truthTimer.current) window.clearTimeout(truthTimer.current);
+            truthTimer.current = window.setTimeout(() => setTruth(false), 2600);
+            // no auto-advance — the "open it anyway" button appears instead
+          }
         })
         .catch(() => {});
       return;
@@ -209,15 +248,17 @@ export function Round({ demo, trail, round, onDone }: RoundProps) {
     if (i === cfg.answer) {
       setSolved(true);
       setNudge(null);
-      window.setTimeout(finish, 1100);
+      setPayout('the photo, whole — as it was taken');
       return;
     }
     const next = attempts + 1;
     setAttempts(next);
     setNudge(NUDGES[Math.min(next - 1, NUDGES.length - 1)]);
     if (next >= 3) {
-      // the lock is theatre — it opens anyway
-      window.setTimeout(finish, 1600);
+      setTruth(true);
+      if (truthTimer.current) window.clearTimeout(truthTimer.current);
+      truthTimer.current = window.setTimeout(() => setTruth(false), 2600);
+      // the lock is theatre — but the recipient owns the choice now
     }
   };
 
@@ -245,7 +286,7 @@ export function Round({ demo, trail, round, onDone }: RoundProps) {
         <p className="kicker round-anim">
           {cfg.kicker}
           <span className="round-count">
-            {round} / 3
+            {round} / {totalRounds}
           </span>
         </p>
 
@@ -282,26 +323,29 @@ export function Round({ demo, trail, round, onDone }: RoundProps) {
           <>
             <div className={`round-photos round-photos-${round}`}>
               {live ? (
-                round === 1 ? (
-                  <RealCrop
-                    className="round-photo round-anim"
-                    url={photoUrl(cfg.cropPhotoIndex ?? 0) ?? ''}
-                    bbox={cfg.crop ?? [0, 0, 1, 1]}
-                  />
-                ) : (
-                  <>
+                <>
+                  <div className={`round-crop-wrap ${truth ? 'is-truth' : ''}`}>
                     <RealCrop
                       className="round-photo round-anim"
                       url={photoUrl(cfg.cropPhotoIndex ?? 0) ?? ''}
                       bbox={cfg.crop ?? [0, 0, 1, 1]}
                     />
-                    <RealCrop
-                      className="round-photo round-anim"
-                      url={photoUrl(cfg.cropPhotoIndex2 ?? 1) ?? ''}
-                      bbox={cfg.crop2 ?? cfg.crop ?? [0, 0, 1, 1]}
-                    />
-                  </>
-                )
+                    {truth && (
+                      <span className="round-truth" aria-live="polite">
+                        this is what's there — look again
+                      </span>
+                    )}
+                  </div>
+                  {round === 2 && (
+                    <div className={`round-crop-wrap ${truth ? 'is-truth' : ''}`}>
+                      <RealCrop
+                        className="round-photo round-anim"
+                        url={photoUrl(cfg.cropPhotoIndex2 ?? 1) ?? ''}
+                        bbox={cfg.crop2 ?? cfg.crop ?? [0, 0, 1, 1]}
+                      />
+                    </div>
+                  )}
+                </>
               ) : round === 1 ? (
                 <Photo
                   className="round-photo round-anim"
@@ -350,8 +394,30 @@ export function Round({ demo, trail, round, onDone }: RoundProps) {
             <p className={`round-nudge ${nudge ? 'is-visible' : ''}`} aria-live="polite">
               {nudge ?? ' '}
             </p>
+
+            {/* Phase 2 — the payout: what the correct look released */}
+            {solved && payout && (
+              <div className="round-payout" role="status">
+                <p className="round-payout-line">{payout.split(/\n{2,}/).map((p, i) => (
+                  <span key={i}>{p.trim()}</span>
+                ))}</p>
+                <button className="demo-link" onClick={finish}>
+                  {round === 2 ? 'one more look →' : 'keep going →'}
+                </button>
+              </div>
+            )}
+            {solved && !payout && (
+              <button className="demo-link" onClick={finish}>
+                {round === 2 ? 'one more look →' : 'keep going →'}
+              </button>
+            )}
+            {exhausted && !solved && (
+              <button className="demo-link round-open-anyway" onClick={finish}>
+                open it anyway →
+              </button>
+            )}
             <p className="round-hint round-anim">
-              there are no wrong doors here — only three looks
+              there are no wrong doors here — only looks
             </p>
             {real && round === 1 && (
               <p className="round-privacy round-anim">

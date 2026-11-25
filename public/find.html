@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>find your gift — enigmagift</title>
+  <meta name="robots" content="noindex" />
+  <style>
+    body { font-family: Georgia, serif; background: #171310; color: #f3ead9; display: grid; place-items: center; min-height: 100vh; margin: 0; }
+    main { max-width: 26rem; padding: 2rem; text-align: center; }
+    h1 { font-weight: normal; font-size: 1.4rem; }
+    p.k { font-size: .8rem; letter-spacing: .08em; color: #8a7f72; text-transform: lowercase; margin: 0 0 .3rem; }
+    p.hint { font-size: .8rem; color: #8a7f72; line-height: 1.6; }
+    form { display: flex; gap: .5rem; margin: 1.2rem 0; }
+    input { flex: 1; background: rgba(243,234,217,.06); border: 1px solid #3a332b; border-radius: 6px; color: #f3ead9; padding: .6rem .8rem; font-family: monospace; font-size: .85rem; }
+    input:focus { outline: none; border-color: #c9a45c; }
+    button { background: #c9a45c; color: #171310; border: 0; border-radius: 6px; padding: .6rem 1rem; font-family: Georgia, serif; font-size: .85rem; cursor: pointer; }
+    #msg { font-size: .8rem; color: #8a7f72; min-height: 1.2em; line-height: 1.6; }
+    a { color: #c9a45c; }
+  </style>
+</head>
+<body>
+  <main>
+    <p class="k">enigmagift</p>
+    <h1>find your gift</h1>
+    <p class="hint">
+      Enter the email you used when you sealed it, and we'll send every gift
+      link made from that address. No account, no password.
+    </p>
+    <form id="f">
+      <input id="email" type="email" required placeholder="you@example.com" autocomplete="email" />
+      <button type="submit">send</button>
+    </form>
+    <p id="msg" role="status" aria-live="polite"></p>
+    <p class="hint"><a href="/">← back</a></p>
+  </main>
+  <script>
+    const f = document.getElementById('f');
+    const msg = document.getElementById('msg');
+    f.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const email = document.getElementById('email').value.trim();
+      msg.textContent = 'sending…';
+      try {
+        const r = await fetch('/api/lookup?email=' + encodeURIComponent(email));
+        if (r.ok) {
+          msg.textContent = 'sent — check your inbox (and spam, once).';
+          f.reset();
+        } else {
+          const j = await r.json().catch(() => ({}));
+          msg.textContent = j.error || "couldn't send — try again in a moment.";
+        }
+      } catch {
+        msg.textContent = "couldn't reach the server — try again in a moment.";
+      }
+    });
+  </script>
+</body>
+</html>

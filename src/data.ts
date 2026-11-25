@@ -119,6 +119,22 @@ export const NUDGES = [
   'one more look, then it opens anyway',
 ];
 
+/* ------------------------------- letter ----------------------------- */
+
+/* Three openings for the giver's own words — demo mode only; the live flow
+   asks the agent for drafts grounded in the actual observations. */
+export const LETTER_DRAFTS: string[] = [
+  'the blue door is still the same shade it was the first time we stood outside it. i don\u2019t know why that\u2019s the thing i wanted you to see, but it is.',
+  'you always said the table by the window was yours. i checked. it still is.',
+  'same door, same bench, same walk down to the water. nothing needed rebuilding.',
+];
+
+/* The demo reveal's letter — what a written gift looks like, so the preview
+   shows the intended thing rather than the older template prose. */
+export const MOCK_LETTER = `the blue door is still the same shade it was the first time we stood outside it. i don\u2019t know why that\u2019s the thing i wanted you to see, but it is.
+
+you always said the table by the window was yours. i checked. it still is.`;
+
 /* ------------------------------- seal ------------------------------ */
 
 export const SEAL_LINK = 'enigmagift.link/ember-7f2a';

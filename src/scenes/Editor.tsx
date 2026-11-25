@@ -79,6 +79,10 @@ export function Editor({ demo, gift, mode, onSeal }: EditorProps) {
         focus: c.focus,
       }));
 
+  // Phase 3 — agent decides by default: the buyer reviews one composition
+  // ("looks right" / "something's off"), and the authoring grid is the
+  // exception behind "look closer".
+  const [gridOpen, setGridOpen] = useState(false);
   const [status, setStatus] = useState<('in' | 'out')[]>(clues.map(() => 'in'));
   const [edits, setEdits] = useState<Record<number, string>>({});
   const [hideIdx, setHideIdx] = useState<number | null>(0);
@@ -196,10 +200,63 @@ export function Editor({ demo, gift, mode, onSeal }: EditorProps) {
           <p className="kicker">make it yours</p>
           <h2 className="scene-title">a few clues, made personal.</h2>
           <p className="lede small">
-            {clues.length} clue{clues.length === 1 ? '' : 's'} from these photos. Keep what fits, and change what doesn’t.
+            {clues.length} clue{clues.length === 1 ? '' : 's'} from these photos, chosen for you. Read them below — if they feel right, you're done.
           </p>
         </header>
 
+        {/* Phase 3 — the review card: the clue set as one composition */}
+        <div className="clue-review clue-card" style={{ rotate: '-0.2deg' }}>
+          <div className="clue-body">
+            <ol className="clue-review-list">
+              {clues.map((c, i) => (
+                <li key={c.id} className={status[i] === 'out' ? 'is-out' : ''}>
+                  {clueText(i)}
+                </li>
+              ))}
+            </ol>
+          </div>
+        </div>
+
+        {/* the two exceptions, kept quiet: the affirmative lives in the footer */}
+        <div className="editor-choices">
+          {real && (
+            <button
+              className="demo-link"
+              onClick={() => setReclueOpen((v) => !v)}
+              aria-expanded={reclueOpen}
+            >
+              {reclueOpen ? 'close' : "something's not quite right? →"}
+            </button>
+          )}
+          <button className="demo-link" onClick={() => setGridOpen((v) => !v)} aria-expanded={gridOpen}>
+            {gridOpen ? 'hide the clue workbench' : 'look closer — edit each clue →'}
+          </button>
+        </div>
+
+        {real && reclueOpen && (
+          <div className="reclue clue-card" style={{ rotate: '0.3deg' }}>
+            <div className="clue-body">
+              <textarea
+                className="clue-text is-editable"
+                rows={2}
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                placeholder="e.g. the door is green, not blue — the bench faces the water…"
+                aria-label="Changes to the clues"
+              />
+              <button
+                className="btn btn-secondary"
+                onClick={doReclue}
+                disabled={recluing || !notes.trim()}
+              >
+                {recluing ? 'Looking again…' : 'Update the clues'}
+              </button>
+              {reclueMsg && <p className="foot-note" aria-live="polite">{reclueMsg}</p>}
+            </div>
+          </div>
+        )}
+
+        {gridOpen && (
         <div className="clue-grid">
           {clues.map((c, i) => {
             const out = status[i] === 'out';
@@ -261,8 +318,9 @@ export function Editor({ demo, gift, mode, onSeal }: EditorProps) {
             );
           })}
         </div>
+        )}
 
-        {real && (
+        {real && gridOpen && (
           <div className="hide-picker clue-card" style={{ rotate: '-0.3deg' }}>
             <div className="clue-body">
               <p className="clue-kicker">which photo becomes the world?</p>
@@ -286,36 +344,6 @@ export function Editor({ demo, gift, mode, onSeal }: EditorProps) {
                 the reveal builds a 3D world from this photograph — pick the
                 clearest, most iconic shot
               </p>
-            </div>
-          </div>
-        )}
-
-        {real && (
-          <div className="reclue clue-card" style={{ rotate: '0.3deg' }}>
-            <div className="clue-body">
-              <button className="demo-link" onClick={() => setReclueOpen((v) => !v)}>
-                {reclueOpen ? 'close' : 'something not quite right? →'}
-              </button>
-              {reclueOpen && (
-                <>
-                  <textarea
-                    className="clue-text is-editable"
-                    rows={2}
-                    value={notes}
-                    onChange={(e) => setNotes(e.target.value)}
-                    placeholder="e.g. the door is green, not blue — the bench faces the water…"
-                    aria-label="Changes to the clues"
-                  />
-                  <button
-                    className="btn btn-secondary"
-                    onClick={doReclue}
-                    disabled={recluing || !notes.trim()}
-                  >
-                    {recluing ? 'Looking again…' : 'Update the clues'}
-                  </button>
-                </>
-              )}
-              {reclueMsg && <p className="foot-note" aria-live="polite">{reclueMsg}</p>}
             </div>
           </div>
         )}
@@ -361,7 +389,7 @@ export function Editor({ demo, gift, mode, onSeal }: EditorProps) {
                 : `${kept} clue${kept === 1 ? '' : 's'} kept · ${mode === 'physical' ? 'now go hide it' : 'ready to seal'}`)}
           </p>
           <button className="btn btn-primary" onClick={seal} disabled={kept === 0 || sealing}>
-            {sealing ? 'Saving…' : 'Continue'}
+            {sealing ? 'Saving…' : 'looks right — continue'}
           </button>
         </div>
       </div>

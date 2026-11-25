@@ -6,10 +6,11 @@ import { join, dirname } from 'node:path';
 import { mkdirSync, existsSync, readdirSync, rmSync, readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { db, UPLOADS_DIR, hashCode, verifyCode } from './db.js';
-import { runPipeline, reclue } from './pipeline.js';
+import { runPipeline, reclue, giftLetterDrafts } from './pipeline.js';
 import { buildWorld } from './world.js';
 import { buildPortrait, portraitMime } from './portrait.js';
 import { stripExif } from './exif.js';
+import { isEmail, sendGiftLink, sendLookup } from './mailer.js';
 import { mountRoomGiftRoutes } from './room-gifts.js';
 import { mountPhotoGiftRoutes } from './photo-gifts.js';
 
@@ -234,6 +235,9 @@ function giftPayload(g) {
     hideSpots: hideSpots.length ? hideSpots : undefined,
     throughline: g.throughline ?? undefined,
     placeGuess: g.place_guess ?? undefined,
+    // the giver's own words — empty until they write the letter
+    message: g.message ?? null,
+    signature: g.signature ?? null,
     hide: safeParse(g.hides),
     paid: !!g.paid,
     worldStatus: g.world_status ?? 'pending',
@@ -257,6 +261,33 @@ function logEvent(giftId, token, name, data) {
     db.prepare('INSERT INTO events (gift_id, token, name, data) VALUES (?,?,?,?)')
       .run(giftId ?? null, token ?? null, String(name), data ? JSON.stringify(data) : null);
   } catch { /* events are best-effort */ }
+}
+
+// The Set is a pack of three hunts, and the pack row is minted when the money
+// lands rather than at creation — so EVERY payment path has to call this, and
+// the gift may only ever own one pack. Idempotent: the guarded INSERT fires
+// only for a set gift with no pack yet, inside one immediate transaction so a
+// webhook racing the verified mark-paid path cannot mint two packs.
+function ensureSetPack(giftId) {
+  const packId = crypto.randomUUID();
+  db.exec('BEGIN IMMEDIATE');
+  try {
+    const minted = db.prepare(
+      `INSERT INTO packs (id, purchase_gift_id, credits_left)
+       SELECT ?, id, 3 FROM gifts WHERE id=? AND tier='set' AND pack_id IS NULL`,
+    ).run(packId, giftId).changes;
+    if (!minted) {
+      db.exec('ROLLBACK');
+      return null;
+    }
+    db.prepare('UPDATE gifts SET pack_id=? WHERE id=?').run(packId, giftId);
+    db.exec('COMMIT');
+  } catch (e) {
+    try { db.exec('ROLLBACK'); } catch { /* already unwound */ }
+    throw e;
+  }
+  logEvent(giftId, null, 'pack_created', { packId });
+  return packId;
 }
 
 // uploaded originals, sorted — the index is the photoIndex the pipeline used.
@@ -289,6 +320,9 @@ function trailPayload(t, gift) {
     }
     if (!hideHint && hides?.current?.hideNote) hideHint = String(hides.current.hideNote).slice(0, 200);
   }
+  // digital gifts (The Trail) open the keepsake without a code; the Hide
+  // tier keeps the physical code gate
+  const requiresCode = (gift?.mode ?? 'physical') === 'physical';
   return {
     token: t.token,
     hideHint,
@@ -303,9 +337,12 @@ function trailPayload(t, gift) {
     throughline: gift?.throughline ?? null,
     placeGuess: gift?.place_guess ?? null,
     unlocked: !!t.unlocked,
-    // digital gifts (The Trail) open the keepsake without a code; the Hide
-    // tier keeps the physical code gate
-    requiresCode: (gift?.mode ?? 'physical') === 'physical',
+    // the giver's own words — the letter the recipient reads at the reveal.
+    // For a digital gift the rounds are the only gate, so it travels with the
+    // trail. For The Hide it stays out of the payload until the code unlocks
+    // (see /api/trail/:token/unlock) so the physical ending still means something.
+    ...(requiresCode ? {} : { message: gift?.message ?? null, signature: gift?.signature ?? null }),
+    requiresCode,
     mode: gift?.mode ?? 'physical',
     tier: gift?.tier ?? null,
     // the 3D world of the place — built after sealing; the recipient can
@@ -331,7 +368,7 @@ function handleGiftCreate(req, res, packIdParam = null) {
   upload.array('photos', 12)(req, res, (err) => {
     if (err) return res.status(400).json({ error: err.message });
     const files = req.files || [];
-    if (files.length < 5) return res.status(400).json({ error: 'Need 5-12 photos' });
+    if (files.length < 1) return res.status(400).json({ error: 'Need 1-12 photos' });
     if (files.length > 12) return res.status(400).json({ error: 'Max 12 photos' });
     // strip EXIF (GPS etc.) from stored copies before anything reads them
     for (const f of files) {
@@ -450,6 +487,9 @@ app.get('/api/gifts/:id/overview', (req, res) => {
       worldStatus: g.world_status ?? 'pending',
       portraitStatus: g.portrait_status ?? 'pending',
       packId: g.pack_id ?? null,
+      // has the giver written their own letter yet? (never the words themselves
+      // — the dashboard payload stays free of recipient-facing content)
+      hasLetter: !!g.message,
       referredBy: g.referred_by ?? null,
       createdAt: g.created_at,
     },
@@ -520,6 +560,47 @@ app.post('/api/gifts/:id/reclue', (req, res) => {
     });
 });
 
+// ---------- the giver's letter (their own words, read at the reveal) ----------
+const MAX_LETTER = 1200;
+const MAX_SIGNATURE = 60;
+
+// Editable until the gift is sealed. Once a trail link exists the recipient
+// may already hold it, so the words are locked (delete and remake to change).
+function letterLocked(g) {
+  if (!g) return false;
+  if (g.status === 'sealed') return true;
+  return !!db.prepare('SELECT 1 FROM trails WHERE gift_id=?').get(g.id);
+}
+
+app.patch('/api/gifts/:id/letter', (req, res) => {
+  const g = getGift(req.params.id);
+  if (!g) return res.status(404).json({ error: 'not found' });
+  if (letterLocked(g)) return res.status(409).json({ error: 'this gift is already sealed' });
+  const message = typeof req.body?.message === 'string' ? req.body.message.trim().slice(0, MAX_LETTER) : '';
+  const signature = typeof req.body?.signature === 'string' ? req.body.signature.trim().slice(0, MAX_SIGNATURE) : '';
+  if (message.length < 20) return res.status(400).json({ error: 'the letter needs a few more words' });
+  db.prepare('UPDATE gifts SET message=?, signature=? WHERE id=?').run(message, signature || null, g.id);
+  logEvent(g.id, null, 'letter_written', { chars: message.length, signed: !!signature });
+  res.json(giftPayload(getGift(g.id)));
+});
+
+// Three opening drafts from the observations — the giver edits or ignores
+// them. Bounded: this is a paid model call on an unsealed draft.
+app.post('/api/gifts/:id/letter-drafts', (req, res) => {
+  const g = getGift(req.params.id);
+  if (!g) return res.status(404).json({ error: 'not found' });
+  if (!limitOr429(res, `letter:${g.id}`, 6, 60 * 60 * 1000)) return;
+  const notes = typeof req.body?.notes === 'string' ? req.body.notes.slice(0, 500) : '';
+  giftLetterDrafts(g.id, notes)
+    .then((drafts) => {
+      logEvent(g.id, null, 'letter_drafts', { count: drafts.length });
+      res.json({ drafts });
+    })
+    .catch((e) => {
+      res.status(e.status || 500).json({ error: e.message || 'could not write drafts' });
+    });
+});
+
 app.post('/api/gifts/:id/world-source', (req, res) => {
   if (limitOr429(res, `worldsource:${req.params.id}`, 10, 60 * 60 * 1000)) return;
   const g = getGift(req.params.id);
@@ -539,8 +620,11 @@ app.post('/api/gifts/:id/world-source', (req, res) => {
   res.json({ ok: true, worldSource: idx, rebuilding: wasBuilt });
 });
 
-// Change tier pre-seal (the Trail → Hide upsell swaps the payment link and
-// mode before anything is sealed/paid). Sealed/paid gifts are immutable.
+// Change tier pre-seal (the upsell swaps the payment link and mode before
+// anything is sealed/paid; the till uses the same route, so a buyer who only
+// decides at the end can still buy The Set). Sealed/paid gifts are immutable.
+const TIERS = ['trail', 'hide', 'set'];
+
 app.patch('/api/gifts/:id/tier', (req, res) => {
   if (limitOr429(res, `tier:${req.params.id}`, 10, 60 * 60 * 1000)) return;
   const g = getGift(req.params.id);
@@ -548,9 +632,17 @@ app.patch('/api/gifts/:id/tier', (req, res) => {
   if (g.status === 'sealed' || g.status === 'paid') {
     return res.status(409).json({ error: 'already sealed — tier is locked' });
   }
-  const tier = ['trail', 'hide'].includes(req.body?.tier) ? req.body.tier : null;
-  if (!tier) return res.status(400).json({ error: 'tier must be trail|hide' });
-  const mode = req.body?.mode === 'physical' ? 'physical' : 'digital';
+  const tier = TIERS.includes(req.body?.tier) ? req.body.tier : null;
+  if (!tier) return res.status(400).json({ error: 'tier must be trail|hide|set' });
+  // A hunt spawned from a pack was already paid for inside that pack — letting
+  // it become a set purchase would sell the same pack twice, and it owns no
+  // pack of its own to mint.
+  if (tier === 'set' && g.pack_id) {
+    return res.status(409).json({ error: 'this hunt came from a set — it cannot become one' });
+  }
+  // The Set is digital: the two extra hunts choose their own mode when they are
+  // made. Only a physical trail/hide carries the hide-and-code mode.
+  const mode = tier !== 'set' && req.body?.mode === 'physical' ? 'physical' : 'digital';
   db.prepare('UPDATE gifts SET tier=?, mode=? WHERE id=?').run(tier, mode, g.id);
   logEvent(g.id, null, 'tier_changed', { tier, mode });
   res.json({ ok: true, tier, mode });
@@ -650,9 +742,20 @@ app.post('/api/gifts/:id/seal', (req, res) => {
   const rounds = safeParse(g.rounds);
   const now = Date.now();
   // optional scheduled availability — the link is issued now but does not
-  // open until send_at passes (enforced at read time in liveTrail; there is
-  // no email or automatic delivery). Bounded: must be a future date, at most
-  // a year out.
+  // open until send_at passes (enforced at read time in liveTrail; with
+  // Phase 1b the email arrives on the scheduled morning). Bounded: must be a
+  // future date, at most a year out.
+  // Phase 1b — the buyer's email, captured at seal. Transactional only: used
+  // to deliver the link, power /api/lookup recovery, and schedule the send.
+  // Deleted with the gift (see DELETE /api/gifts/:id and purgeStaleDrafts).
+  const buyerEmail = typeof req.body?.email === 'string' ? req.body.email.trim().toLowerCase() : '';
+  if (buyerEmail && !isEmail(buyerEmail)) {
+    return res.status(400).json({ error: 'that email doesn’t look right' });
+  }
+  if (buyerEmail && buyerEmail !== g.buyer_email) {
+    db.prepare('UPDATE gifts SET buyer_email=? WHERE id=?').run(buyerEmail, g.id);
+    g.buyer_email = buyerEmail;
+  }
   const requestedSendAt = req.body?.sendAt;
   let sendAt = null;
   if (requestedSendAt != null && requestedSendAt !== '') {
@@ -669,14 +772,27 @@ app.post('/api/gifts/:id/seal', (req, res) => {
   const expiresAt = Number.isInteger(expireDays) && expireDays > 0
     ? new Date((sendAt ? Date.parse(sendAt) : now) + expireDays * 86400000).toISOString()
     : null;
+  // Phase 4 — the Hide fallback: the giver promises an "open anyway" date in
+  // case the thing never gets hidden. Bounded like sendAt.
+  const requestedFallback = req.body?.fallbackAt;
+  let fallbackAt = null;
+  if (requestedFallback != null && requestedFallback !== '') {
+    const ts = Date.parse(typeof requestedFallback === 'string' ? requestedFallback : '');
+    if (!Number.isFinite(ts) || ts <= now || ts > now + 366 * 86400000) {
+      return res.status(400).json({ error: 'fallbackAt must be a future date within a year' });
+    }
+    fallbackAt = new Date(ts).toISOString();
+  }
   // the code is stored as a scrypt hash only — the plaintext exists solely in
   // the response so the buyer can write it into the hidden thing (Hide tier)
-  db.prepare('INSERT INTO trails (token, gift_id, rounds, unlock_code, unlock_hash, expires_at, send_at) VALUES (?,?,?,?,?,?,?)')
-    .run(token, g.id, JSON.stringify(rounds), '', hashCode(unlockCode), expiresAt, sendAt);
+  db.prepare('INSERT INTO trails (token, gift_id, rounds, unlock_code, unlock_hash, expires_at, send_at, fallback_at) VALUES (?,?,?,?,?,?,?,?)')
+    .run(token, g.id, JSON.stringify(rounds), '', hashCode(unlockCode), expiresAt, sendAt, fallbackAt);
   if (g.status !== 'paid') {
     db.prepare("UPDATE gifts SET status='sealed' WHERE id=?").run(g.id);
   }
-  logEvent(g.id, token, 'sealed', { mode: g.mode, tier: g.tier, scheduled: !!sendAt });
+  logEvent(g.id, token, 'sealed', { mode: g.mode, tier: g.tier, scheduled: !!sendAt, emailed: !!g.buyer_email });
+  // deliver immediately unless scheduled — the scheduler picks up the rest
+  void deliverGiftLink(g.id);
   // the recipient's payoff: build the 3D world of their place now, while they
   // follow the trail. Non-blocking — the reveal polls for it. Same for the
   // keepsake portrait (best-effort — needs RECRAFT_API_KEY, API units).
@@ -688,6 +804,7 @@ app.post('/api/gifts/:id/seal', (req, res) => {
     unlockCode, // the buyer writes this into the hidden thing
     expiresAt,
     sendAt,
+    fallbackAt,
   });
 });
 
@@ -722,6 +839,9 @@ app.post('/api/gifts/:id/mark-paid', async (req, res) => {
         if (s.client_reference_id === g.id && validGiftPayment(g, s)) {
           db.prepare('UPDATE gifts SET paid=1, status=CASE WHEN status=\'sealed\' THEN \'paid\' ELSE status END WHERE id=?').run(g.id);
           logEvent(g.id, null, 'paid', { tier: g.tier, verified: true });
+          // the pack is owed the moment the money is verified — the webhook may
+          // never arrive (unset secret, lost delivery), so don't wait for it
+          ensureSetPack(g.id);
           return res.json({ ok: true, paid: true, verified: true });
         }
         return res.status(402).json({ ok: false, paid: false, error: 'session payment does not match gift' });
@@ -734,6 +854,86 @@ app.post('/api/gifts/:id/mark-paid', async (req, res) => {
   // can mark the gift paid.
   logEvent(g.id, null, 'markpaid_pending', { hasSession: !!sessionId });
   res.json({ ok: true, paid: !!g.paid, pending: !g.paid });
+});
+
+// ---------- Phase 1b — delivery, scheduling, recovery ----------
+
+/** Send the gift-link email once. Idempotent via email_sent_at; never throws
+ * (a failed send must not break sealing — the scheduler retries). */
+async function deliverGiftLink(giftId) {
+  const g = getGift(giftId);
+  if (!g || !g.buyer_email || g.email_sent_at) return;
+  const t = db.prepare('SELECT token, send_at FROM trails WHERE gift_id=?').get(giftId);
+  if (!t) return;
+  try {
+    await sendGiftLink(g.buyer_email, {
+      trailUrl: `/t/${t.token}`,
+      direction: g.direction,
+      sendAt: t.send_at,
+  });
+    db.prepare("UPDATE gifts SET email_sent_at=datetime('now') WHERE id=?").run(giftId);
+    logEvent(giftId, t.token, 'email_sent', { scheduled: !!t.send_at });
+  } catch (e) {
+    console.error(`[deliver ${giftId}]`, e.message);
+    logEvent(giftId, t.token, 'email_failed', { error: e.message.slice(0, 120) });
+  }
+}
+
+/** Every 10 min: send scheduled gifts whose morning has arrived, and retry
+ * any gift whose first email attempt failed. */
+function deliverDueGifts() {
+  try {
+    const due = db
+      .prepare(
+        "SELECT g.id FROM gifts g JOIN trails t ON t.gift_id=g.id WHERE g.buyer_email IS NOT NULL AND g.email_sent_at IS NULL AND g.paid=1 AND (t.send_at IS NULL OR t.send_at <= datetime('now'))",
+      )
+      .all();
+    for (const { id } of due) void deliverGiftLink(id);
+    if (due.length) console.log(`[deliver] queued ${due.length} gift email(s)`);
+  } catch (e) {
+    console.error('[deliver] sweep failed:', e.message);
+  }
+}
+deliverDueGifts();
+setInterval(deliverDueGifts, 10 * 60 * 1000).unref?.();
+
+/** GET /api/lookup?email= — mail back every gift owned by this address.
+ * No accounts, no passwords: this is the "I paid and lost the tab" path.
+ * Always 200 (never leaks whether an address has gifts). */
+app.get('/api/lookup', async (req, res) => {
+  if (!rateLimit(`lookup:${req.ip}`, 5, 60 * 60 * 1000)) {
+    return res.status(429).json({ error: 'too many lookups — try again in an hour' });
+  }
+  const email = typeof req.query.email === 'string' ? req.query.email.trim().toLowerCase() : '';
+  if (!isEmail(email)) return res.status(400).json({ error: 'that email doesn’t look right' });
+  const gifts = db
+    .prepare(
+      "SELECT id, status, tier, created_at, (SELECT token FROM trails WHERE gift_id=gifts.id) AS token FROM gifts WHERE buyer_email=? ORDER BY created_at DESC",
+    )
+    .all(email);
+  try {
+    await sendLookup(
+      email,
+      gifts.map((g) => ({ ...g, trailUrl: g.token ? `/t/${g.token}` : null })),
+    );
+    logEvent(null, null, 'lookup_sent', { count: gifts.length });
+  } catch (e) {
+    console.error('[lookup]', e.message);
+    return res.status(502).json({ error: 'couldn’t send the email — try again' });
+  }
+  res.json({ ok: true });
+});
+
+// Record checkout intent when the Stripe tab opens — ops visibility into
+// abandoned payments, and a marker that payment was attempted for this gift.
+app.post('/api/gifts/:id/intent', (req, res) => {
+  if (limitOr429(res, `intent:${req.params.id}`, 30, 60 * 60 * 1000)) return;
+  const g = getGift(req.params.id);
+  if (!g) return res.status(404).json({ error: 'not found' });
+  db.prepare('UPDATE gifts SET checkout_intent=? WHERE id=?')
+    .run(JSON.stringify({ tier: req.body?.tier ?? g.tier, startedAt: new Date().toISOString() }), g.id);
+  logEvent(g.id, null, 'checkout_opened', { tier: g.tier });
+  res.json({ ok: true });
 });
 
 // ---------- Stripe webhook — the source of truth for `paid` ----------
@@ -768,13 +968,11 @@ app.post('/api/stripe/webhook', (req, res) => {
       }
       db.prepare('UPDATE gifts SET paid=1, status=CASE WHEN status=\'sealed\' THEN \'paid\' ELSE status END WHERE id=?').run(g.id);
       logEvent(g.id, null, 'paid', { tier: g.tier, via: 'webhook', session: s.id, amount: s.amount_total, referred: !!g.referred_by });
-      // a Set payment creates the 3-credit pack (idempotent)
-      if (g.tier === 'set' && !g.pack_id) {
-        const packId = crypto.randomUUID();
-        db.prepare('INSERT INTO packs (id, purchase_gift_id, credits_left) VALUES (?,?,3)').run(packId, g.id);
-        db.prepare('UPDATE gifts SET pack_id=? WHERE id=?').run(packId, g.id);
-        logEvent(g.id, null, 'pack_created', { packId });
-      }
+      // the webhook may be the only survivor of a lost tab — deliver here too
+      void deliverGiftLink(g.id);
+      // a Set payment creates the 3-credit pack (idempotent, shared with the
+      // verified mark-paid path so the pack exists whichever lands first)
+      ensureSetPack(g.id);
     } else {
       console.warn('[stripe webhook] checkout.session.completed without a known gift:', giftId);
     }
@@ -837,22 +1035,30 @@ app.post('/api/trail/:token/unlock', (req, res) => {
   const t = liveTrail(req.params.token);
   if (!t) return res.status(404).json({ error: 'not found' });
   const { code } = req.body || {};
+  // Phase 4 — the giver's fallback: if they set an "open anyway on" date and
+  // it has passed, the code is no longer the only key. The most expensive
+  // tier must not have the worst failure mode (a giver who never hid it).
+  const fallback = t.fallback_at && new Date(t.fallback_at).getTime() <= Date.now();
   // codes are stored as scrypt hashes (unlock_hash); legacy plaintext rows
   // were migrated at boot and verifyCode still accepts them as a fallback
-  if (verifyCode(code || '', t.unlock_hash || t.unlock_code)) {
+  if (fallback || verifyCode(code || '', t.unlock_hash || t.unlock_code)) {
     db.prepare('UPDATE trails SET unlocked=1 WHERE token=?').run(t.token);
     const gift = getGift(t.gift_id);
-    logEvent(gift?.id ?? null, t.token, 'unlocked', null);
+    logEvent(gift?.id ?? null, t.token, 'unlocked', { viaFallback: !!fallback && !verifyCode(code || '', t.unlock_hash || t.unlock_code) });
     return res.json({
       unlocked: true,
+      viaFallback: !!fallback,
       keepsake: {
         throughline: gift?.throughline || null,
         placeGuess: gift?.place_guess || null,
-        message: 'The hunt is done. What you found was only ever yours.',
+        // the giver's own words; null when they never wrote a letter, so the
+        // client falls back to its older template
+        message: gift?.message || null,
+        signature: gift?.signature || null,
       },
     });
   }
-  res.json({ unlocked: false });
+  res.json({ unlocked: false, fallbackAt: t.fallback_at ?? null });
 });
 
 app.post('/api/trail/:token/event', (req, res) => {

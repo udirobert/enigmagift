@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import Lenis from 'lenis';
 import { apiHealthy, createGift, getGift, getTrail, logGiftEvent, stashPack, tokenFromUrl, unstashPack, updateGiftTier } from './lib/api';
 import type { Gift, GiftDirection, GiftMode, HideSpot, Tier, Trail } from './lib/types';
@@ -7,6 +7,7 @@ import { Door } from './scenes/Door';
 import { WatchIt } from './scenes/WatchIt';
 import { Reading } from './scenes/Reading';
 import { Editor } from './scenes/Editor';
+import { Letter } from './scenes/Letter';
 import { Hide } from './scenes/Hide';
 import { Seal } from './scenes/Seal';
 import { Round } from './scenes/Round';
@@ -48,6 +49,7 @@ export type SceneId =
   | 'watch'
   | 'reading'
   | 'editor'
+  | 'letter'
   | 'hide'
   | 'seal'
   | 'r1'
@@ -87,12 +89,51 @@ export default function App() {
 
   const go = useCallback((s: SceneId) => {
     window.scrollTo(0, 0);
+    // Phase 3 — scenes live in history, so browser Back (an iOS swipe)
+    // returns to the previous scene instead of leaving the site mid-flow.
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.set('s', s);
+      window.history.pushState({ scene: s }, '', url);
+    } catch { /* private mode quirks — Back just leaves, as before */ }
     setScene(s);
+  }, []);
+
+  // popstate: Back/Forward moves between scenes rather than out of the app
+  useEffect(() => {
+    const onPop = (e: PopStateEvent) => {
+      const s = (e.state?.scene as SceneId | undefined) ?? null;
+      if (s) {
+        window.scrollTo(0, 0);
+        setScene(s);
+      }
+    };
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
   }, []);
 
   // true when the door is opened again from the tour's "make one" — the door
   // then lands on the dropzone rather than replaying the hero.
   const [fromTour, setFromTour] = useState(false);
+
+  // Phase 4 — referral: capture ?ref=<trail token> once, then strip it from
+  // the URL so it doesn't leak via Referer. The token is validated server-side.
+  const refRef = useRef<string | null>(null);
+  const readRef = useCallback(() => {
+    if (refRef.current !== null) return refRef.current;
+    try {
+      const url = new URL(window.location.href);
+      const r = url.searchParams.get('ref');
+      refRef.current = r && /^[A-Za-z0-9_-]{6,64}$/.test(r) ? r : null;
+      if (refRef.current) {
+        url.searchParams.delete('ref');
+        window.history.replaceState(null, '', url);
+      }
+    } catch {
+      refRef.current = null;
+    }
+    return refRef.current;
+  }, []);
 
   // smooth scroll (Lenis) — scenes that overflow still glide
   useEffect(() => {
@@ -248,6 +289,9 @@ export default function App() {
             mode,
             tier: effectiveTier,
             packId,
+            // Phase 4 — the referral loop, finally plugged in: a recipient who
+            // arrived via ?ref=<token> and made their own gift is attributed
+            ref: readRef(),
           });
           stashGift(created.giftId, direction, mode, effectiveTier);
           setGiftId(created.giftId);
@@ -270,13 +314,17 @@ export default function App() {
       setTier(t);
       const m: GiftMode = t === 'hide' ? 'physical' : 'digital';
       setMode(m);
-      if (live && giftId && (t === 'trail' || t === 'hide')) {
+      // A hunt spawned from a Set was paid for inside that pack, so the server
+      // refuses to turn it into a set purchase — don't offer what it will
+      // reject, and don't sync a tier the gift can't own.
+      const upgradable = live && giftId && !(t === 'set' && gift?.packId);
+      if (upgradable) {
         void updateGiftTier(giftId, t, m).catch(() => {
           /* local state already moved; server sync is best-effort here */
         });
       }
     },
-    [live, giftId],
+    [live, giftId, gift?.packId],
   );
 
   // "watch it work" — the payoff, self-playing, before they upload anything
@@ -304,21 +352,23 @@ export default function App() {
     [go],
   );
 
-  // Editor approved the clues — digital gifts (The Trail) go straight to the
-  // seal; only The Hide has a physical thing to hide
+  // Editor approved the clues — the giver writes the letter next, then a
+  // digital gift seals; only The Hide has a physical thing to hide.
   const handleEditorSeal = useCallback(
     (n: number, spot: HideSpot | null) => {
       setKept(n);
       setHideSpot(spot);
       if (giftId) logGiftEvent(giftId, 'editor_done', { kept: n, mode });
-      if (mode === 'digital') {
-        go('seal');
-      } else {
-        go('hide');
-      }
+      go('letter');
     },
     [go, mode, giftId],
   );
+
+  // The letter is written and saved — digital gifts go straight to the seal,
+  // The Hide takes the physical detour first.
+  const handleLetterDone = useCallback(() => {
+    go(mode === 'digital' ? 'seal' : 'hide');
+  }, [go, mode]);
 
   // Hide done ("i've hidden it" or "later") — on to the seal
   const handleHidden = useCallback(() => {
@@ -338,9 +388,16 @@ export default function App() {
       } else {
         setTrail(null);
       }
+      // A Set's pack is minted when the money lands, which just happened —
+      // pick it up now so the rest of the pack is usable without a reload.
+      if (live && giftId) {
+        getGift(giftId)
+          .then((g) => { if (g?.packId) stashPack(g.packId); })
+          .catch(() => { /* best-effort — the resume path stashes it later */ });
+      }
       go('r1');
     },
-    [go],
+    [go, live, giftId],
   );
 
   // the recipient opened a real link (live=false for them) — real trail, not the mock
@@ -383,6 +440,17 @@ export default function App() {
           onSeal={handleEditorSeal}
         />
       )}
+      {scene === 'letter' && (
+        <Letter
+          demo={!live || !giftId}
+          gift={live ? gift : null}
+          giftId={live ? giftId : null}
+          direction={direction}
+          mode={mode}
+          kept={kept}
+          onNext={handleLetterDone}
+        />
+      )}
       {scene === 'hide' && (
         <Hide
           demo={demo || !live}
@@ -400,14 +468,25 @@ export default function App() {
           tier={tier}
           mode={mode}
           onSend={handleSend}
+          packOwned={!!gift?.packId}
           onTier={handleTier}
         />
       )}
       {scene === 'r1' && (
-        <Round round={1} demo={trailDemo} trail={trail} onDone={() => go('r2')} />
+        <Round
+          round={1}
+          demo={trailDemo}
+          trail={trail}
+          onDone={() => (trail && trail.rounds.length < 2 ? go('reveal') : go('r2'))}
+        />
       )}
       {scene === 'r2' && (
-        <Round round={2} demo={trailDemo} trail={trail} onDone={() => go('r3')} />
+        <Round
+          round={2}
+          demo={trailDemo}
+          trail={trail}
+          onDone={() => (trail && trail.rounds.length < 3 ? go('reveal') : go('r3'))}
+        />
       )}
       {scene === 'r3' && (
         <Round round={3} demo={trailDemo} trail={trail} onDone={() => go('reveal')} />

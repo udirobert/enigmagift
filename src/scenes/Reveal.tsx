@@ -1,6 +1,6 @@
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState, lazy } from 'react';
 import { gsap } from 'gsap';
-import { mockGallery } from '../data';
+import { MOCK_LETTER, mockGallery } from '../data';
 import { prefersReducedMotion, seeded } from '../lib/motion';
 import { Polaroid } from '../components/Photo';
 import { Miniature } from '../components/Miniature';
@@ -37,6 +37,11 @@ export function Reveal({ demo, trail, direction }: RevealProps) {
   const [code, setCode] = useState('');
   const [checking, setChecking] = useState(false);
   const [wrong, setWrong] = useState(false);
+  // The Hide delivers the giver's letter only on unlock, so keep what came back
+  const [unlockedLetter, setUnlockedLetter] = useState<{
+    message: string | null;
+    signature: string | null;
+  } | null>(null);
 
   // the 3D world of the place — built at seal time, so by the time the
   // recipient unlocks it's usually already done. Real trails poll the build;
@@ -85,7 +90,11 @@ export function Reveal({ demo, trail, direction }: RevealProps) {
 
   const copyFoundIt = async () => {
     if (!trail) return;
-    const msg = `i followed the trail and found it 💛 — ${recap?.rounds ?? 3} rounds, ${recap?.looks ?? 0} looks, ${recap?.mins ?? 0} min · made with enigmagift (${window.location.origin})`;
+    // Phase 4 — the referral loop: the note carries ?ref=<this trail token>,
+    // so a gift the recipient goes on to make is attributed (and eligible for
+    // the £1-off the server already implements)
+    const ref = trail.token && trail.token.length >= 6 ? `?ref=${trail.token}` : '';
+    const msg = `i followed the trail and found it 💛 — ${recap?.rounds ?? 3} rounds, ${recap?.looks ?? 0} looks, ${recap?.mins ?? 0} min · make someone a gift like this: ${window.location.origin}/${ref}`;
     try {
       await navigator.clipboard.writeText(msg);
       setCopiedBack(true);
@@ -108,6 +117,35 @@ export function Reveal({ demo, trail, direction }: RevealProps) {
   const gallery = real
     ? (trail!.photoUrls ?? []).slice(0, 6)
     : mockGallery().slice(0, 6);
+
+  // The giver's own words. Digital gifts carry them on the trail; The Hide
+  // receives them from the unlock response. In the demo the visitor may have
+  // written a letter two screens ago — show theirs back, or the sample if the
+  // demo was entered another way. Older gifts with no letter keep the
+  // historical template.
+  const demoLetter = useMemo(() => {
+    try {
+      const raw = sessionStorage.getItem('enigmagift.letter.v1');
+      if (raw) {
+        const p = JSON.parse(raw) as { message?: string; signature?: string };
+        if (typeof p.message === 'string' && p.message.trim()) {
+          return {
+            message: p.message.trim(),
+            signature: typeof p.signature === 'string' ? p.signature.trim() : '',
+          };
+        }
+      }
+    } catch {
+      /* a broken stash just means the sample */
+    }
+    return { message: MOCK_LETTER, signature: '' };
+  }, []);
+  const letterBody = real
+    ? (unlockedLetter?.message ?? trail?.message ?? '').trim()
+    : demoLetter.message;
+  const letterSign = real
+    ? (unlockedLetter?.signature ?? trail?.signature ?? '').trim()
+    : demoLetter.signature;
 
   // poll the world build until it's ready (or failed). Cheap, stops on done.
   // Backoff while it's still building (builds take 45–90s): 5s → 10s → 20s cap.
@@ -182,6 +220,14 @@ export function Reveal({ demo, trail, direction }: RevealProps) {
     try {
       const r = await unlockTrail(trail!.token, code.trim().toUpperCase());
       if (r.unlocked) {
+        const k = (r.keepsake ?? {}) as { message?: string | null; signature?: string | null };
+        setUnlockedLetter({ message: k.message ?? null, signature: k.signature ?? null });
+        setCodeDone(true);
+        window.scrollTo(0, 0);
+      } else if (r.fallbackAt && new Date(r.fallbackAt).getTime() <= Date.now()) {
+        // the giver's fallback date has passed — the keepsake opens without
+        // the code (the server would also have accepted any code)
+        setUnlockedLetter({ message: null, signature: null });
         setCodeDone(true);
         window.scrollTo(0, 0);
       } else {
@@ -221,27 +267,35 @@ export function Reveal({ demo, trail, direction }: RevealProps) {
               <p className="letter-salutation">
                 {direction === 'me' ? 'dear future me,' : 'dear you,'}
               </p>
-              <p>
-                some gifts you unwrap. this one you follow — three looks down
-                the trail, then it gives itself up.
-              </p>
-              <p>
-                {needsCode
-                  ? trail?.placeGuess
-                    ? `you stood where ${trail.placeGuess.toLowerCase()} stands and you found it.`
-                    : 'you found what i left where i said it would be.'
-                  : trail?.placeGuess
-                    ? `every clue pointed to where ${trail.placeGuess.toLowerCase()} stands — and you followed them all.`
-                    : 'you followed every clue to the end.'}{' '}
-                the photographs all pointed there — but only you could have
-                followed them.
-              </p>
-              <p>
-                while you were following the trail, your photographs became a
-                world you can stand inside. it’s right here — it’s yours to
-                keep, and yours to pass on.
-              </p>
-              <p className="letter-sign">— the one who left it there</p>
+              {letterBody ? (
+                letterBody.split(/\n{2,}/).map((para, i) => (
+                  <p key={i}>{para.trim()}</p>
+                ))
+              ) : (
+                <>
+                  <p>
+                    some gifts you unwrap. this one you follow — a few looks down
+                    the trail, then it gives itself up.
+                  </p>
+                  <p>
+                    {needsCode
+                      ? trail?.placeGuess
+                        ? `you stood where ${trail.placeGuess.toLowerCase()} stands and you found it.`
+                        : 'you found what i left where i said it would be.'
+                      : trail?.placeGuess
+                        ? `every clue pointed to where ${trail.placeGuess.toLowerCase()} stands — and you followed them all.`
+                        : 'you followed every clue to the end.'}{' '}
+                    the photographs all pointed there — but only you could have
+                    followed them.
+                  </p>
+                  <p>
+                    while you were following the trail, your photographs became a
+                    world you can stand inside. it’s right here — it’s yours to
+                    keep, and yours to pass on.
+                  </p>
+                </>
+              )}
+              <p className="letter-sign">{letterSign ? `— ${letterSign}` : '— the one who left it there'}</p>
             </article>
 
             {/* recap of their own hunt + a note they can send back to the giver */}
@@ -409,6 +463,16 @@ export function Reveal({ demo, trail, direction }: RevealProps) {
               )}
             </div>
           </>
+        )}
+
+        {/* the printable keepsake — letter + photographs, print-at-home (Phase 4) */}
+        {codeDone && (
+          <div className="reveal-print-actions reveal-anim">
+            <button className="demo-link" onClick={() => window.print()}>
+              print the keepsake →
+            </button>
+            <span className="reveal-print-hint mono">the letter and the photographs, on paper</span>
+          </div>
         )}
 
         {/* virality — the recipient becomes the next giver */}

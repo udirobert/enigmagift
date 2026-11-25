@@ -141,6 +141,14 @@ Env (backend, `server/.env` or Fly secrets):
   deployed Pages/Netlify domains + localhost).
 - `DB_PATH`, `UPLOADS_DIR` — default to `server/enigmagift.db` and
   `server/uploads` locally, `/data/*` on Fly.
+- `RESEND_API_KEY` — transactional email (Phase 1b): the gift link at seal,
+  scheduled-morning delivery, and `/api/lookup` recovery. Without it, sends
+  are logged to the server console (dev mode). Verify your sending domain in
+  Resend before production use.
+- `MAIL_FROM` — from-address for the above (default
+  `EnigmaGift <gifts@enigmagift.pages.dev>`; set a real domain in production).
+- `APP_ORIGIN` — absolute origin used in email links (default
+  `https://enigmagift.pages.dev`). Recovery page lives at `/find.html`.
 
 Optional local sandbox for browser testing: `DAYTONA_API_KEY` may live in a
 gitignored root `.env.local` (never a `VITE_` prefix — it must not reach the
@@ -299,6 +307,56 @@ Public pages: `/privacy` and `/terms` (`public/privacy.html`, `public/terms.html
   ≥22.15 (`module.registerHooks`); runs against a temporary DB and mocked
   pipeline/world/portrait providers with external HTTP disabled — no paid
   provider calls, no credentials needed.
+- Scene smoke render: `npm run smoke:scenes` — bundles each scene with
+  esbuild and renders every demo/live state (editor review card, door tiers,
+  seal incl. pack-owned gifts) to catch a broken scene before a deploy.
+
+## The giver's letter (Phase 1a)
+
+The gift carries the giver's own words: `gifts.message` + `signature`
+(written in a calm scene after the clues, with three agent drafts offered
+from the observations — the AI never writes the final voice). The reveal
+renders the giver's words, never a template; older gifts with no letter keep
+the historical fallback. The Hide tier receives the letter only on unlock,
+so the physical ending still means something.
+
+## Delivery, scheduling and recovery (Phase 1b)
+
+- The buyer's email is captured at the till ("where should we send the
+  link?"), transactional only, deleted with the gift. The link email fires at
+  seal, on the Stripe webhook (the lost-tab path), and from a 10-minute
+  sweep that also delivers scheduled gifts on their morning and retries
+  failures. Idempotent via `gifts.email_sent_at`.
+- Optional open date: `sendAt` on seal — the link exists but opens on the
+  scheduled morning (enforced at read time), and the email arrives then.
+- Recovery: `GET /api/lookup?email=` mails back every gift owned by that
+  address (rate-limited, no existence leak); the no-build page at
+  `/find.html` is the entry point. No accounts, no passwords.
+- Checkout intent: `POST /api/gifts/:id/intent` records payment attempts
+  (abandonment visibility); `gifts.checkout_intent` stores the last one.
+- Hide fallback: an optional "open anyway on ⟨date⟩" (`trails.fallback_at`)
+  means a hidden-thing errand that slips can't dead-end a £9.99 gift — after
+  the date the keepsake opens without the code (`viaFallback` logged).
+
+## The trail pays out (Phase 2)
+
+A correct look releases one paragraph of the giver's letter (rounds 1–2;
+round 3 releases the rest) with a "keep going" beat; misses label the actual
+crop ("this is what's there — look again") instead of a nudge string; after
+three misses there is no auto-advance — an "open it anyway" button keeps the
+choice with the recipient. Events: `round_N_payout`, `unlocked{viaFallback}`.
+
+## Lowered floor (Phase 3)
+
+One photo is enough (1–12 accepted; short trails degrade honestly — fewer
+rounds, round counter reads the real total). The editor opens on a review
+card ("looks right" / "something's not quite right?"), with the authoring
+grid and world-source picker behind "look closer". Tier selection lives at
+the till: the door ships one default with "other ways to give" behind an
+expander, and the Seal's order summary carries trail ↔ hide (a Set is minted
+at creation and can't be switched at the till). Scenes live in
+`history.pushState`, so browser Back returns to the previous scene. The dock
+suggests the five shots that read best (door / sign / seat / view / detail).
 
 ## Known gaps (pre-launch hardening)
 
@@ -310,10 +368,15 @@ Public pages: `/privacy` and `/terms` (`public/privacy.html`, `public/terms.html
 - No automated tests around the new tier/mode branching yet — verify with the
   run card in `notes/CANONICAL-GIFT.md` (one person, own phone, no coaching)
   plus the `events` funnel on real strangers.
+- Uncoached recipient research (Phase 0 in `notes/PLAN.md`) has still not
+  been run — it gates every remaining decision (Set fate, print product,
+  price test, the world-first roadmap).
 
 Notes: `notes/CONCEPT.md` (product), `notes/RESEARCH.md` (demand evidence),
 `notes/SPIKE.md` (vision feasibility), `notes/CRAFT.md` (motion references),
-`notes/DIGITAL-HUNT.md` (world-first roadmap + tier price test).
+`notes/DIGITAL-HUNT.md` (world-first roadmap + tier price test),
+`notes/PLAN.md` (the sequencing plan: what shipped, what's gated on
+observation, kill criteria and owner decisions).
 Competition context: Shipyard "Make Me Money" (Nov 2026) + Ship or Die.
 GitHub: https://github.com/udirobert/enigmagift
 

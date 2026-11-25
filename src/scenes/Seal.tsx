@@ -17,6 +17,8 @@ interface SealProps {
   onSend: (token: string | null) => void;
   /** mid-flow upsell (Trail → Hide) — only wired for live, unsealed gifts */
   onTier?: (t: Tier) => void;
+  /** this gift was spawned from a Set pack, so it cannot itself become one */
+  packOwned?: boolean;
 }
 
 // one Stripe Payment Link per tier (legacy single VITE_STRIPE_LINK maps to hide)
@@ -39,7 +41,7 @@ const TIER_INCLUDES: Record<Tier, string> = {
  * (?paid=1, window focus, or the explicit "i've paid" nudge) we mark the
  * gift paid and seal for real. Demo mode keeps the old theatre.
  */
-export function Seal({ demo, giftId, kept, tier, mode, onSend, onTier }: SealProps) {
+export function Seal({ demo, giftId, kept, tier, mode, onSend, onTier, packOwned = false }: SealProps) {
   const STRIPE_LINK = STRIPE_LINKS[tier];
   const PRICE = PRICES[tier];
   const rootRef = useRef<HTMLElement>(null);
@@ -49,6 +51,11 @@ export function Seal({ demo, giftId, kept, tier, mode, onSend, onTier }: SealPro
   const [result, setResult] = useState<SealResult | null>(null);
   const [code, setCode] = useState<string | null>(null);
   const [copiedCode, setCopiedCode] = useState(false);
+  // Phase 1b — where the link should be sent, and when it should open.
+  const [email, setEmail] = useState('');
+  const [sendDate, setSendDate] = useState('');
+  // Phase 4 — the Hide fallback: "if I don't hide it, open it on <date>"
+  const [fallbackDate, setFallbackDate] = useState('');
   // idle → awaiting payment → working → sealed | error
   const [phase, setPhase] = useState<'idle' | 'awaiting' | 'working' | 'sealed' | 'error'>(
     demo || !giftId ? 'sealed' : 'idle',
@@ -103,7 +110,11 @@ export function Seal({ demo, giftId, kept, tier, mode, onSend, onTier }: SealPro
           /* payment marking is best-effort — the seal still matters */
         }
       }
-      const r = await sealGift(giftId);
+      const r = await sealGift(giftId, {
+        email: email.trim() || undefined,
+        sendAt: sendDate || undefined,
+        fallbackAt: mode === 'physical' && fallbackDate ? fallbackDate : undefined,
+      });
       setResult(r);
       setCode(r.unlockCode ?? null);
       setPhase('sealed');
@@ -142,6 +153,13 @@ export function Seal({ demo, giftId, kept, tier, mode, onSend, onTier }: SealPro
     const url = `${STRIPE_LINK}${STRIPE_LINK.includes('?') ? '&' : '?'}client_reference_id=${giftId}`;
     window.open(url, '_blank', 'noopener');
     setPhase('awaiting');
+    // Phase 1b — record that payment was attempted (ops visibility on
+    // abandonment; best-effort, never blocks the flow)
+    void fetch(`/api/gifts/${giftId}/intent`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tier }),
+    }).catch(() => {});
   };
 
   const copyCode = async () => {
@@ -305,7 +323,9 @@ export function Seal({ demo, giftId, kept, tier, mode, onSend, onTier }: SealPro
 
         {!demo && sealed && mode === 'digital' && (
           <p className="foot-note seal-anim">
-            no code, nothing to hide — the link opens the keepsake directly
+            {result?.sendAt
+              ? `sealed — the link opens ${new Date(result.sendAt).toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' })}${email ? ` and arrives at ${email}` : ''}`
+              : `sealed${email ? ` — the link is on its way to ${email}` : ''} — no code, nothing to hide, the link opens the keepsake directly`}
           </p>
         )}
         {!demo && sealed && mode === 'physical' && !code && (
@@ -345,6 +365,24 @@ export function Seal({ demo, giftId, kept, tier, mode, onSend, onTier }: SealPro
           <div className="seal-pay seal-anim">
             {/* order summary — price, what's included, who takes the money, refunds */}
             <div className="seal-order">
+              {/* Phase 3 — tier selection lives here, at the till, where the
+                  buyer has felt the trail and is choosing an ending. The pack
+                  row is minted server-side when the money lands, so a set can
+                  be sold right here; only a hunt that came *out* of a pack is
+                  excluded, since buying one twice is not a thing. */}
+              <div className="seg dock-seg seal-tier" role="group" aria-label="which gift">
+                {(packOwned ? (['trail', 'hide'] as Tier[]) : (['trail', 'hide', 'set'] as Tier[])).map((t) => (
+                  <button
+                    key={t}
+                    className={tier === t ? 'is-active' : ''}
+                    aria-pressed={tier === t}
+                    disabled={waiting}
+                    onClick={() => onTier?.(t)}
+                  >
+                    {TIER_NAMES[t]} · {PRICES[t]}
+                  </button>
+                ))}
+              </div>
               <div className="seal-order-head">
                 <span>{TIER_NAMES[tier]}</span>
                 <span>{PRICE}</span>
@@ -370,9 +408,62 @@ export function Seal({ demo, giftId, kept, tier, mode, onSend, onTier }: SealPro
               </TrustRow>
             </div>
             {STRIPE_LINK ? (
-              <button className="btn btn-primary" onClick={pay} disabled={waiting}>
-                {phase === 'awaiting' ? 'waiting for payment…' : `finish your gift — ${PRICE}`}
-              </button>
+              <>
+                <div className="seal-delivery">
+                  <label className="seal-delivery-label" htmlFor="seal-email">
+                    where should we send the link?
+                  </label>
+                  <input
+                    id="seal-email"
+                    className="seal-delivery-input"
+                    type="email"
+                    inputMode="email"
+                    autoComplete="email"
+                    placeholder="you@example.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                  />
+                  <p className="seal-delivery-note">
+                    we send the link there and keep the address only to deliver
+                    this gift — nothing else, deleted with the gift. losing the
+                    tab won’t lose the gift.
+                  </p>
+                  <label className="seal-delivery-label" htmlFor="seal-date">
+                    should it open on a particular day? <span className="seal-optional">optional</span>
+                  </label>
+                  <input
+                    id="seal-date"
+                    className="seal-delivery-input"
+                    type="date"
+                    value={sendDate}
+                    min={new Date().toISOString().slice(0, 10)}
+                    onChange={(e) => setSendDate(e.target.value)}
+                  />
+                  {mode === 'physical' && (
+                    <>
+                      <label className="seal-delivery-label" htmlFor="seal-fallback">
+                        if you don't manage to hide it, open anyway on{' '}
+                        <span className="seal-optional">recommended</span>
+                      </label>
+                      <input
+                        id="seal-fallback"
+                        className="seal-delivery-input"
+                        type="date"
+                        value={fallbackDate}
+                        min={new Date().toISOString().slice(0, 10)}
+                        onChange={(e) => setFallbackDate(e.target.value)}
+                      />
+                      <p className="seal-delivery-note">
+                        after this day the keepsake opens without the code — a
+                        gift that never dead-ends, even if the errand slips.
+                      </p>
+                    </>
+                  )}
+                </div>
+                <button className="btn btn-primary" onClick={pay} disabled={waiting}>
+                  {phase === 'awaiting' ? 'waiting for payment…' : `finish your gift — ${PRICE}`}
+                </button>
+              </>
             ) : (
               <button className="btn btn-primary" disabled>
                 payments opening soon
@@ -386,15 +477,6 @@ export function Seal({ demo, giftId, kept, tier, mode, onSend, onTier }: SealPro
             {!STRIPE_LINK && (
               <button className="demo-link" onClick={() => void finalize(false)}>
                 preview the trail without paying →
-              </button>
-            )}
-            {tier === 'trail' && onTier && phase === 'idle' && (
-              <button
-                className="demo-link seal-upsell"
-                onClick={() => onTier('hide')}
-                title="The Hide adds the physical ending: you hide something at the place, they find it with a code"
-              >
-                add the physical ending — hide something at the place (+£5) →
               </button>
             )}
           </div>
@@ -411,7 +493,7 @@ export function Seal({ demo, giftId, kept, tier, mode, onSend, onTier }: SealPro
         )}
 
         <p className="foot-note seal-anim">
-          it opens gently — three looks, then it gives itself up. no passwords.
+          it opens gently — a few looks, then it gives itself up. no passwords.
         </p>
       </div>
     </section>

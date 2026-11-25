@@ -86,13 +86,17 @@ export function Reading({
   const rootRef = useRef<HTMLElement>(null);
   const doneRef = useRef(false);
   const [shown, setShown] = useState(0);
+  // demo *or* an unreachable api: there is no live gift to wait for, so play
+  // the scripted read. Without this the offline fallback sat on "reading"
+  // forever — the streaming branch returned before the finish timer was set.
+  const scripted = demo || !giftId;
   // phase drives which lines are shown:
   //  'reading'  — photos are being read (stream discoveries as they land)
   //  'weaving'  — every photo read, the trail is being assembled
   //  'live'     — pipeline ready, show the real result lines
   //  'demo'     — offline / scripted
   const [phase, setPhase] = useState<'reading' | 'weaving' | 'live' | 'demo'>(
-    demo ? 'demo' : 'reading',
+    scripted ? 'demo' : 'reading',
   );
   const [observed, setObserved] = useState(0);
   const [notices, setNotices] = useState<string[]>([]);

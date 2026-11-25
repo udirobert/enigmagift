@@ -30,7 +30,7 @@ const tmp = mkdtempSync(join(tmpdir(), 'eg-sec-'));
 const PRELOAD = join(tmp, 'isolate-providers.mjs');
 writeFileSync(PRELOAD, `import { registerHooks } from 'node:module';
 const modules = {
- './pipeline.js': 'export async function runPipeline(){}; export async function reclue(){};',
+ './pipeline.js': 'export async function runPipeline(){}; export async function reclue(){}; export async function giftLetterDrafts(){ return []; };',
  './world.js': 'export async function buildWorld(){};',
  './portrait.js': 'export async function buildPortrait(){}; export function portraitMime(){return "image/webp";};'
 };
@@ -351,18 +351,93 @@ async function main() {
     assert.equal(g.mode, 'physical');
   });
 
-  await t('PATCH tier rejects anything but trail|hide → 400', async () => {
+  await t('PATCH tier rejects an unknown tier → 400', async () => {
+    const r = await fetch(`${BASE}/api/gifts/${upsellId}/tier`, {
+      method: 'PATCH', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ tier: 'free', mode: 'digital' }),
+    });
+    assert.equal(r.status, 400);
+  });
+
+  // --- the till: a set can be bought after the preview, and the pack is
+  // --- minted when the money lands, never before ---
+  // NB: these run on the upsell draft on purpose — the draft quota is 5/hour/IP
+  // and the suite already uses all five.
+  await t('PATCH tier trail→set is allowed before payment, mode forced digital', async () => {
+    const r = await fetch(`${BASE}/api/gifts/${upsellId}/tier`, {
+      method: 'PATCH', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ tier: 'set', mode: 'physical' }),
+    });
+    assert.equal(r.status, 200);
+    // a set is digital whatever mode the request carried
+    assert.deepEqual(await r.json(), { ok: true, tier: 'set', mode: 'digital' });
+    const g = await (await fetch(`${BASE}/api/gifts/${upsellId}`)).json();
+    assert.equal(g.tier, 'set');
+    assert.equal(g.mode, 'digital');
+    assert.equal(g.packId, null, 'no pack may exist before the money lands');
+  });
+
+  await t('PATCH tier set on a hunt spawned from a pack → 409 (no double sale)', async () => {
+    // give the draft a pack, as the pack route would have
+    const db = new DatabaseSync(join(tmp, 'test.db'));
+    db.prepare('INSERT INTO packs (id, purchase_gift_id, credits_left) VALUES (?,?,2)').run('pack-for-upsell', upsellId);
+    db.prepare('UPDATE gifts SET pack_id=? WHERE id=?').run('pack-for-upsell', upsellId);
+    db.close();
     const r = await fetch(`${BASE}/api/gifts/${upsellId}/tier`, {
       method: 'PATCH', headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ tier: 'set', mode: 'digital' }),
     });
-    assert.equal(r.status, 400);
+    assert.equal(r.status, 409);
+    // it can still move between the tiers it may own
+    const ok = await fetch(`${BASE}/api/gifts/${upsellId}/tier`, {
+      method: 'PATCH', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ tier: 'hide', mode: 'physical' }),
+    });
+    assert.equal(ok.status, 200);
+    // detach again: this draft is a set purchase below, not a pack child
+    const db2 = new DatabaseSync(join(tmp, 'test.db'));
+    db2.prepare('UPDATE gifts SET pack_id=NULL WHERE id=?').run(upsellId);
+    db2.prepare("DELETE FROM packs WHERE id='pack-for-upsell'").run();
+    db2.close();
+  });
+
+  await t('a set payment mints exactly one 3-hunt pack, however many times it lands', async () => {
+    const set = async () => fetch(`${BASE}/api/gifts/${upsellId}/tier`, {
+      method: 'PATCH', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ tier: 'set', mode: 'digital' }),
+    });
+    assert.equal((await set()).status, 200);
+    const payload = JSON.stringify({ type: 'checkout.session.completed', data: { object: { id: 'cs_set', client_reference_id: upsellId, amount_total: 1900, payment_status: 'paid', currency: 'gbp' } } });
+    for (let i = 0; i < 2; i++) {
+      // the same delivery arriving twice must not mint a second pack
+      const r = await fetch(`${BASE}/api/stripe/webhook`, {
+        method: 'POST', headers: { 'content-type': 'application/json', 'stripe-signature': sign(payload) }, body: payload,
+      });
+      assert.equal(r.status, 200);
+    }
+    const db = new DatabaseSync(join(tmp, 'test.db'));
+    const packs = db.prepare('SELECT id, credits_left FROM packs WHERE purchase_gift_id=?').all(upsellId);
+    const gift = db.prepare('SELECT pack_id, paid FROM gifts WHERE id=?').get(upsellId);
+    db.close();
+    assert.equal(packs.length, 1, 'a set gift must own exactly one pack');
+    assert.equal(packs[0].credits_left, 3);
+    assert.equal(gift.pack_id, packs[0].id, 'the gift must point at its pack');
+    assert.equal(gift.paid, 1);
+  });
+
+  await t('a trail payment mints no pack at all', async () => {
+    const db = new DatabaseSync(join(tmp, 'test.db'));
+    const rows = db.prepare('SELECT id FROM packs WHERE purchase_gift_id=?').all(giftId).length;
+    db.close();
+    assert.equal(rows, 0, 'only a set purchase may mint a pack');
   });
 
   await t('PATCH tier after seal → 409 (tier locked)', async () => {
     const db = new DatabaseSync(join(tmp, 'test.db'));
     const ROUNDS2 = [{ kicker: 'r1', question: 'q?', options: ['a', 'b', 'c'], correct: 1, cropPhotoIndex: 0 }];
-    db.prepare("UPDATE gifts SET status='ready', rounds=? WHERE id=?").run(JSON.stringify(ROUNDS2), upsellId);
+    // paid=0 on purpose: the payment already proved its own lock above, and
+    // this test must fail on the seal alone
+    db.prepare("UPDATE gifts SET status='ready', paid=0, rounds=? WHERE id=?").run(JSON.stringify(ROUNDS2), upsellId);
     db.close();
     const s = await fetch(`${BASE}/api/gifts/${upsellId}/seal`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' });
     assert.equal(s.status, 200);
