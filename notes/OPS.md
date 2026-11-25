@@ -1,6 +1,6 @@
 # EnigmaGift — ops runbook
 
-Last verified live: 2026-11-22. This is the "how to operate it" doc: deploys,
+Last verified live: 2026-11-25. This is the "how to operate it" doc: deploys,
 secrets, the gotchas that actually bit us, and how to verify the live flow.
 
 ---
@@ -30,6 +30,7 @@ Frontend and backend are **not** on the same host. Pages is static-only (+ the
 | `STRIPE_API_KEY` (optional) | Fly app secret | lets `mark-paid` verify the checkout session server-side. **Without it mark-paid fails closed** — only the signed webhook sets `paid` |
 | `ALLOWED_ORIGINS` (optional) | Fly app secret | comma-separated CORS allowlist; defaults to the deployed Pages/Netlify domains + localhost |
 | `ROOM_PROXY_SECRET` | Fly app secret **and** Cloudflare Worker secret — the same value in both | 32 random bytes as 64 hex; shared edge→API proof so room-gift creates bucket per real client IP. Never committed; `.dev.vars` is gitignored |
+| `ENABLE_EXPERIMENTAL_ROUTES` | Fly app secret/config value | currently `true` in production to preserve the already-live room/photo pilots behind an explicit operator opt-in; unset it when those pilots move off the canonical API |
 | Gemini key (fallback) | Fly app secret or explicit `server/.env` / `server/sandbase.env` | sibling-project `.env` scanning was removed; keys are never discovered across `~/Dev` |
 
 Note: `RECRAFT_API_KEY` spends **API units**, which are billed separately
@@ -646,6 +647,36 @@ offsite copy step is part of the weekly routine.
 - Live creation, discovery, draft return and saved preview verified; the one
   release fixture was revoked and its metadata and image both returned 404.
   Task browser sessions were closed and their Chrome profiles confirmed gone.
+
+## Production hardening release — 2026-11-25
+
+- Source `a6e512d` (`Harden payment, privacy, and production operations`).
+- Pre-deployment backup: `/data/backups/pre-deploy-a6e512d` on the Fly volume,
+  verified against source row counts (6 gifts, 5 trails, 1 pack, 15 events,
+  9 room gifts, 6 photo gifts) and copied off-volume before deployment.
+- Fly API image `deployment-01M89BHJ3H11Y5891R43YBYYCG`, machine
+  `080ee739b9d578` version 21. Previous rollback image:
+  `deployment-01M81SA5SRK00CANRFZ2AD120M`.
+- `ENABLE_EXPERIMENTAL_ROUTES=true` is intentionally provisioned so the
+  already-live tabletop/photo pilots keep working. `ALLOW_UNPAID_SEAL` is
+  unset; `MAX_DRAFTS_PER_DAY` uses the default 200.
+- Pages deployment `https://75cb3c78.enigmagift.pages.dev` is live at
+  `https://enigmagift.pages.dev`, serving `index-a2d7cmP_.js` and
+  `index-Bv1eB1Ss.css`. Prior Pages rollback target:
+  `https://2eb2e97f.enigmagift.pages.dev`.
+- Live smoke: API health 200 directly and through Pages; experimental Worker
+  `/api/health` 200; all three Stripe Payment Links present in the production
+  bundle; no three.js preload in `index.html`; updated privacy copy live;
+  the documented paid Fort Point trail returns 200 while the documented
+  unpaid Rosa's Cafe trail now returns 404 (intentional fail-closed behavior).
+- Migration result at deploy time: 2/6 gifts delivery-entitled, 1/5 trails
+  entitled. The other sealed trails were legacy unpaid test rows and are now
+  closed to recipients. The legacy already-minted Set pack still has 3 credits;
+  only newly minted Set packs are 2-credit packs.
+- Local verification before deployment: root build passed, root tests passed
+  (53 assertions + 10 scene smoke renders), server security suite 62/62,
+  backup/restore rehearsal passed, legacy migration rehearsal passed, root and
+  server production audits clean.
 
 ## Test trails currently in the DB (for re-verification)
 
