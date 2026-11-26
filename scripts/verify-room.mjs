@@ -7,7 +7,7 @@
    plus the served origin, so the same tests work against any local port. */
 
 import { spawn } from 'node:child_process';
-import { readFileSync, writeFileSync, existsSync, mkdirSync, statSync, readdirSync } from 'node:fs';
+import { copyFileSync, readFileSync, writeFileSync, existsSync, mkdirSync, statSync, readdirSync, unlinkSync } from 'node:fs';
 import { createInterface } from 'node:readline';
 import { resolve, dirname, join, extname, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -18,6 +18,7 @@ const DIST = resolve(ROOT, 'dog-gift-tabletop/dist');
 const API_ORIGIN = 'https://enigmagift-api.fly.dev';
 const VARIABLES_OUT = resolve(ROOT, '.testmuai/variables/assurance.json');
 const TESTS_DIR = resolve(ROOT, '.testmuai/tests');
+const STAGED_TESTS_DIR = resolve(ROOT, '.testmuai/testruns/submission');
 const REPORT = resolve(ROOT, '.testmuai/verify-report.json');
 const NDJSON_LOG = resolve(ROOT, '.testmuai/verify.ndjson');
 const PORT = Number(process.env.EG_VERIFY_PORT || 4299);
@@ -32,10 +33,13 @@ const variableValues = () => ({
   start_url: `${origin}/?photo=1`,
   jpeg_photo: resolve(ROOT, fixtures.jpegPhoto),
   non_jpeg_photo: resolve(ROOT, fixtures.nonJpegPhoto),
+  png_photo: resolve(ROOT, fixtures.pngPhoto),
+  webp_photo: resolve(ROOT, fixtures.webpPhoto),
+  unsupported_photo: resolve(ROOT, fixtures.unsupportedPhoto),
   valid_gift_url: giftUrl(fixtures.validGiftToken),
   revoked_gift_url: giftUrl(fixtures.revokedGiftToken),
   unknown_gift_url: giftUrl(fixtures.unknownGiftToken),
-  broken_photo_gift_url: '',
+  broken_photo_gift_url: giftUrl(fixtures.brokenPhotoGiftToken),
   gift_clue: fixtures.gift.clue,
   recipient_name: fixtures.gift.to,
   gift_message: fixtures.gift.message,
@@ -47,7 +51,10 @@ const variableValues = () => ({
 const VAR_DEScriptions = {
   start_url: 'Product browser URL for EnigmaGift; the creator is accessible with ?photo=1.',
   jpeg_photo: 'Path to a JPEG photo fixture accessible to the browser\'s file picker.',
-  non_jpeg_photo: 'Path to a non-JPEG photo fixture accessible to the browser\'s file picker.',
+  non_jpeg_photo: 'Path to a legacy non-JPEG fixture retained for superseded audit tests.',
+  png_photo: 'Path to a PNG photo fixture accessible to the browser\'s file picker.',
+  webp_photo: 'Path to a WebP photo fixture accessible to the browser\'s file picker.',
+  unsupported_photo: 'Path to an unsupported image fixture accessible to the browser\'s file picker.',
   valid_gift_url: 'Browser URL for a shareable EnigmaGift recipient gift.',
   revoked_gift_url: 'Browser recipient URL for a revoked EnigmaGift gift.',
   unknown_gift_url: 'Browser recipient URL for an unknown EnigmaGift gift.',
@@ -70,19 +77,39 @@ function writeVariables() {
   writeFileSync(VARIABLES_OUT, JSON.stringify(vars, null, 2) + '\n');
 }
 
+/* Run copies of the committed tests rather than the source files. Kane's
+   replay cache is machine-local sidecar state; when a step's prose changes the
+   cascade re-authors from that step onward, while unchanged steps can replay
+   quickly. The committed sources stay clean enough that a fresh clone — or a
+   judge — never depends on another org's identity. */
+function stageTests() {
+  mkdirSync(STAGED_TESTS_DIR, { recursive: true });
+  for (const stale of readdirSync(STAGED_TESTS_DIR).filter((n) => n.endsWith('_test.md'))) {
+    unlinkSync(join(STAGED_TESTS_DIR, stale));
+  }
+  const match = process.env.EG_VERIFY_MATCH ? new RegExp(process.env.EG_VERIFY_MATCH) : null;
+  const staged = new Map();
+  for (const f of readdirSync(TESTS_DIR).filter((n) => n.endsWith('_test.md') && (!match || match.test(n)))) {
+    const out = join(STAGED_TESTS_DIR, f);
+    copyFileSync(join(TESTS_DIR, f), out);
+    staged.set(f, out);
+  }
+  return staged;
+}
+
 /* Group suite members by the URL their Step 1 opens — replays need
    --override-start-url and each group's start differs. */
-function groupTests() {
+function groupTests(staged) {
   const values = variableValues();
   const groups = new Map();
   const skipped = [];
-  for (const f of readdirSync(TESTS_DIR).filter((n) => n.endsWith('_test.md'))) {
+  for (const [f, stagedPath] of staged) {
     const body = readFileSync(join(TESTS_DIR, f), 'utf8');
     const m = body.match(/\{\{([a-z_]+)\}\}/);
     const url = m ? values[m[1]] : undefined;
     if (!url) { skipped.push({ test: f, reason: m ? `no value for ${m[1]}` : 'no start variable found' }); continue; }
     if (!groups.has(url)) groups.set(url, []);
-    groups.get(url).push(join(TESTS_DIR, f));
+    groups.get(url).push(stagedPath);
   }
   return { groups, skipped };
 }
@@ -104,6 +131,20 @@ function startServer() {
       try {
         const u = new URL(req.url, 'http://local');
         if (u.pathname.startsWith('/api/')) {
+          /* Broken-photo fixture: metadata is proxied from the seeded valid
+             gift, while its image is deliberately unavailable. That creates
+             the exact state the resilience test needs without mutating the
+             production database. */
+          const brokenMeta = `/api/photo-gifts/${fixtures.brokenPhotoGiftToken}`;
+          const brokenImage = `${brokenMeta}/image`;
+          if (u.pathname === brokenImage) {
+            r.writeHead(404, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+            r.end(JSON.stringify({ error: 'gift_unavailable' }));
+            return;
+          }
+          const upstreamPath = u.pathname === brokenMeta
+            ? `/api/photo-gifts/${fixtures.validGiftToken}`
+            : u.pathname;
           const headers = new Headers(req.headers);
           headers.delete('host'); headers.delete('origin');
           headers.delete('cookie'); headers.delete('content-length');
@@ -114,7 +155,7 @@ function startServer() {
               req.on('end', () => b(Buffer.concat(chunks)));
               req.on('error', e);
             });
-          const up = await fetch(API_ORIGIN + u.pathname + u.search, {
+          const up = await fetch(API_ORIGIN + upstreamPath + u.search, {
             method: req.method, headers, body, redirect: 'manual',
           });
           const outHeaders = Object.fromEntries(up.headers.entries());
@@ -185,22 +226,31 @@ async function main() {
     process.exit(1);
   }
 
+  const failures = [];
+
   writeVariables();
-  const { groups, skipped } = groupTests();
-  for (const s of skipped) {
-    console.log(`verify: skipping ${s.test} — ${s.reason}`);
+  const staged = stageTests();
+  const { groups, skipped } = groupTests(staged);
+  const selectedCount = [...groups.values()].reduce((n, files) => n + files.length, 0);
+  if (selectedCount === 0) {
+    console.error('verify: no runnable tests selected');
+    process.exit(1);
   }
 
   /* Replays target a start URL per group (a member's recorded first navigate
      is a start-page placeholder — --override-start-url retargets it). */
   const events = [];
+  const groupResults = [];
   let code = 0;
   for (const [url, files] of groups) {
     console.log(`verify: ${files.length} test(s) against ${url}`);
+    const eventStart = events.length;
     const kane = spawn('kane-cli', [
-      'testrun', 'run', ...files,
+      'testrun', 'run',
       '--agent', '--headless', '--on-failure', 'continue',
+      '--parallel', process.env.EG_VERIFY_PARALLEL || '2',
       '--override-start-url', url,
+      ...files,
     ], {
       cwd: ROOT,
       env: { ...process.env, KANE_CLI_USER_AGENT: process.env.KANE_CLI_USER_AGENT || 'devin' },
@@ -213,37 +263,77 @@ async function main() {
     const c = await new Promise((res) => kane.on('close', res));
     rl.close();
     if (c !== 0) code = code || c;
+
+    const groupEvents = events.slice(eventStart);
+    const plan = groupEvents.find((e) => e.type === 'testrun_plan');
+    const summary = groupEvents.find((e) => e.type === 'testrun_summary');
+    const done = groupEvents.find((e) => e.type === 'testrun_done');
+    const memberEnds = groupEvents.filter((e) =>
+      (e.type === 'testrun_member_end' || e.type === 'testrun_authored_member_end'));
+    const unresolved = groupEvents.flatMap((e) =>
+      e.type === 'warning' && e.code === 'unresolved_variables' ? e.variables || [] : []);
+    groupResults.push({
+      url,
+      tests: files.map((f) => f.split('/').pop()),
+      exit_code: c,
+      plan_valid: plan?.valid,
+      member_end_count: memberEnds.length,
+      expected_count: files.length,
+      summary: summary?.totals,
+      overall_status: done?.overall_status,
+      unresolved_variables: unresolved.map((v) => v.name),
+    });
+
+    if (!plan || plan.valid !== true) {
+      failures.push({ kind: 'plan', url, message: 'missing or invalid testrun plan', tests: files.map((f) => f.split('/').pop()) });
+    }
+    if (!summary) {
+      failures.push({ kind: 'structure', url, message: 'missing testrun summary — cannot prove the suite completed' });
+    }
+    if (!done) {
+      failures.push({ kind: 'structure', url, message: 'missing testrun completion event — cannot prove the suite completed' });
+    } else if (done.overall_status !== 'passed') {
+      failures.push({ kind: 'suite', url, status: done.overall_status, message: 'suite did not pass' });
+    }
+    if (memberEnds.length < files.length) {
+      failures.push({
+        kind: 'structure', url,
+        message: `only ${memberEnds.length} of ${files.length} selected tests reported an end event`,
+      });
+    }
+    for (const v of unresolved) {
+      failures.push({ kind: 'variables', url, variable: v.name, reason: v.reason });
+    }
   }
   writeFileSync(NDJSON_LOG, events.map((e) => JSON.stringify(e)).join('\n') + '\n');
 
-  /* Digest: pull every failed member/step plus the evidence pointers so an
+  /* Digest: pull every non-passing member plus the evidence pointers so an
      agent (or a human) can act on the failure without re-running. */
-  const failures = [];
   for (const e of events) {
     const member = e.type === 'testrun_member_event' ? e.member?.path : e.path;
     const inner = e.type === 'testrun_member_event' ? e.event : e;
     if (!inner) continue;
-    if (inner.type === 'test_md_step_end' && inner.status === 'failed') {
-      failures.push({ test: member, step: inner.step_index, kind: 'step' });
+    if (inner.type === 'test_md_step_end' && inner.status !== 'passed') {
+      failures.push({ test: member, step: inner.step_index, kind: 'step', status: inner.status });
     }
-    if (inner.type === 'test_md_summary' && inner.overall_status === 'failed') {
+    if (inner.type === 'test_md_summary' && inner.overall_status !== 'passed') {
       failures.push({
-        test: member, kind: 'test',
+        test: member, kind: 'test', status: inner.overall_status,
         share_url: inner.share_url,
         steps: inner.steps,
       });
     }
     if ((inner.type === 'testrun_member_end' || inner.type === 'testrun_authored_member_end')
-      && inner.status === 'failed') {
+      && inner.status !== 'passed') {
       failures.push({
-        test: inner.path || member, kind: 'member',
+        test: inner.path || member, kind: 'member', status: inner.status,
         message: inner.failure?.message, step: inner.failure?.step_index,
         log: inner.log_path,
       });
     }
-    if (inner.type === 'run_end' && inner.status === 'failed') {
+    if (inner.type === 'run_end' && inner.status !== 'passed') {
       failures.push({
-        test: member, kind: 'run',
+        test: member, kind: 'run', status: inner.status,
         reason: inner.reason, reason_code: inner.reason_code,
         session_dir: inner.session_dir,
       });
@@ -255,6 +345,7 @@ async function main() {
     exit_code: code,
     failures,
     skipped,
+    groups: groupResults,
     log: NDJSON_LOG,
   }, null, 2) + '\n');
 

@@ -11,5 +11,9 @@
     "clue": "Try the bottom right."
   },
   "hidingSpotLocation": "the bottom right of the photo",
-  "outsideSpotLocation": "the middle left of the photo"
+  "outsideSpotLocation": "the middle left of the photo",
+  "brokenPhotoGiftToken": "dlpd5SBzIZoympnjkIjm8MoTUFZOTYKulkZFy2EEX6w",
+  "pngPhoto": "spec/fixtures/not-jpeg.png",
+  "webpPhoto": "spec/fixtures/photo.webp",
+  "unsupportedPhoto": "spec/fixtures/unsupported.gif"
 }

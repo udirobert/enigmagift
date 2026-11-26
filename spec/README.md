@@ -5,12 +5,19 @@ Tests are not hand-written: `photo-gift.md` is the requirements source the
 suite was designed from, and every `_test.md` in `.testmuai/tests/` is tagged
 with the acceptance criteria it verifies (`@verifies ac-…`).
 
+For the 2026 KaneCLI Online Hackathon eligibility rules, repo-age evidence,
+submission gaps and judging fit, see
+[`../notes/KANECLI-HACKATHON.md`](../notes/KANECLI-HACKATHON.md). That file is
+a time-boxed event snapshot; this file remains the operator guide for the
+suite itself.
+
 ## Layout
 
 - `photo-gift.md` — requirements the suite was designed from
 - `fixtures.json` — fixture constants the gate turns into run variables
 - `fixtures/not-jpeg.png` — non-JPEG input fixture
-- `../.testmuai/tests/` — the designed, runnable suite
+- `../.testmuai/tests/` — the designed, runnable release-blocking suite
+- `../.testmuai/tests/superseded/` — superseded or invalidated designs kept for audit, not run by the gate
 - `../scripts/verify-room.mjs` — the deploy gate
 
 ## Running the gate
@@ -37,8 +44,22 @@ replay.
 API: a live one, a revoked one, and an unknown token (404s). To reseed,
 create a gift through the creator, record its recipient token, and update
 the token fields; for the revoked fixture, create then close the gift via
-its private controls. `broken_photo_gift_url` has no seedable fixture yet —
-that test is skipped by the gate and tracked as a coverage gap.
+its private controls. The broken-photo fixture is synthetic but explicit:
+the local verification proxy serves metadata from the live seeded gift while
+making its image endpoint return 404, reproducing the damaged-image state
+without mutating production data.
+
+## Superseded designs
+
+Deadline-day Kane failures exposed three stale requirements/designs: JPEG-only
+input language after the product learned PNG/WebP normalization, “local
+storage” when the implementation uses IndexedDB-backed persistent storage, and
+an ambiguous assertion that `Open the note` was an initial recipient control
+when the shipped design reveals it only after the note is found. The affected
+`_test.md` files are kept in `.testmuai/tests/superseded/` for audit rather
+than silently deleted. Corrected recipient tests were regenerated through the
+assurance workflow; replacement creator-side storage/format tests and the saved-recipient preview design remain
+explicit coverage debt until they are redesigned and authored.
 
 ## Coverage
 

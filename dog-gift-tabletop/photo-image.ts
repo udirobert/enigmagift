@@ -10,11 +10,11 @@ export interface PreparedPhoto { blob: Blob; width: number; height: number }
 
 export type PhotoReject = 'not_an_image' | 'too_large' | 'cannot_prepare';
 
-const ACCEPTED = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif']);
-const ACCEPTED_EXT = /\.(jpe?g|png|webp|heic|heif)$/i;
+const ACCEPTED = new Set(['image/jpeg', 'image/png', 'image/webp']);
+const ACCEPTED_EXT = /\.(jpe?g|png|webp)$/i;
 
 export const photoAcceptAttr =
-  'image/jpeg,image/png,image/webp,image/heic,image/heif,.jpg,.jpeg,.png,.webp,.heic,.heif';
+  'image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp';
 
 /* Decode one file into a normalized JPEG. Returns a reject reason rather
    than throwing so the caller keeps the previous draft untouched. */

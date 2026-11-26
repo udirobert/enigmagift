@@ -17,12 +17,16 @@ From the creator, choose {{jpeg_photo}}, position the hiding spot, write To 'Ada
 
 ## Step 3 @verifies ac-19, ac-20
 
-On the ready screen, locate the share link and Make changes, record the earlier link's URL for comparison, then assert Link to share and Make changes are displayed.
+On the ready screen, locate the share link and Make changes, use Copy link to place the original share link in the test clipboard, verify the clipboard contains '#gift=', then assert Link to share and Make changes are displayed.
 
-## Step 4 @verifies ac-1
+## Step 4
 
-From Make changes on this saved gift, change the note message to 'Revised gift', review and create the edited gift link, then assert the new share link differs from the recorded earlier link.
+From Make changes on this saved gift, change the note message to 'Revised gift', review and create the edited gift link, then assert the edited gift ready screen is shown.
 
-## Step 5 @verifies ac-2
+## Step 5
 
-Open the recorded earlier share link in the browser, then assert it still presents the original gift with 'First gift' rather than the edited 'Revised gift'.
+Focus the browser address bar, paste the original share link from the test clipboard, press Enter. On the original recipient gift, use Open without searching to open the letter.
+
+## Step 6 @verifies ac-1, ac-2
+
+On the opened original gift letter, assert the message shows 'First gift' and does not show the edited text 'Revised gift'.

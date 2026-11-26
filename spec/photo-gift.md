@@ -7,7 +7,7 @@ read the message. All flows run in a browser on desktop and mobile viewports.
 ## UC1 — Create a photo gift
 
 - The giver opens the photo-gift creator (?photo=1).
-- They choose a JPEG photo from their device.
+- They choose a JPEG, PNG or WebP photo from their device; the browser normalizes it to a clean JPEG before upload.
 - They place the hiding spot by tapping the photo or using "Centre the note";
   the spot can be moved before continuing. A paper-marker shows the spot.
 - They may write an optional clue (up to 200 characters) or skip it.
@@ -28,8 +28,8 @@ read the message. All flows run in a browser on desktop and mobile viewports.
 ## UC3 — Recipient discovers and reads the note
 
 - Opening the recipient link shows the photo, the clue, and hunt controls:
-  "A little hint", "Open the note", "Open without searching",
-  "Search by area" (nine named regions).
+  "A little hint", "Open without searching", and "Search by area"
+  (nine named regions). "Open the note" appears once the note is found.
 - Tapping outside the spot reports a gentle miss ("Not quite there").
 - Searching a wrong area names it ("Nothing in the middle left").
 - Finding the spot (tap, correct area, or second hint) reveals a folded-note
@@ -45,7 +45,7 @@ read the message. All flows run in a browser on desktop and mobile viewports.
   "Try again" and can still open the note directly.
 - With OS reduced-motion enabled, all screens remain fully usable.
 - At 320px-wide and short viewports, all primary controls remain reachable.
-- If the browser blocks local storage, the app still works within the tab
+- If the browser blocks persistent storage, the app still works within the tab
   and says the draft stays in this tab.
 
 ## Out of scope for this suite
