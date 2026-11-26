@@ -18,8 +18,6 @@ is three hunts total — this purchase plus two further hunts — for different 
 
 Live: **https://enigmagift.pages.dev**
 
-**KaneCLI hackathon:** [judge guide and reproducible verification gate](KANECLI.md) — the photo-gift surface is designed to refuse deployment unless KaneCLI evidence is green.
-
 ## Tiers
 
 | Tier | Price | Mode | What the giver does | Recipient flow |
@@ -407,8 +405,7 @@ Notes: `notes/CONCEPT.md` (product), `notes/RESEARCH.md` (demand evidence),
 `notes/SPIKE.md` (vision feasibility), `notes/CRAFT.md` (motion references),
 `notes/DIGITAL-HUNT.md` (world-first roadmap + tier price test),
 `notes/PLAN.md` (the sequencing plan: what shipped, what's gated on
-observation, kill criteria and owner decisions), `notes/HEYGEN-CONTEST.md`
-(HeyGen Video Contest candidate-film brief).
+observation, kill criteria and owner decisions).
 Competition context: Shipyard "Make Me Money" (Nov 2026) + Ship or Die.
 GitHub: https://github.com/udirobert/enigmagift
 
