@@ -28,6 +28,9 @@ console.log('=== enigmagift ops report —', new Date().toISOString(), '===\n');
 console.log('-- configured capabilities (presence only, never values) --');
 for (const key of [
   'SANDBASE_API_KEY',
+  'GROQ_API_KEY',
+  'CLOUDFLARE_API_TOKEN',
+  'CLOUDFLARE_ACCOUNT_ID',
   'GEMINI_API_KEY',
   'STRIPE_WEBHOOK_SECRET',
   'STRIPE_API_KEY',
@@ -35,6 +38,7 @@ for (const key of [
   'RECRAFT_API_KEY',
   'FAL_KEY',
 ]) console.log(`${key}:`, process.env[key] ? 'configured' : 'missing');
+console.log('VISION_PROVIDERS:', process.env.VISION_PROVIDERS ? process.env.VISION_PROVIDERS : 'all (default)');
 console.log('ENABLE_EXPERIMENTAL_ROUTES:', process.env.ENABLE_EXPERIMENTAL_ROUTES === 'true' ? 'true' : 'false');
 console.log('ALLOW_UNPAID_SEAL:', process.env.ALLOW_UNPAID_SEAL === 'true' ? 'true — dangerous in production' : 'false');
 console.log('MAIL_FROM:', process.env.MAIL_FROM ? 'configured' : 'missing');

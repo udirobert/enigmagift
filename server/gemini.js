@@ -1,9 +1,10 @@
 // Vision calls: per-image observation + cross-image aggregate.
 // Primary provider: SandBase (OpenAI-compatible, image_url vision, Bearer auth).
-// Fallback: native Google Gemini (generativelanguage.googleapis.com) when a
-// working key is available. getCandidates tests each key+model pair with a real
-// call, so a dead quota / unknown model never poisons the others — failover
-// walks the ordered list, last-success first.
+// Groq and Cloudflare Workers AI are privacy-conscious fallback candidates;
+// native Google Gemini is the final fallback when a working key is available.
+// getCandidates tests each key+model pair with a real call, so dead quota /
+// unknown models never poison the others — failover walks the ordered list,
+// last-success first.
 import { readFileSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -11,7 +12,9 @@ import { fileURLToPath } from 'node:url';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 const SANDBASE_BASE = 'https://api.sandbase.ai/v1';
+const GROQ_BASE = 'https://api.groq.com/openai/v1';
 const GEMINI_BASE = 'https://generativelanguage.googleapis.com/v1beta';
+const CLOUDFLARE_MODEL = '@cf/qwen/qwen3.8-27b';
 
 // Ordered preference per provider. Each is vision-capable; the candidate test
 // below confirms it with a tiny image so a non-vision model gets skipped.
@@ -23,7 +26,15 @@ const SANDBASE_MODELS = [
   'google/gemini-2.5-flash',
   'google/gemini-2.5-flash-lite',
 ];
+const GROQ_MODELS = [
+  'qwen/qwen3.8-27b',
+];
+const CLOUDFLARE_MODELS = [
+  '@cf/mistralai/mistral-small-3.1-24b-instruct',
+  CLOUDFLARE_MODEL,
+];
 const GEMINI_MODELS = [
+  'gemini-3.5-flash-lite',
   'gemini-2.5-flash',
   'gemini-2.5-flash-lite',
 ];
@@ -33,12 +44,13 @@ const TEST_PNG_B64 =
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
 
 let cachedList = null; // [{provider, key, model}] — working pairs, best first
-let lastGood = 0;       // index into cachedList that last succeeded
+let lastGood = 0;       // legacy single-client index (getClient only)
+const lastGoodByKind = { image: 0, text: 0 }; // per-workload failover memory
 
 function* envFiles() {
   // Explicit project-local compatibility files only. Never scan sibling
   // projects: credentials must come from this deployment's own configuration.
-  for (const f of ['.env', 'sandbase.env']) {
+  for (const f of ['.env', 'sandbase.env', 'groq.env', 'cloudflare.env']) {
     const p = join(__dirname, f);
     if (existsSync(p)) yield p;
   }
@@ -49,29 +61,50 @@ function* envFiles() {
 function candidateKeys() {
   const sand = [];
   const gem = [];
+  const groq = [];
+  const cfTokens = [];
+  const cfAccounts = [];
   if (process.env.SANDBASE_API_KEY) sand.push(process.env.SANDBASE_API_KEY);
   if (process.env.GEMINI_API_KEY) gem.push(process.env.GEMINI_API_KEY);
   if (process.env.GOOGLE_API_KEY) gem.push(process.env.GOOGLE_API_KEY);
   if (process.env.GOOGLE_GENERATIVE_AI_API_KEY) gem.push(process.env.GOOGLE_GENERATIVE_AI_API_KEY);
+  if (process.env.GROQ_API_KEY) groq.push(process.env.GROQ_API_KEY);
+  if (process.env.CLOUDFLARE_API_TOKEN) cfTokens.push(process.env.CLOUDFLARE_API_TOKEN);
+  if (process.env.CLOUDFLARE_ACCOUNT_ID) cfAccounts.push(process.env.CLOUDFLARE_ACCOUNT_ID);
 
   const seenS = new Set(sand);
   const seenG = new Set(gem);
+  const seenQ = new Set(groq);
+  const seenCT = new Set(cfTokens);
+  const seenCA = new Set(cfAccounts);
   for (const f of envFiles()) {
     let txt;
     try { txt = readFileSync(f, 'utf8'); } catch { continue; }
     let m;
-    const reS = /^SANDBASE_API_KEY\s*=\s*["']?([^"'\n]+)/gm;
-    while ((m = reS.exec(txt))) {
-      const v = m[1].trim().replace(/["']$/, '');
+    const readVals = (re, group = 1) => {
+      const vals = [];
+      while ((m = re.exec(txt))) vals.push(m[group].trim().replace(/["']$/, ''));
+      return vals;
+    };
+    for (const v of readVals(/^SANDBASE_API_KEY\s*=\s*["']?([^"'\n]+)/gm)) {
       if (v.length >= 15 && !seenS.has(v)) { seenS.add(v); sand.push(v); }
     }
-    const reG = /^(GEMINI_API_KEY|GOOGLE_API_KEY|GOOGLE_GENERATIVE_AI_API_KEY)\s*=\s*["']?([^"'\n]+)/gm;
-    while ((m = reG.exec(txt))) {
-      const v = m[2].trim().replace(/["']$/, '');
+    for (const v of readVals(/^(GEMINI_API_KEY|GOOGLE_API_KEY|GOOGLE_GENERATIVE_AI_API_KEY)\s*=\s*["']?([^"'\n]+)/gm, 2)) {
       if (v.length >= 15 && !seenG.has(v)) { seenG.add(v); gem.push(v); }
     }
+    for (const v of readVals(/^GROQ_API_KEY\s*=\s*["']?([^"'\n]+)/gm)) {
+      if (v.length >= 15 && !seenQ.has(v)) { seenQ.add(v); groq.push(v); }
+    }
+    for (const v of readVals(/^CLOUDFLARE_API_TOKEN\s*=\s*["']?([^"'\n]+)/gm)) {
+      if (v.length >= 15 && !seenCT.has(v)) { seenCT.add(v); cfTokens.push(v); }
+    }
+    for (const v of readVals(/^CLOUDFLARE_ACCOUNT_ID\s*=\s*["']?([^"'\n]+)/gm)) {
+      if (v.length >= 8 && !seenCA.has(v)) { seenCA.add(v); cfAccounts.push(v); }
+    }
   }
-  return { sand, gem };
+  const accountId = cfAccounts[0] || '';
+  const cloudflare = accountId ? cfTokens.map((token) => ({ token, accountId })) : [];
+  return { sand, gem, groq, cloudflare };
 }
 
 async function testSandbase(key, model) {
@@ -105,19 +138,75 @@ async function testGemini(key, model) {
   } catch { return false; }
 }
 
-// All working key+model pairs, best first. SandBase is tried before native
-// Gemini so the paid key is used first; native free-tier keys remain as an
-// automatic fallback if SandBase is unavailable.
+function cloudflareChatUrl(accountId) {
+  return `https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/v1/chat/completions`;
+}
+
+function cloudflareControlFields(model) {
+  // Qwen burns completion tokens in hidden reasoning unless template thinking
+  // is disabled. Mistral has no such mode and may reject unknown controls.
+  return model.includes('qwen') ? {
+    reasoning_effort: 'low',
+    chat_template_kwargs: { enable_thinking: false },
+  } : {};
+}
+
+// Groq/Cloudflare model ids are fixed and documented as vision-capable, so a
+// cheap text probe is enough to prove credential/model availability without
+// spending each provider's much larger fixed image-token allocation at boot.
+async function testOpenAiText(url, key, model, extraBody = {}) {
+  try {
+    const r = await fetch(url, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${key}` },
+      body: JSON.stringify({
+        model,
+        messages: [{ role: 'user', content: 'Reply with the single word: ok' }],
+        max_completion_tokens: 8,
+        ...extraBody,
+      }),
+      signal: AbortSignal.timeout(30000),
+    });
+    return r.status === 200;
+  } catch { return false; }
+}
+
+function providerEnabled(provider) {
+  const raw = process.env.VISION_PROVIDERS;
+  if (!raw || !raw.trim()) return true;
+  const allowed = new Set(raw.split(',').map((v) => v.trim().toLowerCase()).filter(Boolean));
+  return allowed.has(provider);
+}
+
+// All working key+model pairs, best first. SandBase remains preferred while
+// funded; Cloudflare is the first privacy-conscious fallback because its free
+// tier tolerates parallel image reads better, Groq is the fast secondary
+// fallback, and native Gemini is the final compatibility fallback.
+// VISION_PROVIDERS can pin the enabled provider set for controlled benchmarks or incident response.
 export async function getCandidates() {
   if (cachedList) return cachedList;
-  const { sand, gem } = candidateKeys();
+  const { sand, gem, groq, cloudflare } = candidateKeys();
   const out = [];
-  for (const key of sand) {
+  if (providerEnabled('sandbase')) for (const key of sand) {
     for (const model of SANDBASE_MODELS) {
       if (await testSandbase(key, model)) out.push({ provider: 'sandbase', key, model });
     }
   }
-  for (const key of gem) {
+  if (providerEnabled('cloudflare')) for (const cf of cloudflare) {
+    for (const model of CLOUDFLARE_MODELS) {
+      if (await testOpenAiText(cloudflareChatUrl(cf.accountId), cf.token, model, cloudflareControlFields(model))) {
+        out.push({ provider: 'cloudflare', key: cf.token, accountId: cf.accountId, model });
+      }
+    }
+  }
+  if (providerEnabled('groq')) for (const key of groq) {
+    for (const model of GROQ_MODELS) {
+      if (await testOpenAiText(`${GROQ_BASE}/chat/completions`, key, model, { reasoning_effort: 'none' })) {
+        out.push({ provider: 'groq', key, model });
+      }
+    }
+  }
+  if (providerEnabled('gemini')) for (const key of gem) {
     for (const model of GEMINI_MODELS) {
       if (await testGemini(key, model)) out.push({ provider: 'gemini', key, model });
     }
@@ -130,21 +219,27 @@ export async function getCandidates() {
 // Kept for callers that want a single client — first working pair.
 export async function getClient() {
   const list = await getCandidates();
-  if (!list.length) throw new Error('No working vision key found (set SANDBASE_API_KEY or GEMINI_API_KEY)');
+  if (!list.length) throw new Error('No working vision key found (set SANDBASE_API_KEY, GROQ_API_KEY, CLOUDFLARE_API_TOKEN or GEMINI_API_KEY)');
   return list[lastGood];
 }
 
-// Try candidates in order (last-success first), fail over on any error.
+// Try candidates in order (last-success first for this workload), fail over
+// on any error. Image and text success are remembered separately so a fast
+// text-only Groq letter cannot accidentally promote Groq ahead of Cloudflare
+// for the next parallel batch of image reads.
 async function callVision(parts, opts) {
   const list = await getCandidates();
-  if (!list.length) throw new Error('No working vision key found (set SANDBASE_API_KEY or GEMINI_API_KEY)');
-  const order = [...list.slice(lastGood), ...list.slice(0, lastGood)];
+  if (!list.length) throw new Error('No working vision key found (set SANDBASE_API_KEY, GROQ_API_KEY, CLOUDFLARE_API_TOKEN or GEMINI_API_KEY)');
+  const kind = parts.some((p) => p.inline_data) ? 'image' : 'text';
+  const start = Math.min(lastGoodByKind[kind] || 0, Math.max(0, list.length - 1));
+  const order = [...list.slice(start), ...list.slice(0, start)];
   let lastErr = null;
   for (let i = 0; i < order.length; i++) {
     const c = order[i];
     try {
-      const r = c.provider === 'sandbase' ? await callSandbase(c, parts, opts) : await callGemini(c, parts, opts);
-      lastGood = list.indexOf(c);
+      const r = c.provider === 'gemini' ? await callGemini(c, parts, opts) : await callOpenAiCompatible(c, parts, opts);
+      lastGoodByKind[kind] = list.indexOf(c);
+      lastGood = lastGoodByKind[kind];
       return r;
     } catch (e) {
       lastErr = e;
@@ -225,7 +320,38 @@ async function generateWithRetry({ doPost, extract, buildBody, label }) {
   throw lastErr || new Error(`${label} call failed`);
 }
 
-async function callSandbase({ key, model }, parts, { temperature = 0.2, maxOutputTokens = 4096 } = {}) {
+function openAiCompatibleUrl(c) {
+  if (c.provider === 'cloudflare') return cloudflareChatUrl(c.accountId);
+  if (c.provider === 'groq') return `${GROQ_BASE}/chat/completions`;
+  return `${SANDBASE_BASE}/chat/completions`;
+}
+
+function openAiTokenFields(provider, maxOutputTokens, model = '') {
+  if (provider === 'groq') {
+    // The free tier rejects requests whose advertised output budget exceeds
+    // 1,000 output tokens/minute. Nine hundred is enough for a compact 8–11
+    // observation JSON response; malformed/truncated output fails over.
+    return {
+      max_completion_tokens: Math.min(maxOutputTokens, 900),
+      response_format: { type: 'json_object' },
+      reasoning_effort: 'none',
+    };
+  }
+  if (provider === 'cloudflare') {
+    // Qwen otherwise spends most of the completion budget in its separate
+    // reasoning field. Disabling template thinking produced direct valid JSON
+    // in benchmarking; 1,600 bounded tokens avoid runaway Neuron spend.
+    return {
+      max_completion_tokens: Math.min(maxOutputTokens, 1600),
+      response_format: { type: 'json_object' },
+      ...cloudflareControlFields(model),
+    };
+  }
+  return { max_tokens: maxOutputTokens };
+}
+
+async function callOpenAiCompatible(c, parts, { temperature = 0.2, maxOutputTokens = 4096 } = {}) {
+  const { key, model, provider } = c;
   const content = [];
   for (const p of parts) {
     if (p.text) content.push({ type: 'text', text: p.text });
@@ -236,13 +362,14 @@ async function callSandbase({ key, model }, parts, { temperature = 0.2, maxOutpu
     model,
     messages: [{ role: 'user', content: nudged ? [...content, nudge] : content }],
     temperature,
-    max_tokens: maxOutputTokens,
+    ...openAiTokenFields(provider, maxOutputTokens, model),
   });
+  const label = provider === 'cloudflare' ? 'Cloudflare' : provider === 'groq' ? 'Groq' : 'Sandbase';
   return generateWithRetry({
-    label: 'Sandbase',
+    label,
     extract: (j) => j?.choices?.[0]?.message?.content || '',
     buildBody,
-    doPost: (body) => fetch(`${SANDBASE_BASE}/chat/completions`, {
+    doPost: (body) => fetch(openAiCompatibleUrl(c), {
       method: 'POST',
       headers: { 'content-type': 'application/json', authorization: `Bearer ${key}` },
       body: JSON.stringify(body),

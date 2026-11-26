@@ -18,6 +18,8 @@ is three hunts total — this purchase plus two further hunts — for different 
 
 Live: **https://enigmagift.pages.dev**
 
+**KaneCLI hackathon:** [judge guide and reproducible verification gate](KANECLI.md) — the photo-gift surface is designed to refuse deployment unless KaneCLI evidence is green.
+
 ## Tiers
 
 | Tier | Price | Mode | What the giver does | Recipient flow |
@@ -131,6 +133,18 @@ Env (backend, `server/.env` or Fly secrets):
 
 - `SANDBASE_API_KEY` — primary vision provider (local copy in
   `server/sandbase.env`, gitignored; set on Fly via `fly secrets set`).
+- `CLOUDFLARE_API_TOKEN` + `CLOUDFLARE_ACCOUNT_ID` — first privacy-conscious
+  Workers AI vision fallback (`server/cloudflare.env`, gitignored). Uses
+  Mistral Small first and Qwen as a second Cloudflare candidate; both are
+  zero-data-retention models. The token needs only account-scoped Workers AI
+  Read access.
+- `GROQ_API_KEY` — fast secondary privacy-conscious vision fallback using
+  Qwen (`server/groq.env`, gitignored). The free tier is rate-limited,
+  especially on output tokens, so it is a fallback rather than the sole
+  provider.
+- `VISION_PROVIDERS` — optional comma-separated provider allowlist
+  (`sandbase,groq,cloudflare,gemini`) for controlled benchmarks or incident
+  response. Leave unset in normal production.
 - `FAL_KEY` — world-generation provider (local copy in `server/fal.env`,
   gitignored). Use a scoped key limited to TRELLIS.2 execution plus the
   upload/request permissions needed to submit and poll it.
@@ -138,7 +152,7 @@ Env (backend, `server/.env` or Fly secrets):
   the place" (`server/portrait.js`, Recraft `imageToImage` — bills API
   units, not subscription credits). Without it the portrait is skipped.
   `RECRAFT_STYLE_ID` / `RECRAFT_MODEL` override the keepsake style/model.
-- `GEMINI_API_KEY` — fallback provider; `GOOGLE_API_KEY` /
+- `GEMINI_API_KEY` — final fallback provider; `GOOGLE_API_KEY` /
   `GOOGLE_GENERATIVE_AI_API_KEY` are also picked up as extra quota pools.
 - `STRIPE_WEBHOOK_SECRET` — verifies `POST /api/stripe/webhook` signatures.
 - `STRIPE_API_KEY` — optional secret key; lets `mark-paid` verify the
@@ -393,7 +407,8 @@ Notes: `notes/CONCEPT.md` (product), `notes/RESEARCH.md` (demand evidence),
 `notes/SPIKE.md` (vision feasibility), `notes/CRAFT.md` (motion references),
 `notes/DIGITAL-HUNT.md` (world-first roadmap + tier price test),
 `notes/PLAN.md` (the sequencing plan: what shipped, what's gated on
-observation, kill criteria and owner decisions).
+observation, kill criteria and owner decisions), `notes/HEYGEN-CONTEST.md`
+(HeyGen Video Contest candidate-film brief).
 Competition context: Shipyard "Make Me Money" (Nov 2026) + Ship or Die.
 GitHub: https://github.com/udirobert/enigmagift
 

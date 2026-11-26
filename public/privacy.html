@@ -43,7 +43,7 @@
     <main>
       <p class="kicker">enigmagift</p>
       <h1>privacy</h1>
-      <p class="updated">last updated: 21 november 2026 · plain-language, no dark patterns</p>
+      <p class="updated">last updated: 26 november 2026 · plain-language, no dark patterns</p>
 
       <div class="short">
         <h2>the short version</h2>
@@ -78,7 +78,9 @@
         <table>
           <tr><th>processor</th><th>what they get</th><th>purpose</th></tr>
           <tr><td>SandBase (api.sandbase.ai)</td><td>your photos (image data)</td><td>vision “read” of the photos</td></tr>
-          <tr><td>Google Gemini (generativelanguage.googleapis.com)</td><td>your photos (image data)</td><td>fallback vision read if SandBase is unavailable</td></tr>
+          <tr><td>Groq (api.groq.com)</td><td>your photos (image data)</td><td>fallback vision read if SandBase is unavailable</td></tr>
+          <tr><td>Cloudflare Workers AI (api.cloudflare.com)</td><td>your photos (image data)</td><td>fallback vision read using zero-data-retention models</td></tr>
+          <tr><td>Google Gemini (generativelanguage.googleapis.com)</td><td>your photos (image data)</td><td>final fallback vision read if the other vision providers are unavailable</td></tr>
           <tr><td>fal.ai (fal.run / fal.media)</td><td>one chosen photo</td><td>3D world generation (TRELLIS.2); input/output CDN copies are short-lived and deleted after the run</td></tr>
           <tr><td>Recraft (external.api.recraft.ai)</td><td>one chosen photo</td><td>keepsake portrait (optional, best-effort)</td></tr>
           <tr><td>Stripe (buy.stripe.com)</td><td>payment details, gift id as reference</td><td>taking payment; confirming it via webhook</td></tr>

@@ -12,7 +12,7 @@ secrets, the gotchas that actually bit us, and how to verify the live flow.
 | Frontend | Cloudflare Pages — `enigmagift.pages.dev` (project `enigmagift`) | `npm run deploy:pages` (canonical; includes payment-link verification). `/api/*` proxied to Fly by `functions/api/[[path]].js`; `/*` → `index.html` via `_redirects`. Netlify (`enigmagift.netlify.app`) still live as legacy mirror. |
 | Backend | Fly.io — `enigmagift-api.fly.dev`, app `enigmagift-api`, region `iad` | `fly deploy` from `server/`. 512MB shared-cpu-1x, `/data` volume for SQLite + uploads. |
 | Gift pilot | Cloudflare Worker `enigmagift-room` — `https://enigmagift-room.trustfall.workers.dev` | Personal photo creation at `?photo=1`; sample-room editor at `?make=1&sample=1`. `npm run deploy:room` builds `dog-gift-tabletop/dist` and deploys `dog-gift-tabletop/wrangler.jsonc`. Static assets + `worker.ts` proxying `/api/health` and the `/api/room-gifts` and `/api/photo-gifts` routes to Fly. Deploy the Fly API first. |
-| Vision | SandBase `api.sandbase.ai/v1` (primary) + Google Gemini (fallback) | Key held as a Fly secret + local `server/sandbase.env`. |
+| Vision | SandBase `api.sandbase.ai/v1` (primary), Cloudflare Workers AI then Groq (privacy-conscious fallbacks), Google Gemini (final fallback) | Keys held as Fly secrets + local gitignored provider env files. `VISION_PROVIDERS` can pin the enabled provider set for incident response. |
 | World generation | fal.ai queued TRELLIS.2 (`fal-ai/trellis-2`) | Scoped key held as Fly secret `FAL_KEY` + local `server/fal.env` (gitignored). |
 
 Frontend and backend are **not** on the same host. Pages is static-only (+ the
@@ -25,6 +25,9 @@ Frontend and backend are **not** on the same host. Pages is static-only (+ the
 | Secret | Primary home | Backup / local |
 |---|---|---|
 | `SANDBASE_API_KEY` | Fly app secret (`fly -a enigmagift-api secrets set …`) | `server/sandbase.env` (gitignored) |
+| `CLOUDFLARE_API_TOKEN` + `CLOUDFLARE_ACCOUNT_ID` | Fly app secrets, same `secrets set` flow | `server/cloudflare.env` (gitignored); token is account-scoped Workers AI Read only; first fallback |
+| `GROQ_API_KEY` | Fly app secret, same `secrets set` flow | `server/groq.env` (gitignored); free tier is fast but output-rate-limited; secondary fallback |
+| `VISION_PROVIDERS` (optional) | Fly config/secret value | comma-separated allowlist: `sandbase,groq,cloudflare,gemini`; normally unset |
 | `FAL_KEY` | Fly app secret (`fly -a enigmagift-api secrets set …`) | `server/fal.env` (gitignored); scoped to TRELLIS.2 plus upload/request permissions |
 | `RECRAFT_API_KEY` | Fly app secret, same `secrets set` flow | env or a `server/*.env` file (gitignored); optional — portrait skipped without it |
 | `VITE_STRIPE_LINK_TRAIL` / `_HIDE` / `_SET` | inlined at build time (legacy single `VITE_STRIPE_LINK` maps to the Hide link) | the three `buy.stripe.com` Payment Link URLs (£4.99 / £9.99 / £19) |
@@ -40,8 +43,9 @@ from the Recraft Studio subscription credits (those only flow through MCP
 and Studio). The keepsake portrait is best-effort: no key → `skipped`,
 the reveal simply omits it.
 
-Provider key files such as `server/sandbase.env`, `server/fal.env`,
-`server/recraft.env` and `server/resend.env` are gitignored (`.gitignore` has
+Provider key files such as `server/sandbase.env`, `server/groq.env`,
+`server/cloudflare.env`, `server/fal.env`, `server/recraft.env` and
+`server/resend.env` are gitignored (`.gitignore` has
 `*.env` and `server/*.env`). They are **never** committed. The current SandBase
 key is `sk-…` and was created with a $1 pilot cap; the fal.ai key is scoped to
 TRELLIS.2 execution plus the upload/request permissions needed to run it.
@@ -810,6 +814,50 @@ ops-report counts. The right long-term shape is continuous off-volume backup
   `https://20d3511d.enigmagift.pages.dev`; `/privacy` now names fal.ai as the
   world-generation processor and SandBase only as the vision processor. Direct
   API health and Pages `/api/health` both returned 200 after deployment.
+
+
+## Vision fallback expansion — 2026-11-26
+
+- Groq key `EnigmaGift vision pilot` and Cloudflare API token
+  `EnigmaGift Workers AI vision` were created through the authenticated
+  dashboards. Neither value was committed or printed. Local copies live only
+  in gitignored `server/groq.env` and `server/cloudflare.env` (0600); the
+  Cloudflare token is account-scoped Workers AI Read only. Production values
+  are Fly secrets `GROQ_API_KEY`, `CLOUDFLARE_API_TOKEN` and
+  `CLOUDFLARE_ACCOUNT_ID`.
+- Benchmarks on the representative Fort Point sample showed Groq
+  `qwen/qwen3.8-27b` returning valid structured observations quickly
+  (about 2–5s), but the free tier rejected normal 4,096-token output budgets
+  because its output-token-minute cap is 1,000. The integration therefore
+  caps Groq responses at 900 tokens and treats truncation/malformed JSON as a
+  failover signal. This makes Groq useful as a secondary fallback, not the
+  primary parallel-image fallback.
+- Cloudflare Qwen initially burned the whole completion budget in reasoning
+  and returned no JSON. Benchmarking showed
+  `chat_template_kwargs: { enable_thinking: false }` is required. Cloudflare
+  Mistral Small 3.1 was the better first Workers AI candidate: valid JSON,
+  13 normalized observations, about 17s and roughly 82 Neurons for the sample,
+  versus roughly 273 Neurons for Qwen. The provider order is therefore
+  SandBase → Cloudflare Mistral → Cloudflare Qwen → Groq → Gemini.
+- Local integration smoke tests passed for both fallbacks: structured image
+  observations plus text-only cross-image and letter-draft generation.
+  Production smoke tests inside the Fly machine used the public sample image
+  and deployed secrets: Cloudflare returned 12 observations in 15.5s; Groq
+  returned 12 observations in 4.6s. No private customer photos were used.
+- Backend image `deployment-01M8CE8FCKFCVGF53CVCDZGC79` carries the provider
+  failover code and enhanced ops-report capability output. Failover memory is
+  workload-specific so a text-only Groq success cannot promote Groq ahead of
+  Cloudflare for subsequent image reads. `/api/health` returned 200, and the
+  in-machine candidate probe confirmed the production order
+  `cloudflare:mistral`, `cloudflare:qwen`, `groq:qwen` when SandBase was
+  deliberately excluded by `VISION_PROVIDERS`.
+- Pages deployment `https://e879d3b8.enigmagift.pages.dev` updates the
+  privacy subprocessors to name Groq and Cloudflare Workers AI. Pages
+  `/api/health` returned 200 and the live privacy page was verified to contain
+  both new provider rows.
+- `VISION_PROVIDERS` is available as an emergency/benchmark allowlist
+  (`sandbase,groq,cloudflare,gemini`). Leave it unset in normal production so
+  the full failover chain remains available.
 
 ## Test trails currently in the DB (for re-verification)
 
