@@ -1,6 +1,6 @@
 # EnigmaGift — ops runbook
 
-Last verified live: 2026-11-25. This is the "how to operate it" doc: deploys,
+Last verified live: 2026-11-26. This is the "how to operate it" doc: deploys,
 secrets, the gotchas that actually bit us, and how to verify the live flow.
 
 ---
@@ -13,6 +13,7 @@ secrets, the gotchas that actually bit us, and how to verify the live flow.
 | Backend | Fly.io — `enigmagift-api.fly.dev`, app `enigmagift-api`, region `iad` | `fly deploy` from `server/`. 512MB shared-cpu-1x, `/data` volume for SQLite + uploads. |
 | Gift pilot | Cloudflare Worker `enigmagift-room` — `https://enigmagift-room.trustfall.workers.dev` | Personal photo creation at `?photo=1`; sample-room editor at `?make=1&sample=1`. `npm run deploy:room` builds `dog-gift-tabletop/dist` and deploys `dog-gift-tabletop/wrangler.jsonc`. Static assets + `worker.ts` proxying `/api/health` and the `/api/room-gifts` and `/api/photo-gifts` routes to Fly. Deploy the Fly API first. |
 | Vision | SandBase `api.sandbase.ai/v1` (primary) + Google Gemini (fallback) | Key held as a Fly secret + local `server/sandbase.env`. |
+| World generation | fal.ai queued TRELLIS.2 (`fal-ai/trellis-2`) | Scoped key held as Fly secret `FAL_KEY` + local `server/fal.env` (gitignored). |
 
 Frontend and backend are **not** on the same host. Pages is static-only (+ the
 `/api` proxy Function), so all state (DB, uploads) lives on the Fly volume.
@@ -24,6 +25,7 @@ Frontend and backend are **not** on the same host. Pages is static-only (+ the
 | Secret | Primary home | Backup / local |
 |---|---|---|
 | `SANDBASE_API_KEY` | Fly app secret (`fly -a enigmagift-api secrets set …`) | `server/sandbase.env` (gitignored) |
+| `FAL_KEY` | Fly app secret (`fly -a enigmagift-api secrets set …`) | `server/fal.env` (gitignored); scoped to TRELLIS.2 plus upload/request permissions |
 | `RECRAFT_API_KEY` | Fly app secret, same `secrets set` flow | env or a `server/*.env` file (gitignored); optional — portrait skipped without it |
 | `VITE_STRIPE_LINK_TRAIL` / `_HIDE` / `_SET` | inlined at build time (legacy single `VITE_STRIPE_LINK` maps to the Hide link) | the three `buy.stripe.com` Payment Link URLs (£4.99 / £9.99 / £19) |
 | `STRIPE_WEBHOOK_SECRET` | Fly app secret | Stripe dashboard → Webhooks → the `whsec_…` for the `/api/stripe/webhook` endpoint |
@@ -38,9 +40,11 @@ from the Recraft Studio subscription credits (those only flow through MCP
 and Studio). The keepsake portrait is best-effort: no key → `skipped`,
 the reveal simply omits it.
 
-The key file `server/sandbase.env` is gitignored (`.gitignore` has `*.env` and
-`server/*.env`). It is **never** committed. The key is `sk-…` (the `enigmagift`
-key, created with a $10 spend cap).
+Provider key files such as `server/sandbase.env`, `server/fal.env`,
+`server/recraft.env` and `server/resend.env` are gitignored (`.gitignore` has
+`*.env` and `server/*.env`). They are **never** committed. The current SandBase
+key is `sk-…` and was created with a $1 pilot cap; the fal.ai key is scoped to
+TRELLIS.2 execution plus the upload/request permissions needed to run it.
 
 ### Secrets hygiene (how we stay secure)
 
@@ -65,8 +69,8 @@ key, created with a $10 spend cap).
 - Databases and uploads are gitignored (`server/*.db`, `server/uploads/`),
   and `dist/` is build output, never committed.
 - If a secret ever does leak: rotate it in the provider (Stripe: roll the
-  webhook secret; SandBase: revoke the key), set the new value as a Fly
-  secret, redeploy, then scrub history only if the repo is private.
+  webhook secret; SandBase/fal/Recraft/Resend: revoke the key), set the new
+  value as a Fly secret, redeploy, then scrub history only if the repo is private.
 
 
 ### Required explicit runtime flags
@@ -81,12 +85,14 @@ key, created with a $10 spend cap).
 - `MAX_DRAFTS_PER_DAY` defaults to `200`. It is a global cost circuit breaker
   in addition to the existing 5 drafts/hour/IP limit.
 
-To set the Fly secret without printing the key:
+To set Fly secrets without printing keys:
 
 ```bash
 cd server
 KEY="$(sed -n 's/^SANDBASE_API_KEY=//p' sandbase.env | tr -d '\r')"
 fly -a enigmagift-api secrets set SANDBASE_API_KEY="$KEY"
+KEY="$(sed -n 's/^FAL_KEY=//p' fal.env | tr -d '\r')"
+fly -a enigmagift-api secrets set FAL_KEY="$KEY"
 ```
 
 ---
@@ -269,22 +275,26 @@ release changes language and the ready/editing flows, not animation timing.
 
 ### The world (per-gift 3D model)
 
-Sealing a gift triggers `buildWorld` (`server/world.js`): SandBase **Run API**
-+ TRELLIS.2 turns the gift's **most iconic photo** — the one the throughline
-points at, scored by the pipeline (`pickWorldSource` in `pipeline.js`, stored
-as `gifts.world_source`) — into a ~2MB GLB (sent as base64; no public URL
-needed), saved to the volume at `<UPLOADS_DIR>/<giftId>/world.glb`. Falls back
-to the first readable photo if no source is recorded.
+Sealing a gift triggers `buildWorld` (`server/world.js`): fal.ai's queued
+**TRELLIS.2** API (`fal-ai/trellis-2`) turns the gift's **most iconic photo** —
+the one the throughline points at, scored by the pipeline (`pickWorldSource` in
+`pipeline.js`, stored as `gifts.world_source`) — into a ~1.5–3MB GLB, saved to
+the volume at `<UPLOADS_DIR>/<giftId>/world.glb`. Falls back to the first
+readable photo if no source is recorded.
 
 - **State** lives on the gift row: `world_status`
   (`pending → worlding → ready|failed`) + `world_file` + `world_started_at`
   + `world_ready_at`. Timing: `gifts.read_ready_at` stamps when the read
   finishes, and both the pipeline and world log their duration
   (`ready in <N>s`, `… (source photo N)`).
-- **Build takes ~45–90s** (one TRELLIS.2 run ≈ $0.30 of SandBase credit).
-  The reveal scene polls `GET /api/trail/:token/world-status` every 5s and
-  shows the world once `ready`; the GLB streams from
-  `GET /api/trail/:token/world` (`202` until ready).
+- **Build cost/latency:** fal currently charges **$0.30 at 1024p**; the first
+  controlled fal build completed in **25s**. The reveal scene polls
+  `GET /api/trail/:token/world-status` every 5s and shows the world once
+  `ready`; the GLB streams from `GET /api/trail/:token/world` (`202` until ready).
+- **Provider media handling:** the source photo is uploaded to fal's CDN with a
+  one-hour lifecycle; inference uses `X-Fal-Store-IO: 0`; input and output CDN
+  objects are explicitly deleted after the run. The durable GLB copy is ours on
+  the Fly volume.
 - **Failure modes are graceful:** no key / no usable photo / run failed →
   `world_status=failed` and the reveal shows a static note (the letter, code
   and trail are unaffected). A machine restart mid-build leaves `worlding`
@@ -569,7 +579,7 @@ the event funnel
    `paid` event. The report separately counts `evt_ops_smoke_…` webhooks so
    operator smoke tests do not masquerade as Stripe deliveries.
 2. Stripe → Balance/payouts vs estimated gross (same window).
-3. SandBase + Recraft dashboards → spend in the same window. If
+3. fal.ai + SandBase + Recraft dashboards → spend in the same window. If
    drafts(7d) × ~10p approaches paid revenue, consider gating the vision read
    behind payment or tightening the 5/h draft limit.
 
@@ -781,6 +791,25 @@ ops-report counts. The right long-term shape is continuous off-volume backup
 - Repository hardening: `main` now requires the `verify` CI check before
   pushes merge through GitHub, with force pushes and branch deletion disabled.
   The first CI run covering the Pages verifier passed as run `45663687944`.
+- fal.ai migration: a scoped production runtime key named `EnigmaGift production
+  runtime` was created for TRELLIS.2 execution plus upload/request permissions,
+  stored only in gitignored `server/fal.env` (0600) and Fly secret `FAL_KEY`.
+  A local controlled build produced a valid 1.50MB GLB in 25s. Backend image
+  `deployment-01M8CB5MJ58ADSPF7PX2W34TK5` deployed the migration; `/api/health`
+  returned 200.
+- fal.ai production validation: controlled gift
+  `f09b8d1c-7e93-4069-bd87-28126cd4cae1` completed upload, vision, synthetic
+  signed webhook payment, seal, recipient payload and world generation. The
+  production world was a valid 1.24MB GLB built in 20s; a ranged `/world`
+  request returned 206 with `glTF` magic. The fixture was deleted through the
+  public delete route and both gift/trail then returned 404. The fal dashboard
+  balance moved from $129.28 to $128.68 across the local and production test
+  runs, matching two $0.30 TRELLIS builds. The scoped key correctly cannot read
+  billing through the API (ops-report shows 403); use the dashboard for balance.
+- Privacy/provider copy is live in Pages deployment
+  `https://20d3511d.enigmagift.pages.dev`; `/privacy` now names fal.ai as the
+  world-generation processor and SandBase only as the vision processor. Direct
+  API health and Pages `/api/health` both returned 200 after deployment.
 
 ## Test trails currently in the DB (for re-verification)
 

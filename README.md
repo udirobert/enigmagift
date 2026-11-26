@@ -62,7 +62,7 @@ is all someone needs (the set saves £10.97 against three Hides).
    connection → throughline reveal), then either the keepsake directly
    (Trail: `requiresCode=false`) or the code gate (Hide). The reveal also
    shows the **3D world of the place** — built from one of the buyer's photos
-   (SandBase Run API + TRELLIS.2, `server/world.js`) at seal time — which the
+   (fal.ai queued TRELLIS.2, `server/world.js`) at seal time — which the
    recipient can orbit and keep (`download` a `.glb`), plus the painted
    keepsake portrait when Recraft is configured. The reveal ends with a
    quiet virality CTA — "loved this? make one for someone you love →" —
@@ -94,12 +94,13 @@ giver watching live sees rounds land. Unsealed drafts get a
   Per-image observation + cross-image synthesis, failing over across all
   working key×model pairs. Uploaded photos are downscaled client-side
   (max ~1280px) before upload to keep token cost down.
-- **World** — `server/world.js`: SandBase Run API + TRELLIS.2 turns the
+- **World** — `server/world.js`: fal.ai's queued TRELLIS.2 API turns the
   buyer-chosen photo (default: the one the throughline points at, picked by
   `pickWorldSource` in the pipeline; changeable in the editor via
   `POST /api/gifts/:id/world-source`) into an orbitable 3D world (GLB) at
   seal time, saved to the gift's volume. The recipient orbits it in the
-  reveal — it assembles out of the flat photo — and keeps a copy.
+  reveal — it assembles out of the flat photo — and keeps a copy. Provider
+  input/output media is short-lived and deleted after the run.
 - **Payments** — Stripe Payment Links (live, GBP, one-time) per tier on the
   "EnigmaGift" Stripe account, plus a signed webhook
   (`POST /api/stripe/webhook`) that is the source of truth for `paid`.
@@ -130,6 +131,9 @@ Env (backend, `server/.env` or Fly secrets):
 
 - `SANDBASE_API_KEY` — primary vision provider (local copy in
   `server/sandbase.env`, gitignored; set on Fly via `fly secrets set`).
+- `FAL_KEY` — world-generation provider (local copy in `server/fal.env`,
+  gitignored). Use a scoped key limited to TRELLIS.2 execution plus the
+  upload/request permissions needed to submit and poll it.
 - `RECRAFT_API_KEY` — optional; paints the seal-time keepsake "portrait of
   the place" (`server/portrait.js`, Recraft `imageToImage` — bills API
   units, not subscription credits). Without it the portrait is skipped.
@@ -292,7 +296,7 @@ Public pages: `/privacy` and `/terms` (`public/privacy.html`, `public/terms.html
   only the signed Stripe webhook sets `paid` (HMAC + per-tier amount check).
 - **Uploads are normalized to JPEG server-side through sharp before anything reads them**, stripping EXIF/XMP/GPS metadata regardless of accepted source format. Safari 17+ can also decode HEIC in the browser, so HEIC is re-encoded client-side there; unsupported undecodable uploads are rejected rather than stored. Upload consent is required in the UI before any photo is sent.
 - Photos are processed by the AI providers listed in `/privacy` (SandBase,
-  Google Gemini fallback, Recraft) solely to generate the gift. No third-party
+  Google Gemini fallback, fal.ai, Recraft) solely to generate the gift. No third-party
   trackers; funnel events are first-party only. No cookies — the in-progress
   gift id lives in localStorage on the buyer's device.
 - Security headers everywhere: CSP, `X-Content-Type-Options: nosniff`,
@@ -307,7 +311,9 @@ Public pages: `/privacy` and `/terms` (`public/privacy.html`, `public/terms.html
   fixtures; `.testmuai/tests/` the assurance-designed `_test.md` suite.
   `npm run deploy:room` refuses to deploy unless `npm run verify:room` passes
   — the gate replays the suite against the build about to ship and writes an
-  agent-readable failure digest. See `spec/README.md`.
+  agent-readable failure digest. See `spec/README.md`; the 2026 KaneCLI
+  Online Hackathon eligibility/evidence snapshot is in
+  `notes/KANECLI-HACKATHON.md`.
 - Security regression tests: `cd server && npm test`
   (webhook signature + payment-amount matrix, fail-closed mark-paid,
   answer-key stripping, unlock rate limit, revoke/expiry, scheduled

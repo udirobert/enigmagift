@@ -33,6 +33,7 @@ for (const key of [
   'STRIPE_API_KEY',
   'RESEND_API_KEY',
   'RECRAFT_API_KEY',
+  'FAL_KEY',
 ]) console.log(`${key}:`, process.env[key] ? 'configured' : 'missing');
 console.log('ENABLE_EXPERIMENTAL_ROUTES:', process.env.ENABLE_EXPERIMENTAL_ROUTES === 'true' ? 'true' : 'false');
 console.log('ALLOW_UNPAID_SEAL:', process.env.ALLOW_UNPAID_SEAL === 'true' ? 'true — dangerous in production' : 'false');
@@ -51,6 +52,21 @@ if (process.env.SANDBASE_API_KEY) {
     console.log('SandBase balance: unavailable (', e.message, ')');
   }
 } else console.log('SandBase balance: key missing');
+if (process.env.FAL_KEY) {
+  try {
+    const r = await fetch('https://api.fal.ai/v1/account/billing?expand=credits', {
+      headers: { authorization: `Key ${process.env.FAL_KEY}` },
+      signal: AbortSignal.timeout(5000),
+    });
+    const j = await r.json().catch(() => ({}));
+    const balance = j.credits?.current_balance;
+    console.log('fal.ai balance:', r.ok && Number.isFinite(Number(balance))
+      ? `$${balance} ${j.credits?.currency || 'USD'}`
+      : `unavailable (${r.status}${r.status === 403 ? ': scoped runtime key; use dashboard for balance' : ''})`);
+  } catch (e) {
+    console.log('fal.ai balance: unavailable (', e.message, ')');
+  }
+} else console.log('fal.ai balance: key missing');
 if (process.env.RECRAFT_API_KEY) {
   try {
     const r = await fetch('https://external.api.recraft.ai/v1/users/me', {
@@ -125,5 +141,5 @@ console.log('\n-- reconcile (manual steps) --');
 console.log('1. Stripe dashboard → Developers → Webhooks → we_… → "Recent deliveries": all 2xx?');
 console.log('   Compare count with non-synthetic webhook_ok above — a gap means lost paid events.');
 console.log('2. Stripe → Balance → payouts for the same window vs estimated gross above.');
-console.log('3. SandBase + Recraft dashboards → spend in the same window (drafts included).');
+console.log('3. fal.ai + SandBase + Recraft dashboards → spend in the same window (drafts included).');
 console.log('   DIGITAL-HUNT.md models ~10p/read per draft; if drafts(7d) × 10p is large vs paid revenue, tighten or gate the read behind payment.');
