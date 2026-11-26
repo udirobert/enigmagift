@@ -90,6 +90,7 @@ secrets or gitignored local env files.
 npm test                         # frontend/unit scene smoke tests
 npm run build:pages              # production frontend build
 npm run verify:pages-build       # payment-link and bundle checks
+npm run verify:api-docs          # API documentation matches server routes
 
 cd server
 npm test                         # API security regression suite
@@ -97,29 +98,47 @@ npm test                         # API security regression suite
 
 Deployment is intentionally not a README shortcut: follow
 [notes/OPS.md](notes/OPS.md), which records the required verification order,
-live topology, provider state, rollback notes, and operational evidence.
+live topology, provider state, rollback procedure, and operational boundaries.
 
 ## Documentation map
 
-- [notes/CONCEPT.md](notes/CONCEPT.md) — product concept and experience
-  principles.
+### Current product and decisions
+
+- [notes/CONCEPT.md](notes/CONCEPT.md) — canonical product concept and
+  experience principles.
 - [notes/PLAN.md](notes/PLAN.md) — current sequencing, evidence gates, kill
   criteria, and owner decisions.
 - [notes/RESEARCH.md](notes/RESEARCH.md) — demand and behavioral research log.
+
+### Technical contract and operations
+
 - [notes/API.md](notes/API.md) — API surface and security contract.
-- [notes/OPS.md](notes/OPS.md) — operational runbook, secrets topology,
-  deployment, provider configuration, incidents, and validation evidence.
+- [notes/OPS.md](notes/OPS.md) — current operational runbook: topology,
+  secrets, deployment, verification, backup, provider state, and launch boundaries.
+- [notes/OPS-LOG.md](notes/OPS-LOG.md) — historical deployment, incident,
+  provider-migration, and validation evidence archive.
 - [notes/SPIKE.md](notes/SPIKE.md) — completed historical vision-feasibility
-  spike; superseded by the provider evidence in OPS.
+  spike; superseded by current provider evidence.
+
+### Experiments, pilots, and future directions
+
 - [notes/CANONICAL-GIFT.md](notes/CANONICAL-GIFT.md) — canonical recipient
-  example and what to test first.
+  example and recipient-research run card.
 - [notes/DIGITAL-HUNT.md](notes/DIGITAL-HUNT.md) — proposed world-first future
   direction, explicitly not the shipped baseline.
+- [notes/WORLD-PROVIDERS.md](notes/WORLD-PROVIDERS.md) — proposed world-provider
+  redundancy plan.
 - [notes/PHOTO-HUNT.md](notes/PHOTO-HUNT.md) — experimental personal-photo
   hunt pilot.
-- [notes/ONBOARDING.md](notes/ONBOARDING.md),
-  [notes/MOTION.md](notes/MOTION.md), and [notes/CRAFT.md](notes/CRAFT.md) —
-  interaction, motion, and visual craft references.
+- [KANECLI.md](KANECLI.md) — hackathon-specific verification guide for the
+  photo-gift surface; not part of the core product documentation.
+
+### Craft references
+
+- [notes/ONBOARDING.md](notes/ONBOARDING.md) — giver-onboarding research and
+  approved letter-led direction.
+- [notes/MOTION.md](notes/MOTION.md) — motion research and implementation notes.
+- [notes/CRAFT.md](notes/CRAFT.md) — visual and interaction references.
 
 GitHub: https://github.com/udirobert/enigmagift
 

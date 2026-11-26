@@ -9,6 +9,7 @@ product surface, but they are **not** part of the Kane verification claim.
 ## Quick links
 
 - Live product: https://enigmagift-room.trustfall.workers.dev/?photo=1
+- Demo video: https://youtu.be/2qW3gHiNt2Q (unlisted, 1:53)
 - Public repository: https://github.com/udirobert/enigmagift
 - Verification requirements: [`spec/photo-gift.md`](spec/photo-gift.md)
 - Runnable Kane suite: [`.testmuai/tests/`](.testmuai/tests/)

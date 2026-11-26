@@ -1,5 +1,7 @@
 # Audio roadmap — enigmagift
 
+**Status:** proposed experiment — not generated · **Last reviewed:** 2026-11-26
+
 Status 2026-11-26: ungenerated. The Sonilo Pro trial credits were exhausted by
 six other projects before enigmagift's piece was attempted.
 

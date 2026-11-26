@@ -1,5 +1,7 @@
 # Motion for EnigmaGift
 
+**Status:** motion design reference — first pass implemented · **Last reviewed:** 2026-11-22
+
 Research and design recommendations, 2026-11-22 — followed by a record of
 the implemented first pass (unpublished, see "Implemented" below). The
 recommendations were design input, not evidence of improved conversion.

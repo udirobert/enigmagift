@@ -1,198 +1,132 @@
-# EnigmaGift v2 — the hunt
+# EnigmaGift — product concept
 
-**Roadmap (not shipped):** [World-first memory hunt and proposed gift tiers](DIGITAL-HUNT.md). The flow below describes the existing £19 physical hunt.
+**Status:** canonical product concept · **Last updated:** 2026-11-26
 
-> **Hide something real. Let the photographs lead them to it.**
+**Scope:** the shipped trail-first product. The possible world-first future is
+in [DIGITAL-HUNT.md](DIGITAL-HUNT.md); delivery sequencing is in
+[PLAN.md](PLAN.md).
 
-A gift isn't a thing you send. It's a place you leave something, and a trail of
-photographs that only one person can follow.
+> **Let the photographs lead them to it.**
+
+EnigmaGift turns photographs of a meaningful place into a short trail of
+recognition, deduction, and personal memory. The giver photographs a place they
+share with someone; the product finds details worth noticing, the giver approves
+the trail, and the recipient follows it to a keepsake containing the giver's own
+words and a navigable memory of the place.
+
+The recipient never pays, signs up, or installs anything.
 
 ---
 
 ## The one-liner
 
-Pick a place that matters. Photograph it. Hide something there. The agent reads
-your photos, finds the details only you would know, and builds a chain of clues
-that leads the person you love to what you left behind — then a code in the
-hidden thing unlocks the keepsake waiting for them.
+Pick a place that matters. Photograph it. Let the photographs become a trail
+only one person would fully understand — then let that person arrive at the
+words and memory you left for them.
 
-One box. Drop in photos of the place. That's the whole front door.
-
-**What changed from v1:** the prerequisite is no longer "photos of the two of
-you" — which quietly excluded most relationships — it's **photos of a place**,
-which everyone can take in five minutes on a visit. The physical hunt is the
-gift; the digital keepsake is the prize inside it.
+The input is deliberately **photos of a place**, not photos of a relationship.
+Places are easier to photograph, less creepy to upload, and available to almost
+every kind of relationship: partners, friends, family, collaborators, or even
+future-you.
 
 ---
 
-## The full experience
+## Product principles
 
-### 1 · The place (buyer, ~5 min)
+1. **The giver's meaning matters more than the AI's cleverness.** The agent can
+   notice and draft, but the giver approves the facts and writes the final
+   emotional truth.
+2. **The recipient is a guest, not a user.** No account, no payment, no setup,
+   no app install.
+3. **The lock is theatre, never a paywall.** The trail should create attention
+   and anticipation, but the gift must always be reachable.
+4. **Digital is the default.** Distance, timing, and buyer labour should not
+   prevent the gift from working. The physical Hide is an upgrade, not the base
+   product.
+5. **Specificity is the magic.** “The chipped blue door” is better than “a
+   door”; “the seat where you both waited out the rain” is better than either.
+6. **AI proposes; people decide.** The buyer/editor gate is a hallucination
+   control and an emotional authorship control.
+7. **The keepsake should feel kept.** The letter, photographs, generated world,
+   and optional portrait are residue the recipient can return to after the
+   trail is over.
 
-The buyer picks a place that matters — where you got engaged, your gran's
-house, the pub, a street in another city — and photographs it. 5–10 shots:
-the door, the window, the menu board, the view from the bench. The visit itself
-is the ritual; the effort is the meaning.
+---
 
-Photos of people in frame are welcome bonus material, never required.
+## The shipped experience
 
-### 2 · The agent reads the place
-
-The vision pass returns structured, *located* observations — what is in each
-frame and where. Then it does two things:
-
-- **Finds the clues**: the blue door, the chalkboard, the seat by the window,
-  the same lamp in every shot. Details a stranger couldn't use but the recipient
-  would recognise instantly.
-- **Proposes hiding spots**: "behind the third stair", "inside the menu stand",
-  "taped under the bench slat" — read off the photos themselves. The agent
-  doesn't just write clues, it scouts the territory.
-
-Work arrives unfinished (`jejak` pattern), labelled honestly: *seen in the
-photo* vs *inferred*.
-
-### 3 · You are the editor — and the hider
-
-The agent proposes clues **and** a hide spot. The buyer approves or adjusts
-everything, then physically hides the thing — a note, a small object, the ring
-box — and photographs the hide spot so the trail is accurate.
-
-### 4 · The seal
-
-A link. Sent however they like. The recipient doesn't get the gift — they get a
-**tight crop** of something from the photos and a question. Three rounds,
-escalating:
-
-| Round | Sees | Doing |
+| Step | What happens | Product purpose |
 |---|---|---|
-| 1 · The detail | one close crop — the blue door, the chalkboard | recognition |
-| 2 · The connection | two crops, different years or angles | deduction |
-| 3 · The place | the throughline — where this all points | **the reveal** |
+| Choose | Giver selects or takes 1–12 photos of a meaningful place | Low enough friction for a real gift |
+| Read | Vision pipeline produces located observations from the photos | Create the feeling of “it noticed” |
+| Approve | Giver accepts, edits, removes, or re-derives clues and chooses the world photo | Prevent hallucinated or emotionally wrong output |
+| Write | Giver writes or edits a short letter, optionally using agent drafts | Make the artefact a gift rather than generated content |
+| Seal | Stripe payment creates the recipient link; Hide adds a physical code ending | One payment, one published recipient link |
+| Play | Recipient moves through deduction rounds with honest misses and progressive payout | Attention, recognition, anticipation |
+| Reveal | Recipient reaches the giver's words, photographs, 3D world, and optional portrait | A durable emotional artifact |
 
-Wrong answers nudge gently; it opens anyway. The lock is theatre.
-
-### 5 · The hunt
-
-The throughline resolves to the place itself — possibly with the Atlas 3D
-reconstruction of the actual location as a "hunt map" they can explore
-digitally first. They go. They look. They find it.
-
-### 6 · The code → the keepsake
-
-The hidden thing contains a code. Entering it unlocks the digital layer:
-the letter in the buyer's voice, the composed world of the place, the
-flythrough film. The hunt was the gift; this is the residue it leaves.
-
-**Why the code matters:** it proves they actually went — the emotional payoff
-is earned, and it gives us a second reveal beat for the reaction video.
+For The Hide, the giver physically leaves something at the place and writes the
+unlock code into it. That physical moment is valuable because it is real effort
+and real presence — but it is not required for the default gift.
 
 ---
 
-## Why the hunt beats the photo-enigma
+## Tiers
 
-| | v1 (photo enigma) | v2 (the hunt) |
-|---|---|---|
-| Input needed | 5–10 photos *of two people* | 5–10 photos *of a place* — universal |
-| Relationships covered | those with photo archives | **any** — friends, family, partners, yourself |
-| Emotional cost | uploading someone's likeness | photographing a place you already know |
-| Reveal | a link, a screen | **a physical moment in the real world** |
-| Virality | shareable clip | **people film "I found it"** — inherently viral |
-| Novelty | personalised card, crowded market | **a category nobody occupies** |
-| Atlas/World Labs | decorative | **the actual location as explorable map** |
+| Tier | Price | Shape |
+|---|---:|---|
+| **The Trail** | £4.99 | Fully digital; rounds open the keepsake directly. |
+| **The Hide** | £9.99 | The digital trail plus a physical hidden thing and code entry. |
+| **The Set** | £19 | Three hunts total: the purchase hunt plus two further credits. |
 
-The contact who reviewed v1 was right: people-photos were the fragile
-prerequisite. Place-photos are not.
+The read and preview are the free taste; the sealed recipient link and keepsake
+are the paid object. The recipient is never charged.
 
 ---
 
-## Pricing tiers (agreed 2026-11-19)
+## Why this is different
 
-| Tier | Price | Mode | The physical hide? |
-|---|---|---|---|
-| **The Trail** (default) | £4.99 | digital | none — 3 rounds open the keepsake directly |
-| **The Hide** | £9.99 | physical | buyer hides a thing at the place, code goes inside it |
-| **The Set** | £19 | pack of 3 | up to 3 hunts (each Trail or Hide), one link each |
+| Common personalised gift | EnigmaGift |
+|---|---|
+| Uses a photo as decoration | Uses photos as evidence in a place the recipient knows |
+| Ends when the object/card is delivered | Creates a short experience before the keepsake |
+| AI writes the sentiment | AI notices details; the giver owns the sentiment |
+| Personal but static | Personal, interactive, and tied to a real place |
+| Often requires shipping or coordination | Default gift works at any distance |
 
-The read + clue proposals stay free (the *feeling* — what the agent noticed
-about your place); the sealed trail, world and keepsake are the paid object.
-Digital-first because it removes buyer labour, lead time, distance and
-non-redemption risk; the physical Hide is an upgrade for buyers who *can*
-hide something, not the base product.
-
-**"For me" mode** survives unchanged: hide something for future-you — a letter
-at a meaningful spot, opened on a date you choose.
+The physical Hide tier adds the most filmable beat — someone standing in the
+real place holding something real — but The Trail is the scalable product.
 
 ---
-
-## The loop
-
-```
-   buyer photographs a place ──────────────→ sends a sealed link
-          ↑                                        ↓
-   posts the reveal      ←  recipient follows the trail  ←┐
-          ↑                                              │
-   next buyer        (Hide tier adds: find the thing → enter the code)
-```
-
-The Trail (default, £4.99) ends with the recipient opening the keepsake on a
-screen — the letter, the photos, the world of the place. The Hide (£9.99) adds
-the physical moment: standing in a real place holding something real — the
-most filmable, talkable beat, sold as the upgrade, not the prerequisite.
-
----
-
-## Competition fit
-
-- **MMM (freeze 18 Nov 18:00):** digital product, instant delivery of the
-  *experience design*; the buyer does the physical hiding (like sealing a
-  letter — our delivery is the clue chain + link, not the object). Agent does
-  find/sell/deliver → near-zero touches → **Iron Mode** remains the realistic
-  prize. ~27 sales at £19 clears £500.
-- **Ship or Die (16 Dec):** brand-new digital product, Stripe → TrustMRR,
-  peaks across gifting season. The hunt is more gift-shaped than the enigma
-  ever was — Christmas, birthdays, proposals, memorials.
-- Long-distance / can't-hide buyers are no longer a fallback — **The Trail
-  (£4.99, digital-only) is the default product**. Same engine, no IRL step;
-  The Hide (£9.99) is the physical tier for buyers who can get to the place.
-
----
-
-## Build order
-
-**Core is live (2026-11-17).** The Atlas map, flythrough film, and print card are
-the remaining spectacle layer (v2+).
-
-**Next (2026-11-19, agreed):** digital-first + tiers — Trail £4.99 (default,
-no code beat), Hide £9.99 (physical, current flow), Set £19 (pack of 3);
-P0 hardening (Stripe webhook as source of truth, scrypt-hashed codes,
-token-scoped photos, CORS allowlist, draft rate-limit + purge, funnel
-events); then `reclue` and world-source picking in the editor.
-
-1. ✅ Door → photos of the *place*.
-2. ✅ Vision pass → located observations → clue chain + **hide-spot proposals**
-   (provider chain documented in `OPS.md`; running in production).
-3. ✅ Buyer editor → approve/edit clues + pick hide spot → "hide it" (photo
-   verification of the hide is the natural next polish).
-4. ✅ Seal → recipient 3-round trail → throughline resolves to the place
-   (Atlas map still to add).
-5. ✅ Code entry → keepsake unlock (letter now; world + film are v2+).
-6. ✅ Stripe £19 Payment Link at the seal (live; success URL → `?paid=1`).
-
-~~The riskiest technical piece~~ **Resolved (17 Nov):** the vision spike
-(`notes/SPIKE.md`) proved located observations are feasible, and the live
-pipeline now produces throughlines, hide-spot proposals, and three quiz
-rounds end-to-end on production.
 
 ## Named risks
 
-- **Hallucinated detail** — label *seen* vs *inferred*, never clue on
-  inference, buyer-as-editor gate on everything.
-- **Real-world failure** — weather, bin day, someone else finding it.
-  Mitigate: hide-spot scouting favours durable/concealed spots; the code-locked
-  digital layer means even a failed hunt still delivers the keepsake.
-- **Buyer effort** — the hide step is theirs; frame it as the ritual, give a
-  checklist, allow "I'll hide it later" (link activates on a date).
-- **Creepiness/safety** — only use uploaded photos; hide spots stay in public
-  or semi-public places (never homes entered, never anything requiring
-  breaking in); moderation hook for the editor review.
-- **Both comps ban friends/family purchases** — every sale a stranger.
+- **Hallucinated detail.** Mitigate with buyer approval, visible uncertainty,
+  and clue editing. Never treat model output as fact.
+- **Generic output.** If clues could apply anywhere, the product becomes a
+  greeting card with extra steps. Specificity is the quality bar.
+- **Buyer effort.** One photo must be enough; advanced editing must remain
+  optional.
+- **Recipient impatience.** Rounds must pay out emotionally. If recipients do
+  not read or care, simplify rather than adding more game.
+- **Physical failure.** Weather, access, or another person can ruin a Hide.
+  The digital keepsake must still arrive.
+- **Privacy discomfort.** Photos are personal and places can be sensitive.
+  Upload consent, metadata stripping, deletion, revocation, and clear provider
+  disclosure are product features, not legal garnish.
+- **World overreach.** The generated world can deepen the reveal, but the
+  current product must not depend on perfect 3D reconstruction.
+
+---
+
+## Current boundary
+
+The core trail-first product is live and instrumented, but still pre-launch.
+The next product question is not “what feature can we add?” It is:
+
+> Does an uncoached recipient understand, enjoy, and emotionally value the
+> experience enough that a giver would buy it for them?
+
+That evidence gate is in [PLAN.md](PLAN.md). Historical feasibility evidence
+for located vision observations is in [SPIKE.md](SPIKE.md). Operational truth
+is in [OPS.md](OPS.md); API behavior is in [API.md](API.md).

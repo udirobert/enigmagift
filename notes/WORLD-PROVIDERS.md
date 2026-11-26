@@ -1,5 +1,7 @@
 # World providers and redundancy — proposed
 
+**Status:** proposed technical plan · **Last reviewed:** 2026-11-26
+
 Marble first; evaluate one independently backed single-photo alternative before launch. Atlas is a quality/control comparison, not a World Labs outage fallback. Published gifts must not depend on a live generation API. Research is documentation-only; no provider has passed the EnigmaGift playability or outage tests.
 
 ## Candidates

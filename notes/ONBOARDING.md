@@ -1,9 +1,11 @@
 # Giver onboarding: making a little letter
 
+**Status:** experiment design reference · **Last verified:** 2026-11-22
+
 Research and approved direction, 2026-11-22. This is the design reference for
 the room pilot's giver experience. The user approved proceeding after the
 research below. Implementation and release evidence belong in the
-[tabletop README](../dog-gift-tabletop/README.md) and [operations log](OPS.md).
+[tabletop README](../dog-gift-tabletop/README.md) and [operations log](OPS-LOG.md).
 
 ## The problem
 

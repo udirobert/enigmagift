@@ -1,5 +1,7 @@
 # EnigmaGift — research log
 
+**Status:** historical research log · **Last reviewed:** 2026-11-17
+
 For the later research into the giver's first impression and the approved
 interactive-letter direction, see [Giver onboarding](ONBOARDING.md)
 (2026-11-22). The market research below is the earlier concept-stage record.

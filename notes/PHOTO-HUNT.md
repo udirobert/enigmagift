@@ -1,5 +1,7 @@
 # Personal-photo hunts
 
+**Status:** experimental pilot specification · **Last reviewed:** 2026-11-26
+
 ## Decision and user evidence
 
 The creator reports that people are unlikely to share the sample room, want

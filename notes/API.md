@@ -1,8 +1,11 @@
 # API surface and security contract
 
+**Status:** canonical technical contract · **Last reviewed:** 2026-11-26
+
 Canonical reference for the paid gift API and the experimental tabletop/photo
-pilots. Operational smoke commands and deployment evidence live in
-[OPS.md](OPS.md); this document describes the contract, not the runbook.
+pilots. Operational smoke commands live in [OPS.md](OPS.md); historical
+deployment evidence lives in [OPS-LOG.md](OPS-LOG.md). This document describes
+the contract, not the runbook.
 
 ## Core gift API
 
@@ -94,7 +97,8 @@ not part of the canonical paid product contract.
 | `POST /api/photo-gifts` | multipart `edition` + one JPEG photo ≤3 MiB + bearer management key → `{recipientToken}`; `409` on a different payload with the same key, `410` once revoked |
 | `GET /api/photo-gifts/:token` | public edition (`no-store`, never carries the image); `404` when revoked/unknown |
 | `GET /api/photo-gifts/:token/image` | normalized JPEG (`no-store`); `404` when revoked/unknown |
-| `GET`/`DELETE /api/photo-gifts/manage` | owner view / revoke; revocation removes edition and image atomically |
+| `GET /api/photo-gifts/manage` | owner view behind the management key |
+| `DELETE /api/photo-gifts/manage` | revoke; removes edition and image atomically |
 
 Room/photo pilot links have no accounts, checkout, email, or automatic
 delivery. The management key is a 64-hex bearer in the private `#manage=` URL;

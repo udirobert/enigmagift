@@ -1,0 +1,13 @@
+EnigmaGift turns a meaningful photograph into a private treasure hunt. A giver hides a note in a real place, sends one link, and the recipient has to find it. For the Kane C L I hackathon, the important part is not just the product. It is the deployment rule: if Kane is red, EnigmaGift does not deploy.
+
+First, the live product. The giver chooses a photograph, positions the paper marker, writes a clue and a personal note, reviews the gift, and creates a private link. This is the real browser journey, not a mockup.
+
+The recipient opens that link and sees the photograph and clue. They can search directly, ask for a hint, or search by named area. A correct find reveals the folded note and opens the letter.
+
+The verification loop starts with requirements in spec slash photo dash gift dot markdown. Kane assurance tests are linked back to acceptance criteria, then replayed in real Chrome. The suite covers creation, recipient reveal, wrong photo taps, named-area misses, hints, closed and unknown links, broken-image resilience, creator preview, editing, and access-control boundaries.
+
+The deployment gate is deliberately fail-closed. It serves the production-shaped build locally, proxies the real API, injects fresh fixture URLs, validates the Kane N D J S O N evidence stream, and requires a complete suite summary plus one ending for every selected test. Unresolved fixtures or variables are failures. The output is a machine-readable digest that an agent can repair from.
+
+The most useful deadline-day result was not a wall of green. Kane caught real drift: JPEG-only wording versus intentional multi-format normalization, local storage wording versus IndexedDB persistence, stale expectations about when Open the note appears, and one ambiguous stored-link test design. Those red rows were not hidden. The requirements, tests, fixtures, and small product details were corrected, then the suite was replayed.
+
+The public evidence index in the repository separates green proof, repaired drift, and explicit coverage debt. The verified claim is intentionally narrow: the free single-photo gift journey. It does not claim Stripe, paid trails, generated three dimensional worlds, or painted keepsakes. What it does prove is a working agent loop: product change, Kane browser evidence, machine-readable failure diagnosis, repair, replay, and only then deployment authority.

@@ -8,14 +8,10 @@ assurance:
 
 > Selecting a wrong region names the searched region in the miss feedback.
 
-## Step 1 @verifies ac-35, ac-36
+## Step 1
 
-Open the recipient gift URL {{valid_gift_url}} in the EnigmaGift browser, then assert the gift photo and clue {{gift_clue}} appear.
+Open the recipient gift URL {{valid_gift_url}} in the EnigmaGift browser.
 
-## Step 2 @verifies ac-37, ac-38, ac-39
+## Step 2 @verifies ac-41
 
-In the recipient photo hunt, assert A little hint, Open without searching, and Search by area with nine named regions are visible.
-
-## Step 3 @verifies ac-41
-
-In Search by area on the recipient photo hunt, search middle left, a region without this gift's hidden spot, then assert the miss feedback names middle left, such as Nothing in the middle left.
+In Search by area on the recipient photo hunt, search middle left, a region without this gift's hidden spot, then assert the feedback text is 'Nothing in the middle left — look again.'

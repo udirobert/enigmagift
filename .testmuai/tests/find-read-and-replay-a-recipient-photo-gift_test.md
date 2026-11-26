@@ -8,26 +8,42 @@ assurance:
 
 > A correct photo tap reveals the folded marker; recipient reads the personalized letter and re-hides it by replaying.
 
-## Step 1 @verifies ac-35, ac-36
+## Step 1
 
-Open the recipient gift URL {{valid_gift_url}} in the EnigmaGift browser, then assert the gift photo and clue {{gift_clue}} appear.
+Open the recipient gift URL {{valid_gift_url}} in the EnigmaGift browser.
 
-## Step 2 @verifies ac-37, ac-38, ac-39
+## Step 2 @verifies ac-36
 
-In the recipient photo hunt, assert A little hint, Open without searching, and Search by area with nine named regions are visible.
+In the recipient hunt, assert the clue text {{gift_clue}} is visible.
 
-## Step 3 @verifies ac-61
+## Step 3 @verifies ac-35
+
+In the recipient hunt, assert the gift photo is visible.
+
+## Step 4 @verifies ac-37
+
+In the recipient hunt, assert the A little hint control is visible.
+
+## Step 5 @verifies ac-38
+
+In the recipient hunt, assert the Open without searching control is visible.
+
+## Step 6 @verifies ac-39
+
+In the recipient hunt, assert the Search by area control is visible.
+
+## Step 7 @verifies ac-61
 
 Before the note is found, assert the Open the note control is hidden.
 
-## Step 4 @verifies ac-42, ac-45
+## Step 8 @verifies ac-42, ac-45
 
-On the recipient photo hunt, find the hiding spot at {{hiding_spot_location}}, then assert a folded-note marker and Open the note are offered.
+On the recipient photo hunt, find the hiding spot at {{hiding_spot_location}}, then assert a folded-note marker is revealed.
 
-## Step 5 @verifies ac-46, ac-47, ac-48, ac-49, ac-50, ac-51
+## Step 9 @verifies ac-46, ac-47, ac-48, ac-49, ac-50, ac-51
 
-From the revealed folded note, open the note, then assert the letter shows For {{recipient_name}}, {{gift_message}}, and — {{sender_name}}, with Back to photo, Replay hunt, and Copy note available.
+Open the revealed note, then assert the letter message text {{gift_message}} is visible.
 
-## Step 6 @verifies ac-52
+## Step 10 @verifies ac-52
 
-On the open recipient letter, use Replay hunt, then assert the photo hunt is visible again for another search.
+On the open recipient letter, use Replay hunt, then assert the recipient photo hunt is visible again.

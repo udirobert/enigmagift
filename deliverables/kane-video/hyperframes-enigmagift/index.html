@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=1280, height=720">
+<script src="assets/gsap.min.js"></script>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html, body { width:1280px; height:720px; overflow:hidden; background:#16110d; }
+  body { font-family:"Helvetica Neue", Arial, sans-serif; color:#f6ecdc; }
+  #root { position:relative; width:1280px; height:720px; overflow:hidden; background:#16110d; }
+  .ground { position:absolute; inset:0; z-index:0; background:
+      radial-gradient(circle at 78% 12%, rgba(198,90,49,.28), transparent 34%),
+      radial-gradient(circle at 8% 90%, rgba(246,222,184,.08), transparent 34%),
+      repeating-linear-gradient(94deg, rgba(246,236,220,.026) 0 1px, transparent 1px 21px),
+      linear-gradient(145deg,#17110d 0%,#261a13 54%,#120e0b 100%); }
+  .vignette { position:absolute; inset:0; z-index:1; box-shadow:inset 0 0 110px rgba(0,0,0,.5); }
+  .kicker { z-index:2; font-family:"SF Mono",Menlo,monospace; font-size:15px; letter-spacing:.18em; text-transform:uppercase; color:#e28a61; font-weight:700; }
+  .display { z-index:2; font-family:Georgia,"Times New Roman",serif; font-weight:400; letter-spacing:-.035em; color:#fff5e4; line-height:.92; }
+  .serif { font-family:Georgia,"Times New Roman",serif; }
+  .mono { font-family:"SF Mono",Menlo,monospace; }
+  .paper { z-index:2; background:#f4ead7; color:#241811; border:1px solid rgba(255,255,255,.2); box-shadow:0 18px 50px rgba(0,0,0,.34), 8px 10px 0 rgba(0,0,0,.12); clip-path:polygon(1% 0,98% 1%,100% 4%,99% 96%,96% 100%,2% 99%,0 96%,0 3%); }
+  .card { background:rgba(255,241,218,.075); border:1px solid rgba(255,241,218,.15); border-radius:18px; box-shadow:0 18px 50px rgba(0,0,0,.22); }
+  .tape { position:absolute; width:92px; height:25px; background:rgba(244,234,215,.72); border:1px solid rgba(40,24,15,.12); transform:rotate(-4deg); z-index:4; }
+  .stamp { z-index:3; display:inline-block; padding:9px 20px; border:4px solid #d7643e; color:#ef8057; font-weight:900; letter-spacing:.12em; text-transform:uppercase; transform:rotate(-7deg); background:rgba(22,17,13,.7); box-shadow:0 8px 30px rgba(0,0,0,.25); }
+  .stamp.green { border-color:#79c887; color:#95dda2; }
+  .stamp.red { border-color:#e25d4f; color:#ff8172; }
+  .chip { z-index:3; display:inline-flex; align-items:center; gap:8px; border-radius:999px; padding:7px 13px; background:rgba(230,126,78,.15); color:#efa57f; font-weight:800; font-size:15px; letter-spacing:.04em; text-transform:uppercase; }
+  .photo-mat { z-index:2; background:#f4ead7; padding:16px 16px 46px; box-shadow:0 24px 55px rgba(0,0,0,.36); transform:rotate(-2deg); }
+  .photo-mat img, .photo-mat video { display:block; width:100%; height:100%; object-fit:cover; background:#0c0a08; }
+  .folded-note { position:relative; width:76px; height:58px; background:#fff9ec; border:1px solid #cdbb9d; box-shadow:0 8px 18px rgba(0,0,0,.24); }
+  .folded-note:before { content:""; position:absolute; right:0; top:0; border-style:solid; border-width:0 22px 22px 0; border-color:transparent #d9c8a9 transparent transparent; }
+  .folded-note:after { content:""; position:absolute; left:12px; right:12px; top:28px; height:2px; background:#d7c5a4; box-shadow:0 8px 0 #e3d3b5; }
+  .strip { display:flex; align-items:center; gap:16px; padding:15px 20px; border-radius:14px; background:#f4ead7; color:#241811; box-shadow:7px 8px 0 rgba(0,0,0,.18); }
+  .strip .num { width:32px; height:32px; border-radius:50%; display:grid; place-items:center; background:#c85c35; color:white; font-weight:900; }
+  .strip b { font-family:Georgia,serif; font-size:25px; font-weight:400; }
+  .strip span { font-size:15px; color:#66513f; }
+  .terminal { z-index:2; background:#070706; border:1px solid rgba(130,210,145,.2); border-radius:18px; color:#d7efd4; font-family:"SF Mono",Menlo,monospace; box-shadow:0 20px 55px rgba(0,0,0,.35); }
+  .terminal .line { white-space:pre; font-size:18px; line-height:1.6; }
+  .terminal .prompt { color:#e58a5f; }
+  .terminal .ok { color:#8ed29a; }
+  .terminal .bad { color:#ff8172; }
+  .metric { z-index:2; padding:18px 20px; border-radius:16px; background:rgba(244,234,215,.08); border:1px solid rgba(244,234,215,.14); }
+  .metric .n { font-family:Georgia,serif; font-size:48px; line-height:1; color:#e88458; }
+  .metric .t { margin-top:5px; font-weight:800; font-size:16px; }
+  .metric .s { margin-top:4px; color:#c9b7a2; font-size:13px; }
+  .evidence-row { display:grid; grid-template-columns:1fr auto; gap:14px; align-items:center; padding:12px 14px; border-bottom:1px solid rgba(36,24,17,.12); font-size:16px; }
+  .evidence-row .test { font-family:"SF Mono",Menlo,monospace; font-size:14px; }
+  .pass { color:#16723a; font-weight:900; text-transform:uppercase; }
+  .fail { color:#b22b21; font-weight:900; text-transform:uppercase; }
+  .loop-strip { z-index:2; padding:14px 18px; border-radius:14px; background:#f4ead7; color:#251912; box-shadow:6px 7px 0 rgba(0,0,0,.16); font-weight:900; letter-spacing:.06em; }
+  .arrow { z-index:2; color:#d96e42; font-size:28px; font-weight:900; }
+  .video-label { position:absolute; top:14px; left:14px; z-index:3; padding:7px 11px; border-radius:999px; background:rgba(22,17,13,.72); color:#f7e9d5; font-size:13px; font-weight:900; letter-spacing:.1em; text-transform:uppercase; }
+  .caption-stage { position:absolute; left:0; right:0; bottom:20px; height:64px; display:flex; align-items:center; justify-content:center; z-index:80; pointer-events:none; }
+  .caption { z-index:80; position:absolute; max-width:82%; padding:10px 22px 12px; border-radius:12px; background:rgba(244,234,215,.94); color:#241811; font-size:23px; line-height:1.2; font-weight:700; letter-spacing:-.015em; box-shadow:0 8px 28px rgba(0,0,0,.26); opacity:0; }
+  .progress { position:absolute; left:0; bottom:0; height:7px; width:0%; background:#c85c35; z-index:90; }
+  .smallprint { color:#bda98f; font-size:14px; line-height:1.35; }
+  .url { font-family:"SF Mono",Menlo,monospace; color:#f0a273; }
+</style>
+</head>
+<body>
+<div id="root" data-composition-id="main" data-start="0" data-duration="112" data-width="1280" data-height="720">
+
+  <!-- BEAT 1: cold open -->
+  <div id="beat1" class="clip" data-start="0" data-duration="9.5" data-track-index="1">
+    <div class="ground"></div><div class="vignette"></div>
+    <div id="b1-kicker" class="kicker" style="position:absolute;left:66px;top:52px;opacity:0;">ENIGMAGIFT × KANECLI</div>
+    <div id="b1-line1" class="display" style="position:absolute;left:66px;top:138px;font-size:78px;opacity:0;">NO CONFIDENCE.</div>
+    <div id="b1-line2" class="display" style="position:absolute;left:66px;top:244px;font-size:88px;color:#e88458;opacity:0;transform:rotate(-2deg);">ONLY EVIDENCE.</div>
+    <div id="b1-sub" class="serif" style="position:absolute;left:72px;top:368px;width:500px;font-size:27px;line-height:1.28;color:#dbc6ab;opacity:0;">A gift link is not allowed to ship until KaneCLI replays the journey in a browser.</div>
+    <div id="b1-card" class="paper" style="position:absolute;right:92px;top:150px;width:365px;height:310px;padding:34px;transform:rotate(3deg);opacity:0;">
+      <div class="tape" style="left:128px;top:-14px;"></div>
+      <div class="mono" style="font-size:13px;letter-spacing:.12em;color:#9b5a37;">PRIVATE LINK</div>
+      <div class="mono" style="margin-top:18px;font-size:17px;word-break:break-all;line-height:1.45;">enigmagift-room…/?photo=1<br>#gift=••••••••••••</div>
+      <div class="folded-note" style="position:absolute;right:38px;bottom:38px;"></div>
+      <div class="serif" style="position:absolute;left:34px;bottom:42px;font-size:24px;font-style:italic;">a little secret inside</div>
+    </div>
+    <div id="b1-stamp" class="stamp red" style="position:absolute;right:150px;top:420px;font-size:24px;opacity:0;">KANE OR NO DEPLOY</div>
+    <div class="progress" id="b1-progress" style="width:8.5%;"></div>
+  </div>
+
+  <!-- BEAT 2: product loop -->
+  <div id="beat2" class="clip" data-start="9.5" data-duration="15" data-track-index="1">
+    <div class="ground"></div><div class="vignette"></div>
+    <div id="b2-kicker" class="kicker" style="position:absolute;left:62px;top:46px;opacity:0;">THE PRODUCT LOOP</div>
+    <div id="b2-photo" class="photo-mat" style="position:absolute;left:70px;top:112px;width:495px;height:390px;opacity:0;">
+      <img src="assets/media/live-photo-entry.png" style="width:100%;height:282px;object-fit:cover;object-position:center;">
+      <div class="serif" style="position:absolute;bottom:10px;left:0;right:0;text-align:center;font-size:22px;font-style:italic;color:#4a372a;">a place they know</div>
+    </div>
+    <div id="b2-grid" style="position:absolute;left:118px;top:158px;width:400px;height:245px;border:1px solid rgba(198,92,53,.5);opacity:0;background:linear-gradient(rgba(198,92,53,.24) 1px,transparent 1px),linear-gradient(90deg,rgba(198,92,53,.24) 1px,transparent 1px);background-size:33.33% 33.33%;mix-blend-mode:screen;"></div>
+    <div id="b2-note" class="folded-note" style="position:absolute;left:360px;top:278px;width:52px;height:40px;opacity:0;"></div>
+    <div style="position:absolute;right:70px;top:118px;width:545px;">
+      <div id="b2-s1" class="strip" style="opacity:0;"><div class="num">1</div><div><b>Choose a photo</b><br><span>a meaningful place, not a stock scene</span></div></div>
+      <div id="b2-s2" class="strip" style="margin-top:18px;opacity:0;"><div class="num">2</div><div><b>Hide the note</b><br><span>one precise spot, plus an optional clue</span></div></div>
+      <div id="b2-s3" class="strip" style="margin-top:18px;opacity:0;"><div class="num">3</div><div><b>Write the letter</b><br><span>private, personal, sealed in the hunt</span></div></div>
+      <div id="b2-s4" class="strip" style="margin-top:18px;opacity:0;"><div class="num">4</div><div><b>Share the link</b><br><span>the recipient searches, misses, hints, finds, opens</span></div></div>
+    </div>
+    <div id="b2-hunt" class="chip" style="position:absolute;right:96px;bottom:90px;font-size:18px;opacity:0;">search → miss → hint → find → open</div>
+    <div class="progress" style="width:22%;"></div>
+  </div>
+
+  <!-- BEAT 3: live capture -->
+  <div id="beat3" class="clip" data-start="24.5" data-duration="16" data-track-index="1">
+    <div class="ground"></div><div class="vignette"></div>
+    <div id="b3-kicker" class="kicker" style="position:absolute;left:62px;top:44px;opacity:0;">LIVE PRODUCT / NO MOCKUP</div>
+    <div id="b3-createwrap" class="photo-mat" style="position:absolute;left:250px;top:100px;width:780px;height:510px;padding:14px 14px 38px;transform:rotate(0deg);opacity:0;">
+      <div class="video-label">creator</div>
+      <video id="creation-capture" src="assets/media/creation-fast.mp4" data-start="25" data-duration="10" data-media-start="0.4" muted playsinline style="width:100%;height:455px;object-fit:cover;"></video>
+    </div>
+    <div id="b3-recipwrap" class="photo-mat" style="position:absolute;right:70px;top:118px;width:515px;height:430px;padding:13px 13px 38px;transform:rotate(2deg);opacity:0;">
+      <div class="video-label">recipient</div>
+      <video id="recipient-capture" src="assets/media/recipient-fast.mp4" data-start="32" data-duration="7" data-media-start="0.2" muted playsinline style="width:100%;height:375px;object-fit:cover;"></video>
+    </div>
+    <div id="b3-linkchip" class="chip" style="position:absolute;left:88px;bottom:90px;opacity:0;">one private link in</div>
+    <div id="b3-replay" class="chip" style="position:absolute;right:104px;bottom:86px;opacity:0;">hunt → letter → replay</div>
+    <div class="progress" style="width:36%;"></div>
+  </div>
+
+  <!-- BEAT 4: deploy gate -->
+  <div id="beat4" class="clip" data-start="40.5" data-duration="21.5" data-track-index="1">
+    <div class="ground"></div><div class="vignette"></div>
+    <div id="b4-kicker" class="kicker" style="position:absolute;left:62px;top:44px;opacity:0;">THE DEPLOY GATE</div>
+    <div id="b4-terminal" class="terminal" style="position:absolute;left:66px;top:104px;width:646px;height:430px;padding:28px;opacity:0;">
+      <div class="line" id="t1"><span class="prompt">$</span> npm run deploy:room</div><br>
+      <div class="line" id="t2">build:room</div>
+      <div class="line" id="t3">  └─ dog-gift-tabletop/dist</div><br>
+      <div class="line" id="t4">verify-room.mjs</div>
+      <div class="line" id="t5">  ├─ serve exact dist + proxy /api</div>
+      <div class="line" id="t6">  ├─ regenerate fixture URLs</div>
+      <div class="line" id="t7">  ├─ replay 13 Kane browser tests</div>
+      <div class="line" id="t8">  ├─ validate NDJSON evidence</div>
+      <div class="line" id="t9">  └─ write verify-report.json</div><br>
+      <div class="line ok" id="t10">green complete evidence → deploy allowed</div>
+      <div class="line bad" id="t11">red or incomplete evidence → release blocked</div>
+    </div>
+    <div style="position:absolute;right:70px;top:116px;width:430px;">
+      <div id="b4-m1" class="metric" style="opacity:0;"><div class="n">13</div><div class="t">browser tests</div><div class="s">committed, replayable, acceptance-tagged</div></div>
+      <div id="b4-m2" class="metric" style="margin-top:18px;opacity:0;"><div class="n">48</div><div class="t">AC references</div><div class="s">steps tied back to written product claims</div></div>
+      <div id="b4-m3" class="metric" style="margin-top:18px;opacity:0;"><div class="n">1</div><div class="t">production surface</div><div class="s">the free single-photo journey at ?photo=1</div></div>
+    </div>
+    <div id="b4-stamp" class="stamp red" style="position:absolute;right:116px;bottom:92px;font-size:22px;opacity:0;">RED = NO RELEASE</div>
+    <div class="progress" style="width:55%;"></div>
+  </div>
+
+  <!-- BEAT 5: evidence and drift -->
+  <div id="beat5" class="clip" data-start="62" data-duration="22" data-track-index="1">
+    <div class="ground"></div><div class="vignette"></div>
+    <div id="b5-kicker" class="kicker" style="position:absolute;left:62px;top:42px;opacity:0;">EVIDENCE / INCLUDING RED</div>
+    <div id="b5-dossier" class="paper" style="position:absolute;left:62px;top:94px;width:625px;height:500px;padding:28px 30px;transform:rotate(-1deg);opacity:0;">
+      <div class="tape" style="left:250px;top:-14px;"></div>
+      <div class="mono" style="font-size:13px;letter-spacing:.14em;color:#9b5a37;">notes/KANECLI-EVIDENCE.md</div>
+      <div style="margin-top:18px;">
+        <div class="evidence-row" id="e1"><span class="test">centre-then-move-the-paper-marker</span><span class="pass">passed</span></div>
+        <div class="evidence-row" id="e2"><span class="test">clue-entry-stops-at-200-characters</span><span class="pass">passed</span></div>
+        <div class="evidence-row" id="e3"><span class="test">create-and-review-a-tapped-spot-photo-gift</span><span class="pass">passed</span></div>
+        <div class="evidence-row" id="e4"><span class="test">closed-recipient-links-never-show-the-hunt</span><span class="pass">passed</span></div>
+        <div class="evidence-row" id="e5" style="background:rgba(186,45,35,.08);"><span class="test">editing-creates-a-new-link…</span><span class="fail">failed</span></div>
+      </div>
+      <div class="smallprint" style="margin-top:18px;color:#6c563f;">public Test Manager share links; local packs stay operator artifacts</div>
+    </div>
+    <div style="position:absolute;right:66px;top:116px;width:460px;">
+      <div id="d1" class="strip" style="opacity:0;"><b>image-format wording</b><span>JPEG-only vs PNG/WebP normalization</span></div>
+      <div id="d2" class="strip" style="margin-top:16px;opacity:0;"><b>persistent storage</b><span>localStorage wording vs browser reality</span></div>
+      <div id="d3" class="strip" style="margin-top:16px;opacity:0;"><b>note control ambiguity</b><span>when Open the note should appear</span></div>
+      <div id="d4" class="strip" style="margin-top:16px;opacity:0;"><b>edit assertion drift</b><span>the test outran what the browser proved</span></div>
+    </div>
+    <div id="b5-stamp" class="stamp red" style="position:absolute;right:150px;bottom:82px;font-size:23px;opacity:0;">DRIFT CAUGHT</div>
+    <div id="b5-public" class="stamp green" style="position:absolute;left:116px;bottom:72px;font-size:17px;opacity:0;transform:rotate(4deg);">RED STAYED PUBLIC</div>
+    <div class="progress" style="width:75%;"></div>
+  </div>
+
+  <!-- BEAT 6: loop and close -->
+  <div id="beat6" class="clip" data-start="84" data-duration="28" data-track-index="1">
+    <div class="ground"></div><div class="vignette"></div>
+    <div id="b6-kicker" class="kicker" style="position:absolute;left:62px;top:44px;opacity:0;">THE CLOSED LOOP</div>
+    <div id="b6-loop" style="position:absolute;left:70px;right:70px;top:148px;display:flex;align-items:center;justify-content:space-between;">
+      <div id="l1" class="loop-strip" style="opacity:0;">REQUIREMENTS</div><div class="arrow">→</div>
+      <div id="l2" class="loop-strip" style="opacity:0;">EVIDENCE</div><div class="arrow">→</div>
+      <div id="l3" class="loop-strip" style="opacity:0;">DIGEST</div><div class="arrow">→</div>
+      <div id="l4" class="loop-strip" style="opacity:0;">REPAIR</div><div class="arrow">→</div>
+      <div id="l5" class="loop-strip" style="opacity:0;">REPLAY</div><div class="arrow">→</div>
+      <div id="l6" class="loop-strip" style="opacity:0;">RELEASE</div>
+    </div>
+    <div id="b6-mid" class="display" style="position:absolute;left:90px;right:90px;top:285px;text-align:center;font-size:54px;opacity:0;">Deployment is the price of evidence.</div>
+    <div id="b6-caveat" class="serif" style="position:absolute;left:230px;right:230px;top:380px;text-align:center;font-size:24px;line-height:1.35;color:#d6c1a7;opacity:0;">Narrow scope, honestly verified: one production photo-gift journey — not the whole paid product.</div>
+    <div id="b6-end" class="paper" style="position:absolute;left:170px;right:170px;top:105px;height:480px;padding:44px 54px;text-align:center;opacity:0;transform:rotate(-1deg);">
+      <div class="kicker" style="color:#a9522d;">ENIGMAGIFT</div>
+      <div class="display" style="margin-top:22px;font-size:62px;color:#241811;">Real gift. Real browser proof.</div>
+      <div class="serif" style="margin:26px auto 0;max-width:760px;font-size:25px;line-height:1.34;color:#594637;">Open the live journey without credentials, inspect the committed suite, or run the same gate yourself.</div>
+      <div class="mono url" style="margin-top:28px;font-size:18px;color:#a8522d;">enigmagift-room.trustfall.workers.dev/?photo=1</div>
+      <div class="mono url" style="margin-top:12px;font-size:18px;color:#a8522d;">github.com/udirobert/enigmagift</div>
+      <div class="stamp green" style="margin-top:28px;font-size:19px;border-color:#3c8b4c;color:#2f7c3f;background:transparent;">KANE-GATED DEPLOY</div>
+    </div>
+    <div class="progress" style="width:100%;"></div>
+  </div>
+
+  <!-- captions -->
+  <div id="caption-stage" class="caption-stage">
+    <div id="c1" class="caption">This gift does not ship on confidence.</div>
+    <div id="c2" class="caption">Choose a photo. Hide the note. Write the letter. Share the link.</div>
+    <div id="c3" class="caption">The recipient searches, misses, hints, finds — and opens the note.</div>
+    <div id="c4" class="caption">Live capture. No mockup.</div>
+    <div id="c5" class="caption">Creator on the left. Recipient on the right.</div>
+    <div id="c6" class="caption">The exact build becomes a Kane replay target.</div>
+    <div id="c7" class="caption">Build → verify → deploy. Red evidence blocks release.</div>
+    <div id="c8" class="caption">Green rows prove real browser behaviour.</div>
+    <div id="c9" class="caption">Red rows expose drift — and stay public.</div>
+    <div id="c10" class="caption">Requirements → evidence → digest → repair → replay.</div>
+    <div id="c11" class="caption">One production journey, gated end to end.</div>
+  </div>
+
+  <!-- audio -->
+  <audio id="bgm" src="assets/bgm-112.mp3" data-start="0" data-duration="112" data-track-index="10" data-volume="0.14"></audio>
+  <audio id="vo1" src="assets/voice/beat1.mp3" data-start="0.5" data-duration="7.88" data-track-index="11" data-volume="1"></audio>
+  <audio id="vo2" src="assets/voice/beat2.mp3" data-start="10" data-duration="13.08" data-track-index="11" data-volume="1"></audio>
+  <audio id="vo3" src="assets/voice/beat3.mp3" data-start="25" data-duration="12.35" data-track-index="11" data-volume="1"></audio>
+  <audio id="vo4" src="assets/voice/beat4.mp3" data-start="40.9" data-duration="20" data-track-index="11" data-volume="1"></audio>
+  <audio id="vo5" src="assets/voice/beat5.mp3" data-start="62.8" data-duration="21.53" data-track-index="11" data-volume="1"></audio>
+  <audio id="vo6" src="assets/voice/beat6.mp3" data-start="85.4" data-duration="22.21" data-track-index="11" data-volume="1"></audio>
+</div>
+
+<script>
+  window.__timelines = window.__timelines || {};
+  const tl = gsap.timeline({ paused: true });
+
+  // Beat 1 — fast paper/evidence cold open
+  tl.fromTo('#b1-kicker',{y:-18,opacity:0},{y:0,opacity:1,duration:.35,ease:'power3.out'},0.2);
+  tl.fromTo('#b1-line1',{x:-80,opacity:0},{x:0,opacity:1,duration:.5,ease:'power4.out'},0.45);
+  tl.fromTo('#b1-line2',{x:90,opacity:0,scale:1.08},{x:0,opacity:1,scale:1,duration:.5,ease:'power4.out'},0.9);
+  tl.fromTo('#b1-sub',{y:24,opacity:0},{y:0,opacity:1,duration:.45,ease:'power3.out'},1.45);
+  tl.fromTo('#b1-card',{y:80,rotation:8,opacity:0},{y:0,rotation:3,opacity:1,duration:.55,ease:'back.out(1.6)'},1.1);
+  tl.fromTo('#b1-stamp',{scale:2.5,opacity:0},{scale:1,opacity:1,duration:.24,ease:'power4.in'},4.15);
+  tl.to('#beat1',{y:3,duration:.06,yoyo:true,repeat:2},4.4);
+  tl.to('#b1-card',{y:-8,duration:1.8,ease:'sine.inOut',yoyo:true,repeat:1},5.2);
+
+  // Beat 2 — product loop cascade
+  tl.fromTo('#b2-kicker',{y:-16,opacity:0},{y:0,opacity:1,duration:.3,ease:'power3.out'},9.8);
+  tl.fromTo('#b2-photo',{x:-110,rotation:-7,opacity:0},{x:0,rotation:-2,opacity:1,duration:.55,ease:'power3.out'},10.0);
+  tl.fromTo('#b2-grid',{opacity:0,scale:1.04},{opacity:1,scale:1,duration:.35},11.2);
+  tl.fromTo('#b2-note',{scale:0,opacity:0},{scale:1,opacity:1,duration:.35,ease:'back.out(2.2)'},12.0);
+  tl.fromTo('#b2-s1',{x:170,opacity:0},{x:0,opacity:1,duration:.35,ease:'power3.out'},10.7);
+  tl.fromTo('#b2-s2',{x:170,opacity:0},{x:0,opacity:1,duration:.35,ease:'power3.out'},12.1);
+  tl.fromTo('#b2-s3',{x:170,opacity:0},{x:0,opacity:1,duration:.35,ease:'power3.out'},14.0);
+  tl.fromTo('#b2-s4',{x:170,opacity:0},{x:0,opacity:1,duration:.35,ease:'power3.out'},16.0);
+  tl.fromTo('#b2-hunt',{y:30,opacity:0},{y:0,opacity:1,duration:.35,ease:'back.out(1.8)'},18.2);
+  tl.to('#b2-note',{x:-120,y:80,duration:1.1,ease:'power2.inOut'},19.4);
+  tl.to('#b2-photo',{y:-6,duration:2.2,ease:'sine.inOut',yoyo:true,repeat:1},20.5);
+
+  // Beat 3 — live product capture
+  tl.fromTo('#b3-kicker',{y:-16,opacity:0},{y:0,opacity:1,duration:.3},24.8);
+  tl.fromTo('#b3-createwrap',{y:80,opacity:0,scale:1.03},{y:0,opacity:1,scale:1,duration:.55,ease:'power3.out'},25.0);
+  tl.to('#b3-createwrap',{x:-180,y:18,scale:.72,rotation:-2,duration:.65,ease:'power3.inOut'},31.3);
+  tl.fromTo('#b3-recipwrap',{x:180,rotation:7,opacity:0},{x:0,rotation:2,opacity:1,duration:.55,ease:'power3.out'},31.7);
+  tl.fromTo('#b3-linkchip',{y:26,opacity:0},{y:0,opacity:1,duration:.3,ease:'back.out(1.8)'},29.5);
+  tl.fromTo('#b3-replay',{y:26,opacity:0},{y:0,opacity:1,duration:.3,ease:'back.out(1.8)'},35.3);
+  tl.to('#b3-recipwrap',{y:-7,duration:1.7,ease:'sine.inOut',yoyo:true,repeat:1},36.6);
+
+  // Beat 4 — terminal/pipeline reveal
+  tl.fromTo('#b4-kicker',{y:-16,opacity:0},{y:0,opacity:1,duration:.3},40.8);
+  tl.fromTo('#b4-terminal',{y:60,opacity:0},{y:0,opacity:1,duration:.55,ease:'power3.out'},41.0);
+  const termLines=['#t1','#t2','#t3','#t4','#t5','#t6','#t7','#t8','#t9','#t10','#t11'];
+  termLines.forEach((sel,i)=>{ tl.fromTo(sel,{opacity:0,x:-12},{opacity:1,x:0,duration:.18},42.0+i*.55); });
+  tl.fromTo('#b4-m1',{x:130,opacity:0},{x:0,opacity:1,duration:.35,ease:'power3.out'},44.0);
+  tl.fromTo('#b4-m2',{x:130,opacity:0},{x:0,opacity:1,duration:.35,ease:'power3.out'},47.0);
+  tl.fromTo('#b4-m3',{x:130,opacity:0},{x:0,opacity:1,duration:.35,ease:'power3.out'},50.0);
+  tl.fromTo('#b4-stamp',{scale:2.3,opacity:0},{scale:1,opacity:1,duration:.24,ease:'power4.in'},56.0);
+  tl.to('#beat4',{y:3,duration:.06,yoyo:true,repeat:2},56.3);
+
+  // Beat 5 — evidence rows and drift cards
+  tl.fromTo('#b5-kicker',{y:-16,opacity:0},{y:0,opacity:1,duration:.3},62.3);
+  tl.fromTo('#b5-dossier',{y:70,rotation:-4,opacity:0},{y:0,rotation:-1,opacity:1,duration:.55,ease:'power3.out'},62.5);
+  ['#e1','#e2','#e3','#e4'].forEach((sel,i)=>tl.fromTo(sel,{opacity:0,x:-30},{opacity:1,x:0,duration:.22},64.0+i*.48));
+  tl.fromTo('#e5',{opacity:0,x:-30,backgroundColor:'rgba(186,45,35,0)'},{opacity:1,x:0,backgroundColor:'rgba(186,45,35,.12)',duration:.3},66.4);
+  tl.fromTo('#d1',{x:160,opacity:0},{x:0,opacity:1,duration:.34,ease:'power3.out'},68.0);
+  tl.fromTo('#d2',{x:160,opacity:0},{x:0,opacity:1,duration:.34,ease:'power3.out'},70.0);
+  tl.fromTo('#d3',{x:160,opacity:0},{x:0,opacity:1,duration:.34,ease:'power3.out'},72.0);
+  tl.fromTo('#d4',{x:160,opacity:0},{x:0,opacity:1,duration:.34,ease:'power3.out'},74.0);
+  tl.fromTo('#b5-stamp',{scale:2.4,opacity:0},{scale:1,opacity:1,duration:.24,ease:'power4.in'},76.4);
+  tl.fromTo('#b5-public',{scale:1.8,opacity:0},{scale:1,opacity:1,duration:.28,ease:'back.out(1.8)'},79.0);
+
+  // Beat 6 — loop montage and close
+  tl.fromTo('#b6-kicker',{y:-16,opacity:0},{y:0,opacity:1,duration:.3},84.3);
+  ['#l1','#l2','#l3','#l4','#l5','#l6'].forEach((sel,i)=>tl.fromTo(sel,{y:55,opacity:0,scale:.9},{y:0,opacity:1,scale:1,duration:.24,ease:'back.out(2)'},84.8+i*.72));
+  tl.fromTo('#b6-mid',{y:35,opacity:0},{y:0,opacity:1,duration:.55,ease:'power3.out'},90.0);
+  tl.fromTo('#b6-caveat',{y:24,opacity:0},{y:0,opacity:1,duration:.5,ease:'power3.out'},94.0);
+  tl.to(['#b6-loop','#b6-mid','#b6-caveat'],{opacity:0,y:-20,duration:.5,ease:'power2.in'},101.5);
+  tl.fromTo('#b6-end',{opacity:0,scale:.92,y:45},{opacity:1,scale:1,y:0,duration:.75,ease:'power3.out'},102.0);
+  tl.to('#caption-stage',{opacity:0,duration:.2},101.6);
+
+  // Sparse captions
+  const caps = [
+    ['#c1',0.8,7.5], ['#c2',10.2,13.7], ['#c3',14.2,21.5],
+    ['#c4',25.2,30.5], ['#c5',32.0,38.5], ['#c6',41.5,47.0],
+    ['#c7',48.0,60.0], ['#c8',63.5,70.0], ['#c9',70.8,81.5],
+    ['#c10',85.4,94.0], ['#c11',95.0,101.0]
+  ];
+  caps.forEach(([sel,start,end])=>{
+    tl.fromTo(sel,{opacity:0,y:16},{opacity:1,y:0,duration:.18,ease:'power2.out'},start);
+    tl.to(sel,{opacity:0,y:8,duration:.16,ease:'power2.in'},end);
+  });
+
+  window.__timelines['main'] = tl;
+</script>
+</body>
+</html>

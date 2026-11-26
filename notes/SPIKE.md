@@ -1,9 +1,10 @@
 # Vision located-observations spike — completed
 
-**Status: completed and superseded.** This is the historical feasibility record
-from 2026-11-17. It is not the current provider runbook; use
-[OPS.md](OPS.md) for the live SandBase → Cloudflare Workers AI → Groq → Gemini
-fallback chain, production benchmarks, and operating limits.
+**Status:** completed historical record — superseded · **Last reviewed:** 2026-11-26
+
+This is the feasibility record from 2026-11-17. It is not the current provider
+runbook; use [OPS.md](OPS.md) for the live SandBase → Cloudflare Workers AI →
+Groq → Gemini fallback chain, production benchmarks, and operating limits.
 
 ## Verdict
 
@@ -34,11 +35,11 @@ photos.
 - JSON repair, bounded retries, and provider failover;
 - progressive photo-read status in the buyer flow;
 - upload normalization before provider processing;
-- production validation documented in [OPS.md](OPS.md).
+- production validation documented in [OPS-LOG.md](OPS-LOG.md).
 
 ## Historical artifacts
 
 The original test images and scratch outputs lived under
 `/tmp/enigmabox-spike/` and are ephemeral. Do not treat the spike's cost or
 latency figures as current production measurements; later provider benchmarks
-and live validation are in [OPS.md](OPS.md).
+and live validation are in [OPS-LOG.md](OPS-LOG.md).

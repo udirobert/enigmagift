@@ -1,5 +1,7 @@
 # Someone saved you a seat
 
+**Status:** recipient research reference and experiment · **Last reviewed:** 2026-11-26
+
 [Open the public recipient gift](https://saved-you-a-seat--enigmagift.netlify.app/). This dog-and-dining-room gift is the reference for iterating EnigmaGift. The shelf and Marble studio remain experiments, not substitutes for this recipient journey.
 
 The active [room pilot](https://enigmagift-room.trustfall.workers.dev/)

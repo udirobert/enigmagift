@@ -69,10 +69,12 @@ infrastructure:
 
 - `spec/photo-gift.md` — requirements source for the photo-gift journey.
 - `spec/fixtures.json` — fixture constants for live, revoked and unknown gift
-  links on the production API, plus the non-JPEG fixture path.
-- `.testmuai/tests/` — **16 committed `_test.md` browser tests**, designed
-  through the assurance workflow rather than hand-written, each tagged with
-  the acceptance criterion it verifies.
+  links on the production API, plus image fixtures and a synthetic broken-image
+  fixture implemented by the local verification proxy.
+- `.testmuai/tests/` — **13 active committed `_test.md` browser tests**,
+  designed through the assurance workflow rather than hand-written, each tagged
+  with the acceptance criteria it verifies; seven superseded tests are retained
+  in `.testmuai/tests/superseded/` for audit.
 - `scripts/verify-room.mjs` — the deploy gate runner.
 - `spec/README.md` — operator documentation for the suite.
 - Commit `d869622` — **2026-11-22** — “Add Kane-gated deploy for the photo
@@ -80,8 +82,10 @@ infrastructure:
 
 The suite covers the photo-gift journey: creating a gift, previewing the exact
 recipient experience, recipient discovery and reading, wrong taps and wrong
-areas, edit versioning, revoked/unknown links, local-storage failure, non-JPEG
-input, clue length, and reduced/resilient use.
+areas, edit versioning, revoked/unknown links, broken-image resilience, clue
+length, and reduced/resilient use. Multi-format input normalization, blocked
+persistent storage and saved-recipient preview are explicit coverage debt after
+deadline-day reconciliation, not silently claimed coverage.
 
 It deliberately does **not** cover the whole product: the 3D sample-room demo,
 paid React-app flows, Stripe checkout/payments and private management
@@ -141,10 +145,10 @@ rather than blindly trusted, but it is not a substitute for a clean passing run.
 | --- | --- |
 | Works end to end | Strong for the photo-gift journey; the verified photo-gift surface exists at `https://enigmagift-room.trustfall.workers.dev/?photo=1`. Whole-product proof is broader than the committed Kane suite. |
 | Kane caught or proved something | Strong on proof: the suite verifies real browser behaviour and the deploy gate blocks failed builds. Weaker on “caught a real product bug”; the documented Kane failure was primarily an assertion mismatch. |
-| Agent ↔ Kane closed loop | Medium. The gate writes an agent-readable failure digest and blocks deployment, but there is no automated FIXER/repair stage comparable to a full fail → repair → re-verify loop. |
+| Agent ↔ Kane closed loop | Stronger after deadline-day repair: the gate writes an agent-readable failure digest, the agent used it to separate product behaviour from test-authoring drift, repaired the suite, and replayed it. This is agent-in-the-loop repair rather than a fully automated self-healing system. |
 | Ships | Strong if scoped to the photo-gift journey. |
 | Verified | Strong committed foundation, but needed fresh public/shareable run evidence and the skipped fixture resolved. |
-| Closed loop | Medium; manual/agent-in-the-loop repair, not automated repair. |
+| Closed loop | Agent-in-the-loop repair is real and documented; not a fully automated self-healing system. |
 | Craft | Strong product craft, but hackathon craft also required the video, posts and judge narrative. |
 
 ## What would have been required to submit EnigmaGift
@@ -180,7 +184,7 @@ product had drifted apart.
 | `device-picker-excludes-non-jpeg-photos` failed | Requirement drift, not an application defect. The product intentionally accepts JPEG, PNG and WebP locally, then normalizes the image to a clean JPEG before upload. The requirements still said JPEG-only; the accept list also advertised HEIC/HEIF even though browser normalization could not reliably decode them. | `spec/photo-gift.md` corrected and the HEIC/HEIF accept entries removed; suite reconciliation started through the assurance workflow. |
 | `blocked-local-storage-keeps-the-gift-draft-in-this-tab` failed | Requirement/test imprecision. The implementation uses IndexedDB-backed persistent storage, not localStorage. Blocking only localStorage does not create the condition the requirement meant. | Requirement corrected to “persistent storage”; test redesign required rather than weakening the product. |
 | `saved-recipient-preview-returns-to-unchanged-gift-editor` failed | Requirement ambiguity. `Open the note` is intentionally hidden until the note is found; it is not an initial hunt control. | Requirement corrected to say the control appears once the note is found. |
-| `editing-creates-a-new-link-without-changing-the-earlier-gift` failed | Automation/test-authoring issue, not a product failure. The evidence showed the original and edited links were different, but the replay agent opened the current in-page preview instead of navigating to the stored original URL. | Step wording repaired using Kane's explicit extraction grammar: store the share link as `original_share_link`, then navigate to the stored value. |
+| `editing-creates-a-new-link-without-changing-the-earlier-gift` failed | Automation/test-authoring issue, not a product failure. Chrome’s browser chrome is outside the page automation surface, so pasting a copied link into the address bar did not reliably navigate; the replay then checked the edited in-page preview. | Step wording repaired to use the product’s intended history path: browser Back returns to the original saved-gift page, then the recipient preview is opened and checked. |
 
 At the same time, fresh passing evidence was produced for the core creation,
 marker-placement, clue-limit and closed-link behaviours. Those public links are

@@ -1,5 +1,7 @@
 # Immersive memory hunt — proposed, not shipped
 
+**Status:** proposed future direction — not shipped · **Last reviewed:** 2026-11-26
+
 Turn one or more photos of a place they know into a small 3D world. The recipient explores meaningful objects, talks to a character who belongs there, and solves a mystery to find a digital or physical gift. The world is the hunt, not the prize after it. No physical visit or new capture is required for a digital gift if the source photos are usable. The flat memory room is an accessibility and delivery fallback, not the base commercial promise. See [World providers and redundancy](WORLD-PROVIDERS.md) for the technical plan.
 
 ## Explore freely; guess deliberately

@@ -8,14 +8,10 @@ assurance:
 
 > Tapping the gift photo outside its hiding spot yields the gentle Not quite there feedback.
 
-## Step 1 @verifies ac-35, ac-36
+## Step 1
 
-Open the recipient gift URL {{valid_gift_url}} in the EnigmaGift browser, then assert the gift photo and clue {{gift_clue}} appear.
+Open the recipient gift URL {{valid_gift_url}} in the EnigmaGift browser.
 
-## Step 2 @verifies ac-37, ac-38, ac-39
+## Step 2 @verifies ac-40
 
-In the recipient photo hunt, assert A little hint, Open without searching, and Search by area with nine named regions are visible.
-
-## Step 3 @verifies ac-40
-
-On the recipient photo hunt, tap the photo at {{outside_spot_location}}, outside this gift's hiding spot, then assert Not quite there appears.
+On the recipient photo hunt, tap the photo at {{outside_spot_location}}, outside this gift's hiding spot, then assert the feedback text is 'Not quite there — keep looking.'

@@ -15,6 +15,7 @@
     "test": "npm run test:unit && npm run smoke:scenes",
     "build:pages": "VITE_STRIPE_LINK_TRAIL=https://buy.stripe.com/cNi6oIgAj4mSa63acb8EM02 VITE_STRIPE_LINK_HIDE=https://buy.stripe.com/6oU9AUesb1aGcebckj8EM03 VITE_STRIPE_LINK_SET=https://buy.stripe.com/7sYfZiabV6v0emj0BB8EM04 npm run build",
     "verify:pages-build": "node scripts/verify-pages-build.mjs",
+    "verify:api-docs": "node scripts/verify-api-docs.mjs",
     "deploy:pages": "npm run build:pages && npm run verify:pages-build && wrangler pages deploy dist --project-name enigmagift --branch=main --commit-dirty=true"
   },
   "dependencies": {

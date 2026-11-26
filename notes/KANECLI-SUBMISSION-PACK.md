@@ -43,6 +43,21 @@ journey is Kane-gated; the wider paid trail, Stripe checkout, generated 3D
 worlds and painted keepsakes are live product features outside this submission's
 verified scope.
 
+## Video assets actually available
+
+Use a compliant 3–5 minute upload candidate, not the fast cut:
+
+- `deliverables/kane-video/enigmagift-kanecli-demo.mp4` — **4:11**, 1280×720,
+  h264/AAC, completed deadline-day fallback/master candidate.
+- `deliverables/kane-video/enigmagift-kane-demo.mp4` — **3:10**, 1280×720,
+  h264/AAC, earlier complete cut.
+- `deliverables/kane-video/hyperframes-enigmagift/renders/enigmagift-kanecli-fast.mp4`
+  — **1:52** fast cut; useful as an extra social asset, but shorter than the
+  form's stated 3–5 minute expectation.
+
+Ready post copy is in `deliverables/kane-social-posts.md` and
+`deliverables/kane-video/social-posts.md`.
+
 ## YouTube script (3–5 minutes)
 
 Target 4 minutes. Show real terminal/browser output, no polish required. Do not record the whole suite in real time: start the gate, explain what it is doing, then cut to the final digest/pass and the public evidence links.
@@ -76,7 +91,7 @@ Target 4 minutes. Show real terminal/browser output, no polish required. Do not 
 - **Tagline:** An AI gift product that refuses to deploy until KaneCLI signs off.
 - **Repository:** https://github.com/udirobert/enigmagift
 - **Live demo:** https://enigmagift-room.trustfall.workers.dev/?photo=1
-- **Video:** [YOUTUBE]
+- **Video:** https://youtu.be/2qW3gHiNt2Q
 - **Post 1:** [X/LINKEDIN URL]
 - **Post 2:** [X/LINKEDIN/REDDIT/HN URL]
 - **Judge access:** No credentials needed for the verified scope. Open the live photo-gift link or run `npm run verify:room` with a signed-in KaneCLI. Paid/AI-provider features are outside the verification claim.
@@ -90,18 +105,12 @@ Short description if the form has a small field:
 
 ### X post
 
-EnigmaGift is now Kane-gated: the photo-gift surface refuses to deploy unless
-@KaneCLI replays a real browser suite green.
+EnigmaGift is Kane-gated: the photo-gift surface won’t deploy unless @kane_cli replays Chrome evidence green.
 
-Not “tests exist” — release authority:
-- assurance-designed requirements → Chrome evidence
-- red rows exposed requirement/product drift instead of being hidden
-- agent-readable failure digest and suite reconciliation loop
-- build → verify → deploy in one command
-- public evidence links in the repo
+Requirements → browser proof → agent-readable red digest → build/verify/deploy.
 
-Repo: https://github.com/udirobert/enigmagift
-Demo: [YOUTUBE]
+Repo: github.com/udirobert/enigmagift
+Demo: https://youtu.be/2qW3gHiNt2Q
 
 #KaneCLIHackathon
 
@@ -135,7 +144,7 @@ not the entire paid product. But that narrow loop is real end-to-end:
 requirements → Kane browser evidence → agent repair loop → deployment authority.
 
 Repository: https://github.com/udirobert/enigmagift
-Demo: [YOUTUBE]
+Demo: https://youtu.be/2qW3gHiNt2Q
 
 ### Optional Reddit/HN variant
 

@@ -1,5 +1,7 @@
 # Next steps — make it a gift before it's a world
 
+**Status:** current decision plan · **Last reviewed:** 2026-11-26
+
 Written 2026-11-24, from a code-and-docs review of the shipped trail-first
 product. This plan runs **alongside** [the world-first roadmap](DIGITAL-HUNT.md),
 it does not replace it. The roadmap answers "what should this become"; this plan

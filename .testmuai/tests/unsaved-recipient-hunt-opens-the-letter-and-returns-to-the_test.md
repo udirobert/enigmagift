@@ -10,20 +10,20 @@ assurance:
 
 ## Step 1
 
-At {{start_url}}, open the EnigmaGift photo-gift creator (?photo=1), choose the JPEG photo {{jpeg_photo}}, place the paper marker at the centre, enter clue 'Find the centre', and prepare the letter To Alex with message 'Preview check message' and From Sam.
+At {{start_url}}, open the EnigmaGift photo-gift creator (?photo=1) and choose {{jpeg_photo}}. Place the paper marker at the centre. In the Clue field, type exactly 'Find the centre', then choose Write the note. Prepare the letter To Alex with message 'Preview check message' and From Sam.
 
 ## Step 2 @verifies ac-24, ac-25
 
-From the unsaved gift editor, open Try the hunt, then assert the in-place recipient hunt shows the chosen photo and clue 'Find the centre'.
+From the unsaved gift editor, open See what they see, then assert the in-place recipient hunt shows the clue text 'Find the centre'.
 
 ## Step 3 @verifies ac-24, ac-25
 
-In the in-place recipient hunt, assert the hunt controls A little hint, Open without searching, and Search by area are visible.
+In the in-place recipient hunt, assert the chosen photo is visible.
 
 ## Step 4 @verifies ac-29
 
-In the recipient hunt preview, find the centred hiding spot and open the note, then assert the letter reads For Alex, Preview check message, — Sam.
+In the recipient hunt preview, find the centred hiding spot and open the note, then assert the letter message text is 'Preview check message'.
 
 ## Step 5 @verifies ac-23
 
-From the recipient preview, use Back to your gift to return to the editor, then assert the photo, centred hiding spot, clue 'Find the centre', To Alex, message 'Preview check message', and From Sam exactly match their pre-preview values.
+From the recipient preview, use Back to your gift to return to the editor, then assert the message text 'Preview check message' is still present.

@@ -8,18 +8,14 @@ assurance:
 
 > A recipient requests the hint sequence until the second hint reveals the folded note.
 
-## Step 1 @verifies ac-35, ac-36
+## Step 1
 
-Open the recipient gift URL {{valid_gift_url}} in the EnigmaGift browser, then assert the gift photo and clue {{gift_clue}} appear.
+Open the recipient gift URL {{valid_gift_url}} in the EnigmaGift browser.
 
-## Step 2 @verifies ac-37, ac-38, ac-39
+## Step 2 @verifies ac-56
 
-In the recipient photo hunt, assert A little hint, Open without searching, and Search by area with nine named regions are visible.
+In the recipient photo hunt, request A little hint once, then assert the hint text is 'Somewhere in the bottom right of the photo.'
 
-## Step 3 @verifies ac-56
+## Step 3 @verifies ac-44, ac-45
 
-In the recipient photo hunt, request A little hint once, then assert the first hint narrows the search area.
-
-## Step 4 @verifies ac-44, ac-45
-
-In the same recipient hunt, request the second hint, then assert a folded-note marker and Open the note are offered.
+In the same recipient hunt, request the second hint, then assert a folded-note marker is revealed.

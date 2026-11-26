@@ -1,5 +1,7 @@
 # EnigmaGift — craft references
 
+**Status:** craft reference · **Last reviewed:** 2026-11-22
+
 Mined from Codrops hub (page 3, Aug 2026) + prior portfolio patterns.
 Each Codrops demo ships source on GitHub — clone/tap as needed.
 
