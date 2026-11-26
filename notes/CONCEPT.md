@@ -170,7 +170,7 @@ events); then `reclue` and world-source picking in the editor.
 
 1. ✅ Door → photos of the *place*.
 2. ✅ Vision pass → located observations → clue chain + **hide-spot proposals**
-   (SandBase primary, Gemini fallback; running in production).
+   (provider chain documented in `OPS.md`; running in production).
 3. ✅ Buyer editor → approve/edit clues + pick hide spot → "hide it" (photo
    verification of the hide is the natural next polish).
 4. ✅ Seal → recipient 3-round trail → throughline resolves to the place

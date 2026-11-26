@@ -2,6 +2,8 @@
 
 Last verified live: 2026-11-26. This is the "how to operate it" doc: deploys,
 secrets, the gotchas that actually bit us, and how to verify the live flow.
+The endpoint contract itself lives in [API.md](API.md); this file records how
+the live system is run and validated.
 
 ---
 
@@ -27,7 +29,7 @@ Frontend and backend are **not** on the same host. Pages is static-only (+ the
 | `SANDBASE_API_KEY` | Fly app secret (`fly -a enigmagift-api secrets set …`) | `server/sandbase.env` (gitignored) |
 | `CLOUDFLARE_API_TOKEN` + `CLOUDFLARE_ACCOUNT_ID` | Fly app secrets, same `secrets set` flow | `server/cloudflare.env` (gitignored); token is account-scoped Workers AI Read only; first fallback |
 | `GROQ_API_KEY` | Fly app secret, same `secrets set` flow | `server/groq.env` (gitignored); free tier is fast but output-rate-limited; secondary fallback |
-| `VISION_PROVIDERS` (optional) | Fly config/secret value | comma-separated allowlist: `sandbase,groq,cloudflare,gemini`; normally unset |
+| `VISION_PROVIDERS` (optional) | Fly config/secret value | comma-separated allowlist: `sandbase,cloudflare,groq,gemini`; normally unset |
 | `FAL_KEY` | Fly app secret (`fly -a enigmagift-api secrets set …`) | `server/fal.env` (gitignored); scoped to TRELLIS.2 plus upload/request permissions |
 | `RECRAFT_API_KEY` | Fly app secret, same `secrets set` flow | env or a `server/*.env` file (gitignored); optional — portrait skipped without it |
 | `VITE_STRIPE_LINK_TRAIL` / `_HIDE` / `_SET` | inlined at build time (legacy single `VITE_STRIPE_LINK` maps to the Hide link) | the three `buy.stripe.com` Payment Link URLs (£4.99 / £9.99 / £19) |
@@ -47,7 +49,7 @@ Provider key files such as `server/sandbase.env`, `server/groq.env`,
 `server/cloudflare.env`, `server/fal.env`, `server/recraft.env` and
 `server/resend.env` are gitignored (`.gitignore` has
 `*.env` and `server/*.env`). They are **never** committed. The current SandBase
-key is `sk-…` and was created with a $1 pilot cap; the fal.ai key is scoped to
+key was created with a $1 pilot cap; the fal.ai key is scoped to
 TRELLIS.2 execution plus the upload/request permissions needed to run it.
 
 ### Secrets hygiene (how we stay secure)
@@ -856,7 +858,7 @@ ops-report counts. The right long-term shape is continuous off-volume backup
   `/api/health` returned 200 and the live privacy page was verified to contain
   both new provider rows.
 - `VISION_PROVIDERS` is available as an emergency/benchmark allowlist
-  (`sandbase,groq,cloudflare,gemini`). Leave it unset in normal production so
+  (`sandbase,cloudflare,groq,gemini`). Leave it unset in normal production so
   the full failover chain remains available.
 
 ## Test trails currently in the DB (for re-verification)

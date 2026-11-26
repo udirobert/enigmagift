@@ -77,9 +77,9 @@
         <p>your photos are sent to the AI providers below <strong>solely to generate your gift</strong> (reading the photos into clues, building the 3D world and the keepsake portrait). we do not sell your data, and we do not use it for advertising.</p>
         <table>
           <tr><th>processor</th><th>what they get</th><th>purpose</th></tr>
-          <tr><td>SandBase (api.sandbase.ai)</td><td>your photos (image data)</td><td>vision “read” of the photos</td></tr>
-          <tr><td>Groq (api.groq.com)</td><td>your photos (image data)</td><td>fallback vision read if SandBase is unavailable</td></tr>
-          <tr><td>Cloudflare Workers AI (api.cloudflare.com)</td><td>your photos (image data)</td><td>fallback vision read using zero-data-retention models</td></tr>
+          <tr><td>SandBase (api.sandbase.ai)</td><td>your photos (image data)</td><td>primary vision “read” of the photos</td></tr>
+          <tr><td>Cloudflare Workers AI (api.cloudflare.com)</td><td>your photos (image data)</td><td>first fallback vision read using zero-data-retention models</td></tr>
+          <tr><td>Groq (api.groq.com)</td><td>your photos (image data)</td><td>secondary fallback vision read if earlier providers are unavailable</td></tr>
           <tr><td>Google Gemini (generativelanguage.googleapis.com)</td><td>your photos (image data)</td><td>final fallback vision read if the other vision providers are unavailable</td></tr>
           <tr><td>fal.ai (fal.run / fal.media)</td><td>one chosen photo</td><td>3D world generation (TRELLIS.2); input/output CDN copies are short-lived and deleted after the run</td></tr>
           <tr><td>Recraft (external.api.recraft.ai)</td><td>one chosen photo</td><td>keepsake portrait (optional, best-effort)</td></tr>
