@@ -34,3 +34,11 @@ dog-gift-tabletop/worker-configuration.d.ts
 
 # Perch local agent configuration
 .perch/
+
+# Hackathon video/render artifacts — large local media, not submission source
+deliverables/kane-video/**/*.mp4
+deliverables/kane-video/**/*.webm
+deliverables/kane-video/**/*.mov
+deliverables/kane-video/**/*.aiff
+deliverables/kane-video/**/*.mp3
+deliverables/kane-video/**/*.wav
